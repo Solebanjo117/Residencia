@@ -14,4 +14,12 @@ Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+Route::get('asesorias', function () {
+    return Inertia::render('Asesorias');
+})->name('asesorias');
+
+##Agregar Auth luego
+
+
+
 require __DIR__.'/settings.php';
