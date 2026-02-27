@@ -18,6 +18,10 @@ Route::get('asesorias', function () {
     return Inertia::render('Asesorias');
 })->name('asesorias');
 
+Route::get('asesorias2', function () {
+    return Inertia::render('Asesorias2');
+})->name('asesorias2');
+
 ##Agregar Auth luego
 
 
