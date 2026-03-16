@@ -1,6 +1,15 @@
-<script setup>
-import { computed, ref } from "vue";
+﻿<script setup>
+import { computed, ref, watch } from "vue";
+import { router } from "@inertiajs/vue3";
 import * as XLSX from "xlsx";
+import AppLayout from '@/layouts/AppLayout.vue';
+
+const props = defineProps({
+    rows: { type: Array, default: () => [] },
+    semesters: { type: Array, default: () => [] },
+    columns: { type: Array, default: () => [] },
+    currentSemester: { type: String, default: '' },
+});
 
 /**
  * Estados permitidos
@@ -28,122 +37,23 @@ function statusLabel(status) {
 const printTableRef = ref(null);
 
 /**
- * Datos fijos (sin BD)
- */
-const rows = ref([
-  {
-    id: 1,
-    maestro: "Dr. María González",
-    materia: "Matemáticas Avanzadas",
-    carrera: "Ingeniería en Sistemas",
-    clave_tecnm: "SCC-1001",
-    semestre: "2025-1",
-    ev_diagnostico: "OK",
-    seg_sd2: "OK",
-    seg_sd4: "NE",
-    reportes_docs: [
-      { name: "Diagnóstico.pdf", type: "PDF" },
-      { name: "Seguimiento_SD2.docx", type: "DOCX" },
-      { name: "Evidencias.zip", type: "ZIP" },
-    ],
-    estado_final: "NE",
-  },
-  {
-    id: 2,
-    maestro: "Dr. María González",
-    materia: "Cálculo Diferencial",
-    carrera: "Ingeniería Industrial",
-    clave_tecnm: "SCC-1002",
-    semestre: "2025-1",
-    ev_diagnostico: "OK",
-    seg_sd2: "OK",
-    seg_sd4: "OK",
-    reportes_docs: [
-      { name: "Lista_Asistencia.xlsx", type: "XLSX" },
-      { name: "Parcial_1.pdf", type: "PDF" },
-      { name: "Parcial_2.pdf", type: "PDF" },
-      { name: "Parcial_3.pdf", type: "PDF" },
-      { name: "Reporte_Final.pdf", type: "PDF" },
-    ],
-    estado_final: "OK",
-  },
-  {
-    id: 3,
-    maestro: "Mtro. Carlos Ramírez",
-    materia: "Programación Web",
-    carrera: "Ingeniería en Sistemas",
-    clave_tecnm: "SCC-2001",
-    semestre: "2025-1",
-    ev_diagnostico: "OK",
-    seg_sd2: "NE",
-    seg_sd4: "NA",
-    reportes_docs: [{ name: "Evidencia_1.png", type: "IMG" }],
-    estado_final: "NE",
-  },
-  {
-    id: 4,
-    maestro: "Mtro. Carlos Ramírez",
-    materia: "Bases de Datos",
-    carrera: "Ingeniería en Sistemas",
-    clave_tecnm: "SCC-2002",
-    semestre: "2025-1",
-    ev_diagnostico: "OK",
-    seg_sd2: "NA",
-    seg_sd4: "NA",
-    reportes_docs: [
-      { name: "Rubrica.pdf", type: "PDF" },
-      { name: "Avance_SD2.pdf", type: "PDF" },
-    ],
-    estado_final: "NA",
-  },
-  {
-    id: 5,
-    maestro: "Dra. Ana López",
-    materia: "Física II",
-    carrera: "Ingeniería Mecánica",
-    clave_tecnm: "SCC-3001",
-    semestre: "2025-1",
-    ev_diagnostico: "OK",
-    seg_sd2: "OK",
-    seg_sd4: "OK",
-    reportes_docs: [
-      { name: "Practica_1.pdf", type: "PDF" },
-      { name: "Practica_2.pdf", type: "PDF" },
-      { name: "Practica_3.pdf", type: "PDF" },
-      { name: "Acta_Final.pdf", type: "PDF" },
-    ],
-    estado_final: "OK",
-  },
-  {
-    id: 6,
-    maestro: "Dr. Roberto Sánchez",
-    materia: "Química Orgánica",
-    carrera: "Ingeniería Química",
-    clave_tecnm: "SCC-4001",
-    semestre: "2025-2",
-    ev_diagnostico: "NA",
-    seg_sd2: "NA",
-    seg_sd4: "NA",
-    reportes_docs: [],
-    estado_final: "NA",
-  },
-]);
-
-/**
  * UI state
  */
 const search = ref("");
-const semester = ref("2025-1");
 const exportMenuOpen = ref(false);
+const semester = ref(props.currentSemester);
 
-const semesters = computed(() => {
-  const set = new Set(rows.value.map((r) => r.semestre));
-  return Array.from(set).sort();
+watch(semester, (newVal) => {
+    if (newVal !== props.currentSemester) {
+        router.get('/asesorias', { semester: newVal }, { preserveState: true });
+    }
 });
+
+const semesters = computed(() => props.semesters);
 
 const filteredRows = computed(() => {
   const q = search.value.trim().toLowerCase();
-  return rows.value
+  return props.rows
     .filter((r) => (semester.value ? r.semestre === semester.value : true))
     .filter((r) => {
       if (!q) return true;
@@ -177,9 +87,7 @@ function exportCSV() {
     "MATERIA",
     "CARRERA",
     "CLAVE_TECNM",
-    "EV_DIAGNOSTICO",
-    "SEGUIMIENTO_SD2",
-    "SEGUIMIENTO_SD4",
+    ...props.columns.map(c => c.label.toUpperCase()),
     "REPORTES_DOCS",
     "ESTADO_FINAL",
     "SEMESTRE",
@@ -194,9 +102,7 @@ function exportCSV() {
         r.materia,
         r.carrera,
         r.clave_tecnm,
-        r.ev_diagnostico,
-        r.seg_sd2,
-        r.seg_sd4,
+        ...props.columns.map(c => r[c.key] || 'NA'),
         String(docsCount),
         r.estado_final,
         r.semestre,
@@ -210,18 +116,21 @@ function exportCSV() {
 }
 
 function exportXLSX() {
-  const data = filteredRows.value.map((r) => ({
-    MAESTRO: r.maestro,
-    MATERIA: r.materia,
-    CARRERA: r.carrera,
-    CLAVE_TECNM: r.clave_tecnm,
-    EV_DIAGNOSTICO: r.ev_diagnostico,
-    SEGUIMIENTO_SD2: r.seg_sd2,
-    SEGUIMIENTO_SD4: r.seg_sd4,
-    REPORTES_DOCS: r.reportes_docs?.length ?? 0,
-    ESTADO_FINAL: r.estado_final,
-    SEMESTRE: r.semestre,
-  }));
+  const data = filteredRows.value.map((r) => {
+    let row = {
+        MAESTRO: r.maestro,
+        MATERIA: r.materia,
+        CARRERA: r.carrera,
+        CLAVE_TECNM: r.clave_tecnm,
+    };
+    props.columns.forEach(c => {
+        row[c.label.toUpperCase()] = r[c.key] || 'NA';
+    });
+    row.REPORTES_DOCS = r.reportes_docs?.length ?? 0;
+    row.ESTADO_FINAL = r.estado_final;
+    row.SEMESTRE = r.semestre;
+    return row;
+  });
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
@@ -358,7 +267,8 @@ function closeView() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <AppLayout :breadcrumbs="[{ title: 'Asesorías', href: '/asesorias' }]">
+    <div class="min-h-screen bg-gray-50">
     <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
       <!-- Header -->
@@ -410,9 +320,7 @@ function closeView() {
 
         <div class="relative flex items-center gap-2">
           <!-- Export menu -->
-          <button
-            type="button"
-            @click="exportMenuOpen = !exportMenuOpen"
+          <button type="button" @click="exportMenuOpen = !exportMenuOpen"
             class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             aria-haspopup="menu"
             :aria-expanded="exportMenuOpen"
@@ -437,17 +345,13 @@ function closeView() {
             class="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
             role="menu"
           >
-            <button
-              type="button"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            <button type="button" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
               role="menuitem"
               @click="exportCSV(); exportMenuOpen = false;"
             >
               Exportar CSV
             </button>
-            <button
-              type="button"
-              class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            <button type="button" class="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
               role="menuitem"
               @click="exportXLSX(); exportMenuOpen = false;"
             >
@@ -455,9 +359,7 @@ function closeView() {
             </button>
           </div>
 
-          <button
-            type="button"
-            @click="printPage"
+          <button type="button" @click="printPage"
             class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -484,9 +386,7 @@ function closeView() {
                 <th class="px-4 py-3">Materia</th>
                 <th class="px-4 py-3">Carrera</th>
                 <th class="px-4 py-3">Clave Tecnm</th>
-                <th class="px-4 py-3">Ev. Diagnóstico</th>
-                <th class="px-4 py-3">Seguimiento SD2</th>
-                <th class="px-4 py-3">Seguimiento SD4</th>
+                <th v-for="col in columns" :key="col.key" class="px-4 py-3">{{ col.label }}</th>
                 <th class="px-4 py-3">Reportes / Evidencias</th>
                 <th class="px-4 py-3">Estado Final</th>
                 <th class="px-4 py-3">Acciones</th>
@@ -511,43 +411,16 @@ function closeView() {
                   {{ row.clave_tecnm }}
                 </td>
 
-                <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    @click="toggleFieldStatus(row, 'ev_diagnostico')"
-                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
-                    :class="statusPillClasses(row.ev_diagnostico)"
+                <td v-for="col in columns" :key="col.key" class="px-4 py-4">
+                  <button type="button" class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 cursor-default"
+                    :class="statusPillClasses(row[col.key] || 'NA')"
                   >
-                    {{ statusLabel(row.ev_diagnostico) }}
+                    {{ statusLabel(row[col.key] || 'NA') }}
                   </button>
                 </td>
 
                 <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    @click="toggleFieldStatus(row, 'seg_sd2')"
-                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
-                    :class="statusPillClasses(row.seg_sd2)"
-                  >
-                    {{ statusLabel(row.seg_sd2) }}
-                  </button>
-                </td>
-
-                <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    @click="toggleFieldStatus(row, 'seg_sd4')"
-                    class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
-                    :class="statusPillClasses(row.seg_sd4)"
-                  >
-                    {{ statusLabel(row.seg_sd4) }}
-                  </button>
-                </td>
-
-                <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  <button type="button" class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                     @click="openDocs(row)"
                   >
                     {{ row.reportes_docs.length }} docs
@@ -555,9 +428,7 @@ function closeView() {
                 </td>
 
                 <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    @click="toggleFieldStatus(row, 'estado_final')"
+                  <button type="button" @click="toggleFieldStatus(row, 'estado_final')"
                     class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1"
                     :class="statusPillClasses(row.estado_final)"
                   >
@@ -566,9 +437,7 @@ function closeView() {
                 </td>
 
                 <td class="px-4 py-4">
-                  <button
-                    type="button"
-                    class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+                  <button type="button" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-100"
                     @click="openView(row)"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -612,9 +481,7 @@ function closeView() {
                 {{ docsModalRow?.maestro }} — {{ docsModalRow?.materia }}
               </p>
             </div>
-            <button
-              type="button"
-              class="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+            <button type="button" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               @click="closeDocs"
               aria-label="Cerrar"
             >
@@ -640,9 +507,7 @@ function closeView() {
                   <div class="text-xs text-gray-500">{{ d.type }}</div>
                 </div>
 
-                <button
-                  type="button"
-                  class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                <button type="button" class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                   @click="alert('Sin BD por ahora: aquí luego abrirás/descargarás el documento.')"
                 >
                   Abrir
@@ -652,9 +517,7 @@ function closeView() {
           </div>
 
           <div class="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
-            <button
-              type="button"
-              class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            <button type="button" class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               @click="closeDocs"
             >
               Cerrar
@@ -677,9 +540,7 @@ function closeView() {
                 {{ viewModalRow?.maestro }} — {{ viewModalRow?.materia }}
               </p>
             </div>
-            <button
-              type="button"
-              class="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+            <button type="button" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               @click="closeView"
               aria-label="Cerrar"
             >
@@ -755,13 +616,12 @@ function closeView() {
           </div>
 
           <div class="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
-            <button
-              type="button"
-              class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            <button type="button" class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               @click="closeView"
             >
               Cerrar
             </button>
+          </div>
           </div>
         </div>
       </div>
@@ -770,10 +630,9 @@ function closeView() {
         Tip: da click en los “chips” (NA/OK/NE) para alternar estados.
       </div>
     </div>
-  </div>
+  </AppLayout>
 </template>
 
-<!-- Puedes dejar esto mínimo: si alguien hace Ctrl+P, no sale feo -->
 <style>
 @media print {
   .toolbar,

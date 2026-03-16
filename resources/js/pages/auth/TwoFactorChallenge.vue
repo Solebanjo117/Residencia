@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
@@ -86,9 +86,7 @@ const code = ref<string>('');
                     >
                     <div class="text-center text-sm text-muted-foreground">
                         <span>or you can </span>
-                        <button
-                            type="button"
-                            class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                        <button type="button" class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                             @click="() => toggleRecoveryMode(clearErrors)"
                         >
                             {{ authConfigContent.buttonText }}
@@ -118,9 +116,7 @@ const code = ref<string>('');
 
                     <div class="text-center text-sm text-muted-foreground">
                         <span>or you can </span>
-                        <button
-                            type="button"
-                            class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                        <button type="button" class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                             @click="() => toggleRecoveryMode(clearErrors)"
                         >
                             {{ authConfigContent.buttonText }}

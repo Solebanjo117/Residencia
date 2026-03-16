@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { BookOpen, Folder } from 'lucide-vue-next';
+import { computed } from 'vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
@@ -13,19 +14,23 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
 import AppLogo from './AppLogo.vue';
 import { dashboard } from '@/routes';
+import { useAuth } from '@/composables/useAuth';
+import { getNavItemsByRole } from '@/config/menu';
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
+const { user } = useAuth();
 
-const footerNavItems: NavItem[] = [
+const mainNavItems = computed(() => {
+    // We use the helper to get role-specific items
+    // and ensure the dashboard link uses the correct route helper if preferred,
+    // or simply relies on the string path defined in menu.ts
+    const items = getNavItemsByRole(user.value?.role?.name);
+    // Ensure dashboard link is correct if necessary
+    return items;
+});
+
+const footerNavItems = [
     {
         title: 'Github Repo',
         href: 'https://github.com/laravel/vue-starter-kit',
