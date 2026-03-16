@@ -10,6 +10,8 @@ class EvidenceFile extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'submission_id',
         'folder_node_id',

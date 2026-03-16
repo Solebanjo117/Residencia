@@ -47,9 +47,12 @@ class FolderController extends Controller
         $user = $request->user();
         $roots = $this->storageService->getAccessibleRoots($user);
 
+        $folder->load('semester');
+
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
             'currentFolder' => $folder,
+            'semesterName' => $folder->semester?->name,
             'contents' => [
                 'folders' => $folder->children,
                 'files' => $folder->files->map(function ($file) {
