@@ -1,0 +1,159 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use App\Enums\ReviewDecision;
+use App\Enums\SemesterStatus;
+use App\Enums\SubmissionStatus;
+use App\Models\Semester;
+use App\Models\TeachingLoad;
+use App\Models\EvidenceSubmission;
+use App\Models\User;
+use App\Services\EvidenceService;
+use Illuminate\Support\Facades\Auth;
+
+class ReviewController extends Controller
+{
+    public function __construct(
+        protected EvidenceService $evidenceService
+    ) {}
+
+    public function index(Request $request)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+        $departments = $user->departments()->pluck('departments.id');
+
+        $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
+
+        if (!$activeSemester) {
+            return Inertia::render('Oficina/PendingReviews', [
+                'teachers' => [],
+                'semester' => null
+            ]);
+        }
+
+        // Get all Teaching loads for the active semester that map to these departments
+        // and eager load the teacher + submissions
+        // We'll calculate the pending items
+        $teachingLoads = TeachingLoad::with(['teacher', 'subject', 'submissions' => function($q) use ($activeSemester) {
+            $q->where('semester_id', $activeSemester->id)
+              ->where('status', SubmissionStatus::SUBMITTED);
+        }])
+        ->where('semester_id', $activeSemester->id)
+        // If they are specific to a department
+        ->when($departments->count() > 0, function($q) use ($departments) {
+            $q->whereHas('subject', function($sq) use ($departments) {
+                // Assuming subject belongs to department if needed, otherwise we filter by user's department
+            });
+        })
+        ->get();
+
+        // Group by user
+        $teachersMap = [];
+
+        foreach ($teachingLoads as $load) {
+            $teacherId = $load->teacher_user_id;
+
+            // Only count if they have submissions in "SUBMITTED" state awaiting review
+            if ($load->submissions->count() === 0) {
+                continue;
+            }
+
+            if (!isset($teachersMap[$teacherId])) {
+                $teachersMap[$teacherId] = [
+                    'id' => $teacherId,
+                    'name' => $load->teacher->name,
+                    'email' => $load->teacher->email,
+                    'pending_groups' => [],
+                    'total_pending' => 0
+                ];
+            }
+
+            $teachersMap[$teacherId]['total_pending'] += $load->submissions->count();
+
+            $teachersMap[$teacherId]['pending_groups'][] = [
+                'load_id' => $load->id,
+                'subject' => $load->subject->name,
+                'group' => $load->group_name,
+                'pending_count' => $load->submissions->count()
+            ];
+        }
+
+        return Inertia::render('Oficina/PendingReviews', [
+            'teachers' => array_values($teachersMap),
+            'semester' => $activeSemester
+        ]);
+    }
+
+    public function show($teacher_id)
+    {
+        /** @var \App\Models\User $reviewer */
+        $reviewer = Auth::user();
+        $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
+
+        if (!$activeSemester) {
+            return redirect()->route('oficina.revisiones');
+        }
+
+        $teacherLoads = TeachingLoad::with(['subject', 'submissions.evidenceItem', 'submissions.files'])
+            ->where('teacher_user_id', $teacher_id)
+            ->where('semester_id', $activeSemester->id)
+            ->get();
+
+        $teacher = User::findOrFail($teacher_id);
+
+        return Inertia::render('Oficina/ReviewDetail', [
+            'teacher' => $teacher,
+            'teaching_loads' => $teacherLoads,
+            'semester' => $activeSemester
+        ]);
+    }
+
+    public function updateStatus(Request $request, $submission_id)
+    {
+        $request->validate([
+            'status' => 'required|in:APPROVED,REJECTED,NA,NE',
+            'comments' => 'nullable|string|max:500'
+        ]);
+
+        $submission = EvidenceSubmission::findOrFail($submission_id);
+        $newStatus = SubmissionStatus::from($request->status);
+
+        /** @var \App\Models\User $reviewer */
+        $reviewer = Auth::user();
+
+        // For APPROVED/REJECTED, use the review workflow which creates
+        // a review record, changes status, logs audit, and notifies teacher.
+        if (in_array($newStatus, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED])) {
+            $decision = $newStatus === SubmissionStatus::APPROVED
+                ? ReviewDecision::APPROVE
+                : ReviewDecision::REJECT;
+
+            $this->evidenceService->review($submission, $reviewer, $decision, $request->comments);
+
+            // If rejected, create an unlock record so the teacher can re-submit
+            if ($newStatus === SubmissionStatus::REJECTED) {
+                $this->evidenceService->unlockForResubmission(
+                    $submission,
+                    $reviewer,
+                    now()->addDays(3),
+                    'Automatico tras rechazo de documento.'
+                );
+            }
+        } else {
+            // For NA/NE status changes, use changeStatus directly
+            $this->evidenceService->changeStatus(
+                $submission,
+                $newStatus,
+                $reviewer,
+                'Revision por Jefatura'
+            );
+        }
+
+        return redirect()->back()->with('success', 'Estado de evidencia actualizado exitosamente.');
+    }
+}

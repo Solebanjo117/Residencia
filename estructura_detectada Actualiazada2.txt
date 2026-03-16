@@ -1,0 +1,53 @@
+ACTIVIDADES DE GESTION .../
+└── AGOSTO-DICIEMBRE 2025/
+    ├── 00.DOCUMENTOS DE OFICINA SGC A-D 2025/
+    │   ├── ESTATUS DE CUMPLIMIENTO AL 19 DE ENERO 2026
+    │   ├── EVIDENCIAS DE AVISOS Y PUBLICACIONES DEL SGC
+    │   ├── PLAN DE TRABAJO-DOCENCIA-SGC-DR.ROBERTO.ESPINOZA-AGO-DIC 2025
+    │   └── PROGRAMA DE ASESORIAS ACADEMICAS A-D 2025
+    ├── A. FORMATO-REPORTE-FINAL-SEMESTRE-AD-2025
+    ├── A.FORMATO-INSTRUMENTACION DIDACTICA-AGOSTO-DICIEMBRE-2025
+    └── LOZANO LONGORIA CLAUDIA MARTHA A-D 2025/
+        ├── 0.HORARIO OFICIAL A-D-2025/ Horario oficial lo sube el jefe de oficina / departamento 
+        ├── 1.INSTRUMENTACIONES A-D-2025/
+        ├── 2.EVALUACION DIAGNOSTICA A-D-2025/ Esta debe realizarse dentro de la primera o segunda semana de clase a excepcion de que 		     este en linea en la modalidad de 5 semanas o en sabatico
+        ├── 3.EVIDENCIAS DE ASIGNATURAS A-D-2025/ Concentrado de calificaciones parciales (Preferentemente del SII2)
+        └── 4.PROYECTOS INDIVIDUALES A-D-2025/
+            ├── 4.1-CAPACITACION A-D-2025/
+            │   ├── SD2-AVANCE-50%/
+            │   ├── SD4-AVANCE-100%/
+            │   └── SOLICITUD/
+            ├── 4.3-PROYECTOS DOCENTES-A-D-2025/
+            │   ├── SD2-AVANCE-50%/
+            │   └── SD4-AVANCE-100%/
+            └── 4.4-MATERIAL DIDACTICO-A-D-2025/
+                ├── SD2-AVANCE-50%/
+                ├── SD4-AVANCE-100%/
+                └── SOLICITUD/
+
+
+
+
+El archivo a subir tiene que ser formato docx / El archivo tiene que ser modificable dentro el sistema par poder guardar  un registro de cambios.
+Se tiene que generar una lista de registro de cambios donde muestre: Modificaciones por fecha y subida.
+En el registro de cambios Tambien mostrar rechazos de archivos en caso de que este erroneo.
+
+
+
+
+
+Base de datos:
+
+Sistema de notificaciones
+
+Agregar una tabla para periodos / Modificar semestres
+
+
+Notificaciones según tipo de asignacion , avisos según fecha / 1 Al inicio y 1 al dia final
+
+Asesorias
+
+
+
+
+

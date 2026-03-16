@@ -18,6 +18,7 @@ const { isMobile, state, toggleSidebar } = useSidebar()
     data-slot="sidebar-trigger"
     variant="ghost"
     size="icon"
+    type="button"
     :class="cn('h-7 w-7', props.class)"
     @click="toggleSidebar"
   >

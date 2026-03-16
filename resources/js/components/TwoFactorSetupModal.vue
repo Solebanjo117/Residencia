@@ -219,8 +219,7 @@ watch(
                                         :value="manualSetupKey"
                                         class="h-full w-full bg-background p-3 text-foreground"
                                     />
-                                    <button
-                                        @click="copy(manualSetupKey || '')"
+                                    <button type="button" @click="copy(manualSetupKey || '')"
                                         class="relative block h-auto border-l border-border px-3 hover:bg-muted"
                                     >
                                         <Check
