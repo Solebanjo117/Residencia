@@ -24,7 +24,7 @@ class EvidenceService
     private const ALLOWED_TRANSITIONS = [
         'DRAFT'     => ['SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE'],
         'SUBMITTED' => ['APPROVED', 'REJECTED', 'NA', 'NE'],
-        'APPROVED'  => ['NA'],
+        'APPROVED'  => ['SUBMITTED', 'NA'],
         'REJECTED'  => ['DRAFT', 'SUBMITTED', 'APPROVED', 'NA', 'NE'],
         'NA'        => ['DRAFT'],
         'NE'        => ['DRAFT'],
