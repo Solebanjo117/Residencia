@@ -10,6 +10,8 @@ class EvidenceSubmission extends Model
 {
     use HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'semester_id',
         'teacher_user_id',

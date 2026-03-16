@@ -6,11 +6,12 @@ import {
     Users,
     FileText,
     MessageCircle,
-    FolderOpen, // Import FolderOpen icon
+    FolderOpen,
     BookOpen,
     Briefcase,
     Settings,
     Building2,
+    Clock,
 } from 'lucide-vue-next';
 import { RoleName } from '@/types/enums';
 import type { NavItem } from '@/types';
@@ -28,14 +29,14 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             icon: FolderOpen,
         },
         {
-            title: 'Asesorías (General)',
+            title: 'Control de Seguimiento Docente',
             href: '/asesorias',
             icon: MessageCircle,
         },
         {
-            title: 'Asesorías 2',
-            href: '/asesorias2',
-            icon: MessageCircle,
+            title: 'Asesorías - Horarios',
+            href: '/asesorias-horarios',
+            icon: Clock,
         },
     ];
 

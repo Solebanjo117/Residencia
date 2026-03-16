@@ -66,9 +66,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('audits', [\App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audits.index');
     });
 
-    // Asesorías (vista general, requiere autenticación)
+    // Seguimiento Docente (vista unificada, todos los roles)
     Route::get('asesorias', [\App\Http\Controllers\Admin\AdvisoryController::class, 'index'])->name('asesorias');
-    Route::get('asesorias2', [\App\Http\Controllers\Admin\AdvisoryController::class, 'index2'])->name('asesorias2');
+    Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])->name('asesorias.review');
+
+    // Horarios de Asesorías
+    Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');
 
     // File Manager Routes
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');

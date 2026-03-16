@@ -22,10 +22,10 @@ class EvidenceService
      * Valid state transitions map: from => [allowed destinations]
      */
     private const ALLOWED_TRANSITIONS = [
-        'DRAFT'     => ['SUBMITTED', 'NA', 'NE'],
+        'DRAFT'     => ['SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE'],
         'SUBMITTED' => ['APPROVED', 'REJECTED', 'NA', 'NE'],
         'APPROVED'  => ['NA'],
-        'REJECTED'  => ['DRAFT', 'SUBMITTED', 'NA', 'NE'],
+        'REJECTED'  => ['DRAFT', 'SUBMITTED', 'APPROVED', 'NA', 'NE'],
         'NA'        => ['DRAFT'],
         'NE'        => ['DRAFT'],
     ];

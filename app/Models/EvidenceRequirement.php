@@ -9,6 +9,8 @@ class EvidenceRequirement extends Model
 {
     use HasFactory;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'semester_id',
         'department_id',

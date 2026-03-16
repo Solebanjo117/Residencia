@@ -9,6 +9,8 @@ class TeachingLoad extends Model
 {
     use HasFactory;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'teacher_user_id',
         'semester_id',
@@ -49,5 +51,10 @@ class TeachingLoad extends Model
     public function advisorySessions()
     {
         return $this->hasMany(AdvisorySession::class);
+    }
+
+    public function advisorySchedules()
+    {
+        return $this->hasMany(AdvisorySchedule::class);
     }
 }

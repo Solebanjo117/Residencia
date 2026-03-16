@@ -22,9 +22,10 @@ class StorageService
 
     public function storeEvidence(UploadedFile $file, FolderNode $folderNode, User $user, EvidenceSubmission $submission)
     {
-        // Validation: .docx format
-        if ($file->getClientOriginalExtension() !== 'docx') {
-             throw new \Exception("Solo se permiten archivos con formato .docx");
+        $allowed = ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp'];
+        $ext = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, $allowed)) {
+            throw new \Exception("Formato no permitido. Formatos válidos: " . implode(', ', $allowed));
         }
 
         // Check root path

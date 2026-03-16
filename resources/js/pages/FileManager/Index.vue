@@ -11,11 +11,12 @@ import {
     RefreshCw,
 } from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const props = defineProps<{
-    folderTree: any[]; // Array of FolderNode roots
-    currentFolder: any | null; // Selected FolderNode
+    folderTree: any[];
+    currentFolder: any | null;
+    semesterName?: string | null;
     contents: {
         folders: any[];
         files: any[];
@@ -76,16 +77,28 @@ const triggerUpload = () => {
     fileInput.value?.click();
 };
 
+const uploadError = ref('');
+const uploadSuccess = ref('');
+
 const handleFileSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
+    uploadError.value = '';
+    uploadSuccess.value = '';
     if (target.files && target.files.length > 0 && props.currentFolder) {
         uploadForm.file = target.files[0];
-        // Prompt for submission_id if needed in production, hardcoding 1 for demo purposes based on relations
         uploadForm.post(`/files/folders/${props.currentFolder.id}/upload`, {
+            forceFormData: true,
             preserveScroll: true,
             onSuccess: () => {
                 target.value = '';
                 uploadForm.reset();
+                uploadSuccess.value = 'Archivo subido correctamente.';
+                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+            },
+            onError: (errors: any) => {
+                target.value = '';
+                uploadForm.reset();
+                uploadError.value = errors.file || 'Error al subir archivo.';
             },
         });
     }
@@ -139,14 +152,19 @@ const handleReplaceSelected = (event: Event) => {
                 <div
                     class="flex items-center justify-between border-b border-gray-200 p-4"
                 >
-                    <h2 class="text-xl font-bold text-gray-800">
-                        {{
-                            currentFolder
-                                ? currentFolder.name
-                                : 'Select a folder'
-                        }}
-                    </h2>
-                    <button type="button" v-if="currentFolder"
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">
+                            {{ currentFolder ? currentFolder.name : 'Select a folder' }}
+                        </h2>
+                        <span v-if="semesterName" class="text-xs text-gray-500">
+                            Semestre: <b>{{ semesterName }}</b>
+                        </span>
+                    </div>
+                    <div v-if="uploadForm.processing" class="flex items-center gap-2 text-sm text-blue-600">
+                        <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        Subiendo...
+                    </div>
+                    <button type="button" v-if="currentFolder && !uploadForm.processing"
                         @click="triggerUpload"
                         class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
                     >
@@ -158,16 +176,24 @@ const handleReplaceSelected = (event: Event) => {
                         type="file"
                         class="hidden"
                         ref="fileInput"
-                        accept=".docx"
+                        accept=".docx,.pdf,.jpg,.jpeg,.png,.webp"
                         @change="handleFileSelected"
                     />
                     <input
                         type="file"
                         class="hidden"
                         ref="replaceFileInput"
-                        accept=".docx"
+                        accept=".docx,.pdf,.jpg,.jpeg,.png,.webp"
                         @change="handleReplaceSelected"
                     />
+                </div>
+
+                <!-- Alerts -->
+                <div v-if="uploadError" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                    {{ uploadError }}
+                </div>
+                <div v-if="uploadSuccess" class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                    {{ uploadSuccess }}
                 </div>
 
                 <!-- Content Grid/List -->
