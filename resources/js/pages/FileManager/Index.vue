@@ -240,7 +240,7 @@ const handleReplaceSelected = (event: Event) => {
                                 Files
                             </h4>
                             <div
-                                class="overflow-hidden rounded-lg border border-gray-200 bg-white"
+                                class="overflow-x-auto rounded-lg border border-gray-200 bg-white"
                             >
                                 <table
                                     class="min-w-full divide-y divide-gray-200"
