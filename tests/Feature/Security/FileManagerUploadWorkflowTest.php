@@ -17,7 +17,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-function createFileManagerContext(bool $windowOpen = true): array
+function createFileManagerContext(bool $windowOpen = true, bool $createWindow = true): array
 {
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
@@ -75,18 +75,20 @@ function createFileManagerContext(bool $windowOpen = true): array
         'parent_id' => null,
     ]);
 
-    [$opensAt, $closesAt] = $windowOpen
-        ? [now()->subDay(), now()->addDay()]
-        : [now()->subDays(10), now()->subDays(5)];
+    if ($createWindow) {
+        [$opensAt, $closesAt] = $windowOpen
+            ? [now()->subDay(), now()->addDay()]
+            : [now()->subDays(10), now()->subDays(5)];
 
-    SubmissionWindow::create([
-        'semester_id' => $semester->id,
-        'evidence_item_id' => $item->id,
-        'opens_at' => $opensAt,
-        'closes_at' => $closesAt,
-        'created_by_user_id' => $teacher->id,
-        'status' => 'ACTIVE',
-    ]);
+        SubmissionWindow::create([
+            'semester_id' => $semester->id,
+            'evidence_item_id' => $item->id,
+            'opens_at' => $opensAt,
+            'closes_at' => $closesAt,
+            'created_by_user_id' => $teacher->id,
+            'status' => 'ACTIVE',
+        ]);
+    }
 
     return compact('teacher', 'semester', 'item', 'submission', 'folder');
 }
@@ -129,6 +131,56 @@ it('allows file manager upload when regular window already closed and treats it 
     expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
     $this->assertDatabaseHas('evidence_files', [
         'submission_id' => $ctx['submission']->id,
+    ]);
+});
+
+it('allows docente to upload files from file manager even when no submission window is configured', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true, createWindow: false);
+
+    $response = $this
+        ->from('/files/manager')
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $ctx['folder']->id), [
+            'file' => UploadedFile::fake()->create('evidencia.pdf', 200, 'application/pdf'),
+        ]);
+
+    $response->assertRedirect('/files/manager');
+    $response->assertSessionHas('success');
+
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+});
+
+it('normalizes legacy approved submissions without review timestamps so docente can keep using file manager', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $ctx['submission']->update([
+        'status' => SubmissionStatus::APPROVED,
+        'submitted_at' => null,
+        'office_reviewed_at' => null,
+        'office_reviewed_by_user_id' => null,
+        'final_approved_at' => null,
+        'final_approved_by_user_id' => null,
+    ]);
+
+    $response = $this
+        ->from('/files/manager')
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $ctx['folder']->id), [
+            'file' => UploadedFile::fake()->create('evidencia.pdf', 200, 'application/pdf'),
+        ]);
+
+    $response->assertRedirect('/files/manager');
+
+    expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+        'uploaded_by_user_id' => $ctx['teacher']->id,
     ]);
 });
 

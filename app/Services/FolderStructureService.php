@@ -3,15 +3,27 @@
 namespace App\Services;
 
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
-use App\Models\Subject;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Support\Str;
 
 class FolderStructureService
 {
+    private const BASE_EVIDENCE_STRUCTURE = [
+        '0.HORARIO OFICIAL' => [],
+        '1.INSTRUMENTACIONES' => [],
+        '2.EVALUACION DIAGNOSTICA' => [],
+        '3.EVIDENCIAS DE ASIGNATURAS' => [],
+        '4.PROYECTOS INDIVIDUALES' => [
+            '4.1-CAPACITACION' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%', 'SOLICITUD'],
+            '4.3-PROYECTOS DOCENTES' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%'],
+            '4.4-MATERIAL DIDACTICO' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%', 'SOLICITUD'],
+        ],
+    ];
+
     /**
      * Ensures that the base folder for a Semester exists.
      */
@@ -63,6 +75,28 @@ class FolderStructureService
     }
 
     /**
+     * Generates the semester structure for every active teacher.
+     */
+    public function provisionForActiveTeachers(Semester $semester): void
+    {
+        $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+
+        if (!$docenteRoleId) {
+            return;
+        }
+
+        User::query()
+            ->where('role_id', $docenteRoleId)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->chunkById(100, function ($teachers) use ($semester) {
+                foreach ($teachers as $teacher) {
+                    $this->generateFullStructure($semester, $teacher);
+                }
+            });
+    }
+
+    /**
      * Generates the full folder structure for a teacher within a semester.
      *
      * Hierarchy: SEMESTRE → DOCENTE → MATERIA → evidence subfolders
@@ -88,6 +122,8 @@ class FolderStructureService
             ]
         );
 
+        $this->createRecursiveFolders(self::BASE_EVIDENCE_STRUCTURE, $teacherFolder, $root, $teacher, $semester);
+
         // Get all subjects assigned to this teacher in this semester
         $loads = TeachingLoad::with('subject')
             ->where('teacher_user_id', $teacher->id)
@@ -108,20 +144,7 @@ class FolderStructureService
                 'semester_id' => $semester->id,
             ]);
 
-            // Evidence subfolders inside each materia
-            $subfolders = [
-                '0.HORARIO OFICIAL' => [],
-                '1.INSTRUMENTACIONES' => [],
-                '2.EVALUACION DIAGNOSTICA' => [],
-                '3.EVIDENCIAS DE ASIGNATURAS' => [],
-                '4.PROYECTOS INDIVIDUALES' => [
-                    '4.1-CAPACITACION' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%', 'SOLICITUD'],
-                    '4.3-PROYECTOS DOCENTES' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%'],
-                    '4.4-MATERIAL DIDACTICO' => ['SD2-AVANCE-50%', 'SD4-AVANCE-100%', 'SOLICITUD'],
-                ],
-            ];
-
-            $this->createRecursiveFolders($subfolders, $materiaFolder, $root, $teacher, $semester);
+            $this->createRecursiveFolders(self::BASE_EVIDENCE_STRUCTURE, $materiaFolder, $root, $teacher, $semester);
         }
 
         return $teacherFolder;

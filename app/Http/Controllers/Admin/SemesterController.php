@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Role;
 use App\Models\Semester;
 use App\Models\AcademicPeriod;
-use App\Models\User;
 use App\Services\FolderStructureService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -45,12 +43,8 @@ class SemesterController extends Controller
         // Create semester root folder
         $this->folderStructureService->ensureSemesterFolder($semester);
 
-        // Generate full folder structure for every active teacher
-        $docenteRole = Role::where('name', Role::DOCENTE)->first();
-        if ($docenteRole) {
-            User::where('role_id', $docenteRole->id)
-                ->where('is_active', true)
-                ->each(fn($teacher) => $this->folderStructureService->generateFullStructure($semester, $teacher));
+        if ($validated['status'] === 'OPEN') {
+            $this->folderStructureService->provisionForActiveTeachers($semester);
         }
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester created successfully.');
@@ -67,6 +61,11 @@ class SemesterController extends Controller
         ]);
 
         $semester->update($validated);
+
+        if ($validated['status'] === 'OPEN') {
+            $this->folderStructureService->ensureSemesterFolder($semester);
+            $this->folderStructureService->provisionForActiveTeachers($semester);
+        }
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester updated successfully.');
     }

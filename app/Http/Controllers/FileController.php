@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SubmissionStatus;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
@@ -133,7 +134,7 @@ class FileController extends Controller
             abort(403);
         }
 
-        $availability = $this->submissionAvailability($submission, $flowService);
+        $availability = $this->fileManagerAvailability($submission, $flowService);
         if (!$this->canBypassAvailability($user) && !$availability['is_available']) {
             return back()->withErrors([
                 'file' => 'La evidencia no esta disponible para carga: ' . $availability['label'] . '.',
@@ -144,10 +145,7 @@ class FileController extends Controller
             $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
             $submission->update(['last_updated_at' => now()]);
 
-            return back()->with('success', $availability['is_late']
-                ? 'Archivo subido correctamente en periodo extemporaneo.'
-                : 'Archivo subido correctamente.'
-            );
+            return back()->with('success', $this->uploadSuccessMessage($availability));
         } catch (AuthorizationException $exception) {
             throw $exception;
         } catch (\Exception $exception) {
@@ -171,7 +169,7 @@ class FileController extends Controller
             if (
                 $submission
                 && !$this->canBypassAvailability($request->user())
-                && !$this->submissionAvailability($submission, $flowService)['is_available']
+                && !$this->fileManagerAvailability($submission, $flowService)['is_available']
             ) {
                 return back()->withErrors([
                     'file' => 'La evidencia no esta disponible para carga en este momento.',
@@ -212,12 +210,61 @@ class FileController extends Controller
 
     private function canManageSubmissionFiles($user, EvidenceSubmission $submission): bool
     {
-        return $this->canBypassAvailability($user) || $user->can('update', $submission);
+        if ($this->canBypassAvailability($user)) {
+            return true;
+        }
+
+        if (!$this->isTeacherManagingOwnSubmission($user, $submission)) {
+            return false;
+        }
+
+        if ($submission->activeResubmissionUnlock()->exists()) {
+            return true;
+        }
+
+        if ($this->isEditableLegacySubmission($submission)) {
+            $this->normalizeLegacyEditableSubmission($submission);
+
+            return true;
+        }
+
+        return $user->can('update', $submission);
     }
 
     private function canBypassAvailability($user): bool
     {
         return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    private function isTeacherManagingOwnSubmission($user, EvidenceSubmission $submission): bool
+    {
+        return $user->isDocente() && (int) $submission->teacher_user_id === (int) $user->id;
+    }
+
+    private function isEditableLegacySubmission(EvidenceSubmission $submission): bool
+    {
+        return in_array($submission->status, [SubmissionStatus::SUBMITTED, SubmissionStatus::APPROVED], true)
+            && $submission->submitted_at === null
+            && $submission->office_reviewed_at === null
+            && $submission->final_approved_at === null;
+    }
+
+    private function normalizeLegacyEditableSubmission(EvidenceSubmission $submission): void
+    {
+        if ($submission->status === SubmissionStatus::DRAFT) {
+            return;
+        }
+
+        $submission->forceFill([
+            'status' => SubmissionStatus::DRAFT,
+            'submitted_at' => null,
+            'submitted_late' => false,
+            'office_reviewed_at' => null,
+            'office_reviewed_by_user_id' => null,
+            'final_approved_at' => null,
+            'final_approved_by_user_id' => null,
+            'last_updated_at' => now(),
+        ])->save();
     }
 
     private function findMateriaFolder(FolderNode $folder): ?FolderNode
@@ -307,5 +354,34 @@ class FileController extends Controller
             $submission->activeResubmissionUnlock()->exists(),
             $submission
         );
+    }
+
+    private function fileManagerAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
+    {
+        $availability = $this->submissionAvailability($submission, $flowService);
+
+        if ($availability['code'] === 'NOT_CONFIGURED') {
+            return [
+                ...$availability,
+                'code' => 'FILE_MANAGER_DRAFT',
+                'label' => 'Disponible en borrador dentro del gestor (sin ventana configurada)',
+                'is_available' => true,
+                'is_late' => false,
+                'is_future' => false,
+                'tone' => 'amber',
+            ];
+        }
+
+        return $availability;
+    }
+
+    private function uploadSuccessMessage(array $availability): string
+    {
+        return match ($availability['code'] ?? null) {
+            'FILE_MANAGER_DRAFT' => 'Archivo subido correctamente en borrador. Aun no existe una ventana de entrega configurada.',
+            default => $availability['is_late']
+                ? 'Archivo subido correctamente en periodo extemporaneo.'
+                : 'Archivo subido correctamente.',
+        };
     }
 }
