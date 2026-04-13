@@ -15,6 +15,7 @@ use App\Services\StorageService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class FileController extends Controller
 {
@@ -44,9 +45,32 @@ class FileController extends Controller
         return Storage::disk('local')->download($file->stored_relative_path, $file->file_name);
     }
 
+    public function preview(Request $request, EvidenceFile $file)
+    {
+        $this->authorize('preview', $file);
+        $this->storageService->assertEvidenceFilePath($file);
+
+        if (!Storage::disk('local')->exists($file->stored_relative_path)) {
+            abort(404);
+        }
+
+        $this->auditService->log($request->user(), 'PREVIEW_FILE', 'EvidenceFile', $file->id, [
+            'file_name' => $file->file_name,
+            'stored_relative_path' => $file->stored_relative_path,
+        ]);
+
+        return response()->file(
+            Storage::disk('local')->path($file->stored_relative_path),
+            [
+                'Content-Type' => $file->mime_type ?? 'application/octet-stream',
+                'Content-Disposition' => ResponseHeaderBag::DISPOSITION_INLINE . '; filename="' . addslashes($file->file_name) . '"',
+            ]
+        );
+    }
+
     public function store(Request $request, FolderNode $folder, EvidenceFlowService $flowService)
     {
-        $this->authorize('view', $folder);
+        $this->authorize('upload', $folder);
 
         $request->validate([
             'file' => 'required|file',
@@ -105,10 +129,12 @@ class FileController extends Controller
             ]
         );
 
-        $this->authorize('update', $submission);
+        if (!$this->canManageSubmissionFiles($user, $submission)) {
+            abort(403);
+        }
 
         $availability = $this->submissionAvailability($submission, $flowService);
-        if (!$availability['is_available']) {
+        if (!$this->canBypassAvailability($user) && !$availability['is_available']) {
             return back()->withErrors([
                 'file' => 'La evidencia no esta disponible para carga: ' . $availability['label'] . '.',
             ]);
@@ -131,7 +157,7 @@ class FileController extends Controller
 
     public function replace(Request $request, EvidenceFile $file, EvidenceFlowService $flowService)
     {
-        $this->authorize('delete', $file);
+        $this->authorize('replace', $file);
 
         $request->validate([
             'file' => 'required|file',
@@ -142,7 +168,11 @@ class FileController extends Controller
             $originalFileId = $file->id;
             $originalFileName = $file->file_name;
 
-            if ($submission && !$this->submissionAvailability($submission, $flowService)['is_available']) {
+            if (
+                $submission
+                && !$this->canBypassAvailability($request->user())
+                && !$this->submissionAvailability($submission, $flowService)['is_available']
+            ) {
                 return back()->withErrors([
                     'file' => 'La evidencia no esta disponible para carga en este momento.',
                 ]);
@@ -178,6 +208,16 @@ class FileController extends Controller
         $this->storageService->deleteEvidence($file, $request->user());
 
         return back()->with('success', 'Archivo eliminado.');
+    }
+
+    private function canManageSubmissionFiles($user, EvidenceSubmission $submission): bool
+    {
+        return $this->canBypassAvailability($user) || $user->can('update', $submission);
+    }
+
+    private function canBypassAvailability($user): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
     }
 
     private function findMateriaFolder(FolderNode $folder): ?FolderNode

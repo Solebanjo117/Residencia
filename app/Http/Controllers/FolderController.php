@@ -60,13 +60,18 @@ class FolderController extends Controller
 
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
-            'currentFolder' => $folder,
+            'currentFolder' => [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'can_upload' => $user->can('upload', $folder),
+            ],
             'semesterName' => $folder->semester?->name,
             'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
             'contents' => [
                 'folders' => $visibleChildren,
                 'files' => $visibleFiles->map(function ($file) use ($user) {
                     $submission = $file->submission;
+                    $canPreview = in_array($file->mime_type, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true);
 
                     return [
                         'id' => $file->id,
@@ -74,12 +79,16 @@ class FolderController extends Controller
                         'size' => $file->size_bytes,
                         'uploaded_at' => $file->uploaded_at->format('Y-m-d H:i'),
                         'uploaded_by' => $file->uploadedBy->name,
+                        'mime_type' => $file->mime_type,
                         'status' => $submission
                             ? ($submission->final_approved_at
                                 ? 'FINAL_APPROVED'
                                 : ($submission->status->value === 'APPROVED' ? 'OFFICE_APPROVED' : $submission->status->value))
                             : null,
                         'is_late' => (bool) $submission?->submitted_late,
+                        'can_preview' => $canPreview,
+                        'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
+                        'can_replace' => $user->can('replace', $file),
                         'can_delete' => $user->can('delete', $file),
                         'download_url' => route('files.download', $file->id),
                     ];

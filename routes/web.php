@@ -83,6 +83,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
     Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->name('folders.show');
     Route::post('/files/folders/{folder}/upload', [FileController::class, 'store'])->name('files.store');
+    Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{file}/download', [FileController::class, 'download'])->name('files.download');
     Route::post('/files/{file}/replace', [FileController::class, 'replace'])->name('files.replace');
     Route::delete('/files/{file}', [FileController::class, 'destroy'])->name('files.destroy');

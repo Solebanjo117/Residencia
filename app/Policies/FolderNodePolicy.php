@@ -14,19 +14,8 @@ class FolderNodePolicy
 
     public function view(User $user, FolderNode $folderNode): bool
     {
-        if ($user->isJefeOficina()) {
+        if ($user->isJefeOficina() || $user->isJefeDepto()) {
             return true;
-        }
-
-        // JEFE_DEPTO can only view folders owned by teachers in their departments
-        if ($user->isJefeDepto()) {
-            if ($folderNode->owner_user_id === null) {
-                return true; // Semester-level folders (no owner) are visible
-            }
-            $deptIds = $user->departments()->pluck('departments.id');
-            return \App\Models\User::where('id', $folderNode->owner_user_id)
-                ->whereHas('departments', fn($q) => $q->whereIn('departments.id', $deptIds))
-                ->exists();
         }
 
         if ($user->isDocente()) {
@@ -47,5 +36,10 @@ class FolderNodePolicy
         }
 
         return false;
+    }
+
+    public function upload(User $user, FolderNode $folderNode): bool
+    {
+        return $this->view($user, $folderNode);
     }
 }

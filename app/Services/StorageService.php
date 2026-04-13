@@ -115,12 +115,8 @@ class StorageService
 
     public function getAccessibleRoots(User $user)
     {
-        if ($user->isJefeOficina()) {
+        if ($user->isJefeOficina() || $user->isJefeDepto()) {
             return $this->buildTree(FolderNode::all());
-        }
-
-        if ($user->isJefeDepto()) {
-            return $this->buildTree($this->getDepartmentScopedNodes($user));
         }
 
         if ($user->isDocente()) {
@@ -148,42 +144,6 @@ class StorageService
 
         return $roots->values();
     }
-
-    private function getDepartmentScopedNodes(User $user)
-    {
-        $departmentIds = $user->departments()->pluck('departments.id');
-        if ($departmentIds->isEmpty()) {
-            return collect();
-        }
-
-        $teacherIds = User::whereHas('departments', function ($query) use ($departmentIds) {
-                $query->whereIn('departments.id', $departmentIds);
-            })
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id);
-
-        if ($teacherIds->isEmpty()) {
-            return collect();
-        }
-
-        $allNodes = FolderNode::all()->keyBy('id');
-        $visibleNodes = collect();
-
-        foreach ($allNodes as $node) {
-            if ($node->owner_user_id === null || !$teacherIds->contains((int) $node->owner_user_id)) {
-                continue;
-            }
-
-            $current = $node;
-            while ($current) {
-                $visibleNodes->put($current->id, $current);
-                $current = $current->parent_id ? $allNodes->get($current->parent_id) : null;
-            }
-        }
-
-        return $visibleNodes->values();
-    }
-
     private function validateUpload(UploadedFile $file): array
     {
         $originalName = (string) $file->getClientOriginalName();
