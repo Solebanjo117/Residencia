@@ -12,6 +12,7 @@ use App\Models\ResubmissionUnlock;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class EvidenceService
 {
@@ -22,10 +23,13 @@ class EvidenceService
      * Valid state transitions map: from => [allowed destinations]
      */
     private const ALLOWED_TRANSITIONS = [
-        'DRAFT'     => ['SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE'],
+        // Teacher can submit, office can classify as NA/NE when applicable.
+        'DRAFT'     => ['SUBMITTED', 'NA', 'NE'],
         'SUBMITTED' => ['APPROVED', 'REJECTED', 'NA', 'NE'],
-        'APPROVED'  => ['SUBMITTED', 'NA'],
-        'REJECTED'  => ['DRAFT', 'SUBMITTED', 'APPROVED', 'NA', 'NE'],
+        // Approved is terminal unless a dedicated reopening flow is implemented.
+        'APPROVED'  => [],
+        // Rejected evidence must be corrected and re-submitted; office may still mark NA/NE.
+        'REJECTED'  => ['SUBMITTED', 'NA', 'NE'],
         'NA'        => ['DRAFT'],
         'NE'        => ['DRAFT'],
     ];
@@ -38,9 +42,17 @@ class EvidenceService
 
     public function changeStatus(EvidenceSubmission $submission, SubmissionStatus $newStatus, User $user, ?string $reason = null)
     {
+        $startedAt = microtime(true);
         $oldStatus = $submission->status;
 
         if ($oldStatus === $newStatus) {
+            Log::channel('operations')->info('evidence.status_change_skipped', [
+                'actor_user_id' => $user->id,
+                'actor_role_id' => $user->role_id,
+                'submission_id' => $submission->id,
+                'status' => $newStatus->value,
+            ]);
+
             return $submission;
         }
 
@@ -74,12 +86,27 @@ class EvidenceService
             ]);
         });
 
+        Log::channel('operations')->info('evidence.status_changed', [
+            'actor_user_id' => $user->id,
+            'actor_role_id' => $user->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'from_status' => $oldStatus->value,
+            'to_status' => $newStatus->value,
+            'reason' => $reason,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
         return $submission;
     }
 
     public function review(EvidenceSubmission $submission, User $reviewer, ReviewDecision $decision, ?string $comments)
     {
-        return DB::transaction(function () use ($submission, $reviewer, $decision, $comments) {
+        $startedAt = microtime(true);
+
+        $result = DB::transaction(function () use ($submission, $reviewer, $decision, $comments) {
             // Create review record
             EvidenceReview::create([
                 'submission_id' => $submission->id,
@@ -113,11 +140,25 @@ class EvidenceService
 
             return $submission;
         });
+
+        Log::channel('operations')->info('evidence.review_completed', [
+            'actor_user_id' => $reviewer->id,
+            'actor_role_id' => $reviewer->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'decision' => $decision->value,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        return $result;
     }
 
     public function unlockForResubmission(EvidenceSubmission $submission, User $unlocker, ?Carbon $expiresAt, ?string $reason)
     {
-        return DB::transaction(function () use ($submission, $unlocker, $expiresAt, $reason) {
+        $startedAt = microtime(true);
+
+        $result = DB::transaction(function () use ($submission, $unlocker, $expiresAt, $reason) {
             ResubmissionUnlock::create([
                 'submission_id' => $submission->id,
                 'unlocked_by_user_id' => $unlocker->id,
@@ -130,5 +171,18 @@ class EvidenceService
             
             return $submission;
         });
+
+        Log::channel('operations')->info('evidence.resubmission_unlocked', [
+            'actor_user_id' => $unlocker->id,
+            'actor_role_id' => $unlocker->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'expires_at' => $expiresAt?->toIso8601String(),
+            'reason' => $reason,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        return $result;
     }
 }

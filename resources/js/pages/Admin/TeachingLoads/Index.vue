@@ -80,19 +80,19 @@ const submitForm = () => {
 };
 
 const destroyLoad = (id: number) => {
-    if (confirm('Are you sure you want to remove this teaching assignment?')) {
+    if (confirm('¿Seguro que deseas eliminar esta asignación de carga docente?')) {
         router.delete(`/admin/teaching-loads/${id}`, { preserveScroll: true });
     }
 };
 </script>
 
 <template>
-    <Head title="Teaching Loads" />
+    <Head title="Cargas Académicas" />
 
     <AppLayout
         :breadcrumbs="[
             { title: 'Admin', href: '#' },
-            { title: 'Teaching Loads', href: '/admin/teaching-loads' },
+            { title: 'Cargas Académicas', href: '/admin/teaching-loads' },
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
@@ -101,11 +101,10 @@ const destroyLoad = (id: number) => {
             >
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">
-                        Teaching Loads Manager
+                        Gestión de Cargas Académicas
                     </h1>
                     <p class="mt-1 text-sm text-gray-500">
-                        Assign subjects and schedules to teachers for specific
-                        semesters.
+                        Asigna materias y grupos a docentes por semestre.
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -114,7 +113,7 @@ const destroyLoad = (id: number) => {
                             v-model="filterSemester"
                             class="appearance-none rounded-lg border border-gray-300 bg-white py-2 pr-10 pl-4 text-sm leading-tight text-gray-700 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none"
                         >
-                            <option value="">All Semesters</option>
+                            <option value="">Todos los semestres</option>
                             <option
                                 v-for="sem in semesters"
                                 :key="sem.id"
@@ -134,7 +133,7 @@ const destroyLoad = (id: number) => {
                         class="inline-flex shrink-0 items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
                     >
                         <BookOpen class="mr-2 h-5 w-5" />
-                        Assign Load
+                        Asignar Carga
                     </button>
                 </div>
             </div>
@@ -157,37 +156,37 @@ const destroyLoad = (id: number) => {
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Teacher
+                                Docente
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Semester
+                                Semestre
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Subject
+                                Materia
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Group
+                                Grupo
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Hours
+                                Horas
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Actions
+                                Acciones
                             </th>
                         </tr>
                     </thead>
@@ -235,7 +234,7 @@ const destroyLoad = (id: number) => {
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-600">
-                                    {{ load.hours_per_week || '-' }} hrs/wk
+                                    {{ load.hours_per_week || '-' }} hrs/sem
                                 </div>
                             </td>
                             <td
@@ -258,7 +257,7 @@ const destroyLoad = (id: number) => {
                                 colspan="6"
                                 class="bg-gray-50 px-6 py-12 text-center text-gray-500"
                             >
-                                No teaching loads found for this selection.
+                                No se encontraron cargas académicas para este filtro.
                             </td>
                         </tr>
                     </tbody>
@@ -308,8 +307,8 @@ const destroyLoad = (id: number) => {
                                     >
                                         {{
                                             editingLoad
-                                                ? 'Edit Assignment'
-                                                : 'Assign Teaching Load'
+                                                ? 'Editar Asignación'
+                                                : 'Asignar Carga Académica'
                                         }}
                                     </h3>
                                 </div>
@@ -318,7 +317,7 @@ const destroyLoad = (id: number) => {
                                     <div>
                                         <label
                                             class="block text-sm font-medium text-gray-700"
-                                            >Teacher</label
+                                            >Docente</label
                                         >
                                         <select
                                             v-model="form.teacher_user_id"
@@ -326,7 +325,7 @@ const destroyLoad = (id: number) => {
                                             required
                                         >
                                             <option value="" disabled>
-                                                Select a Teacher...
+                                                Selecciona un docente...
                                             </option>
                                             <option
                                                 v-for="teacher in teachers"
@@ -349,7 +348,7 @@ const destroyLoad = (id: number) => {
                                     <div>
                                         <label
                                             class="block text-sm font-medium text-gray-700"
-                                            >Semester</label
+                                            >Semestre</label
                                         >
                                         <select
                                             v-model="form.semester_id"
@@ -357,7 +356,7 @@ const destroyLoad = (id: number) => {
                                             required
                                         >
                                             <option value="" disabled>
-                                                Select Semester...
+                                                Selecciona semestre...
                                             </option>
                                             <option
                                                 v-for="sem in semesters"
@@ -378,7 +377,7 @@ const destroyLoad = (id: number) => {
                                     <div>
                                         <label
                                             class="block text-sm font-medium text-gray-700"
-                                            >Subject</label
+                                            >Materia</label
                                         >
                                         <select
                                             v-model="form.subject_id"
@@ -386,7 +385,7 @@ const destroyLoad = (id: number) => {
                                             required
                                         >
                                             <option value="" disabled>
-                                                Select Subject...
+                                                Selecciona materia...
                                             </option>
                                             <option
                                                 v-for="sub in subjects"
@@ -408,13 +407,13 @@ const destroyLoad = (id: number) => {
                                         <div>
                                             <label
                                                 class="block text-sm font-medium text-gray-700"
-                                                >Group Code</label
+                                                >Clave de Grupo</label
                                             >
                                             <input
                                                 type="text"
                                                 v-model="form.group_code"
                                                 class="mt-1 block w-full flex-1 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                                placeholder="e.g. 5A"
+                                                placeholder="ej. 5A"
                                                 required
                                             />
                                             <div
@@ -427,7 +426,7 @@ const destroyLoad = (id: number) => {
                                         <div>
                                             <label
                                                 class="block text-sm font-medium text-gray-700"
-                                                >Hours/Week (Optional)</label
+                                                >Horas por Semana (Opcional)</label
                                             >
                                             <input
                                                 type="number"
@@ -458,14 +457,14 @@ const destroyLoad = (id: number) => {
                                 >
                                     {{
                                         editingLoad
-                                            ? 'Save Changes'
-                                            : 'Assign Load'
+                                            ? 'Guardar Cambios'
+                                            : 'Asignar Carga'
                                     }}
                                 </button>
                                 <button type="button" @click="closeModal"
                                     class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                             </div>
                         </form>

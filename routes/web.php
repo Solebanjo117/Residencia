@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FileController;
 
@@ -13,9 +14,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Notifications API
     Route::get('/api/notifications', [\App\Http\Controllers\NotificationController::class, 'getUnread'])->name('notifications.unread');
@@ -25,6 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('dashboard', [\App\Http\Controllers\Teacher\DashboardController::class, 'index'])->name('teacher.dashboard');
         
         Route::get('evidencias', [\App\Http\Controllers\Teacher\EvidenceController::class, 'index'])->name('evidencias');
+        Route::post('evidencias/init', [\App\Http\Controllers\Teacher\EvidenceController::class, 'initSubmission'])->name('evidencias.init');
         Route::post('evidencias/{submission}/submit', [\App\Http\Controllers\Teacher\EvidenceController::class, 'submit'])->name('evidencias.submit');
         Route::post('evidencias/{submission}/upload', [\App\Http\Controllers\Teacher\EvidenceController::class, 'storeFile'])->name('evidencias.upload');
         
@@ -38,10 +38,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('revisiones', [\App\Http\Controllers\Admin\ReviewController::class, 'index'])->name('revisiones');
         Route::get('revisiones/{submission}', [\App\Http\Controllers\Admin\ReviewController::class, 'show'])->name('revisiones.show');
         Route::post('revisiones/{submission}/status', [\App\Http\Controllers\Admin\ReviewController::class, 'updateStatus'])->name('revisiones.status');
-        
-        Route::get('reportes', function () {
-            return Inertia::render('Oficina/Reports');
-        })->name('reportes');
+
+        Route::get('reportes', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reportes');
     });
 
     // Rutas para Jefe de Departamento (redirige a Admin que ya tiene middleware de rol compartido)
@@ -68,7 +66,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Seguimiento Docente (vista unificada, todos los roles)
     Route::get('asesorias', [\App\Http\Controllers\Admin\AdvisoryController::class, 'index'])->name('asesorias');
-    Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])->name('asesorias.review');
+    Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])
+        ->name('asesorias.review');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');

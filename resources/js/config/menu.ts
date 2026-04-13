@@ -19,12 +19,12 @@ import type { NavItem } from '@/types';
 export const getNavItemsByRole = (roleName?: string): NavItem[] => {
     const common: NavItem[] = [
         {
-            title: 'Dashboard',
+            title: 'Panel Principal',
             href: '/dashboard',
             icon: LayoutGrid,
         },
         {
-            title: 'File Manager',
+            title: 'Gestor de Archivos',
             href: '/files/manager',
             icon: FolderOpen,
         },

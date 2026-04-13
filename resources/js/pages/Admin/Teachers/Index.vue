@@ -81,30 +81,30 @@ const generateFolders = (teacher: any) => {
 </script>
 
 <template>
-    <Head title="Manage Teachers" />
+    <Head title="Administrar Docentes" />
 
     <AppLayout
         :breadcrumbs="[
             { title: 'Admin', href: '#' },
-            { title: 'Teachers', href: '/admin/teachers' },
+            { title: 'Docentes', href: '/admin/teachers' },
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">
-                        Teacher Directory
+                        Directorio de Docentes
                     </h1>
                     <p class="mt-1 text-sm text-gray-500">
-                        Manage all registered teachers and their departmental
-                        assignments.
+                        Gestiona los docentes registrados y su adscripción
+                        departamental.
                     </p>
                 </div>
                 <button type="button" @click="openCreateModal"
                     class="inline-flex items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
                 >
                     <UserPlus class="mr-2 h-5 w-5" />
-                    Register Teacher
+                    Registrar Docente
                 </button>
             </div>
 
@@ -119,31 +119,31 @@ const generateFolders = (teacher: any) => {
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Name
+                                Nombre
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Contact
+                                Contacto
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Departments
+                                Departamentos
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Status
+                                Estado
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Actions
+                                Acciones
                             </th>
                         </tr>
                     </thead>
@@ -175,7 +175,7 @@ const generateFolders = (teacher: any) => {
                                     <span
                                         v-if="teacher.departments.length === 0"
                                         class="text-xs text-gray-400 italic"
-                                        >None</span
+                                        >Sin asignar</span
                                     >
                                 </div>
                             </td>
@@ -184,13 +184,13 @@ const generateFolders = (teacher: any) => {
                                     v-if="teacher.is_active"
                                     class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"
                                 >
-                                    Active
+                                    Activo
                                 </span>
                                 <span
                                     v-else
                                     class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800"
                                 >
-                                    Inactive
+                                    Inactivo
                                 </span>
                             </td>
                             <td
@@ -199,7 +199,7 @@ const generateFolders = (teacher: any) => {
                                 <div class="flex justify-end gap-3">
                                     <button type="button" @click="openEditModal(teacher)"
                                         class="text-indigo-600 hover:text-indigo-900"
-                                        title="Edit"
+                                        title="Editar"
                                     >
                                         <Edit2 class="h-4 w-4" />
                                     </button>
@@ -217,8 +217,8 @@ const generateFolders = (teacher: any) => {
                                         "
                                         :title="
                                             teacher.is_active
-                                                ? 'Disable'
-                                                : 'Enable'
+                                                ? 'Desactivar'
+                                                : 'Activar'
                                         "
                                     >
                                         <component
@@ -238,7 +238,7 @@ const generateFolders = (teacher: any) => {
                                 colspan="5"
                                 class="bg-gray-50 px-6 py-12 text-center text-gray-500"
                             >
-                                No teachers found. Start by registering one.
+                                No hay docentes registrados. Comienza agregando uno.
                             </td>
                         </tr>
                     </tbody>
@@ -289,8 +289,8 @@ const generateFolders = (teacher: any) => {
                                     >
                                         {{
                                             editingTeacher
-                                                ? 'Edit Teacher'
-                                                : 'Register New Teacher'
+                                                ? 'Editar Docente'
+                                                : 'Registrar Nuevo Docente'
                                         }}
                                     </h3>
                                 </div>
@@ -300,7 +300,7 @@ const generateFolders = (teacher: any) => {
                                         <label
                                             for="name"
                                             class="block text-sm font-medium text-gray-700"
-                                            >Full Name</label
+                                            >Nombre Completo</label
                                         >
                                         <input
                                             type="text"
@@ -321,7 +321,7 @@ const generateFolders = (teacher: any) => {
                                         <label
                                             for="email"
                                             class="block text-sm font-medium text-gray-700"
-                                            >Email Address</label
+                                            >Correo Electrónico</label
                                         >
                                         <input
                                             type="email"
@@ -345,7 +345,7 @@ const generateFolders = (teacher: any) => {
                                             >Password
                                             {{
                                                 editingTeacher
-                                                    ? '(leave blank to keep current)'
+                                                    ? '(deja vacío para mantener la actual)'
                                                     : ''
                                             }}</label
                                         >
@@ -367,7 +367,7 @@ const generateFolders = (teacher: any) => {
                                     <div>
                                         <label
                                             class="mb-2 block text-sm font-medium text-gray-700"
-                                            >Departments (Optional)</label
+                                            >Departamentos (Opcional)</label
                                         >
                                         <div
                                             class="max-h-32 space-y-2 overflow-y-auto rounded-md border border-gray-200 p-2"
@@ -424,14 +424,14 @@ const generateFolders = (teacher: any) => {
                                 >
                                     {{
                                         editingTeacher
-                                            ? 'Save Changes'
-                                            : 'Register'
+                                            ? 'Guardar Cambios'
+                                            : 'Registrar'
                                     }}
                                 </button>
                                 <button type="button" @click="closeModal"
                                     class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                             </div>
                         </form>

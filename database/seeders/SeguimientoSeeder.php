@@ -11,8 +11,8 @@ use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
 use App\Models\StorageRoot;
+use App\Models\Role;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 class SeguimientoSeeder extends Seeder
 {
@@ -59,7 +59,10 @@ class SeguimientoSeeder extends Seeder
         }
 
         // 4. Evidence Items (the 16 columns from the reference)
-        $category = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->first();
+        $category = EvidenceCategory::firstOrCreate(
+            ['name' => 'I_CARGA_ACADEMICA'],
+            ['description' => 'Evidencias relacionadas a la carga académica']
+        );
 
         $evidenceColumns = [
             'INSTRUM',
@@ -110,7 +113,13 @@ class SeguimientoSeeder extends Seeder
         }
 
         // 6. Teaching Loads (docentes with subjects)
-        $docentes = User::where('role_id', 1)->get(); // DOCENTE role
+        $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+        if (!$docenteRoleId) {
+            $this->command?->warn('No se encontró el rol DOCENTE.');
+            return;
+        }
+
+        $docentes = User::where('role_id', $docenteRoleId)->get();
 
         if ($docentes->count() > 0) {
             $allSubjects = Subject::all();

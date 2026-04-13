@@ -11,10 +11,11 @@ class AdvisoryScheduleSeeder extends Seeder
 {
     public function run(): void
     {
-        $semester = Semester::where('name', 'ENE-JUN 2026')->first();
+        $semester = Semester::where('status', 'OPEN')->first()
+            ?? Semester::orderBy('start_date', 'desc')->first();
 
         if (!$semester) {
-            $this->command->warn('No se encontró el semestre ENE-JUN 2026');
+            $this->command->warn('No se encontró un semestre para generar horarios de asesoría.');
             return;
         }
 

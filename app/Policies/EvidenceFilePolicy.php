@@ -10,6 +10,10 @@ class EvidenceFilePolicy
 {
     public function view(User $user, EvidenceFile $file): bool
     {
+        if (!$file->folderNode) {
+            return false;
+        }
+
         return $user->can('view', $file->folderNode);
     }
 
@@ -24,25 +28,24 @@ class EvidenceFilePolicy
             return true;
         }
 
-        if ($user->isDocente()) {
-            // Only own files
-            if ($file->uploaded_by_user_id !== $user->id) {
-                return false;
-            }
+        $submission = $file->submission;
+        if (!$submission) {
+            return false;
+        }
 
-            // Check submission status
-            $submission = $file->submission;
-            if (!$submission) {
-                return true; // Orphaned file? Or maybe just allow delete if no submission link (shouldn't happen per schema but safe fallback)
+        if ($user->isDocente()) {
+            // Teachers can only delete files from their own submission.
+            if ((int) $submission->teacher_user_id !== (int) $user->id) {
+                return false;
             }
 
             // Status must be DRAFT or REJECTED
             // Or if there is an active unlock
-            if ($submission->activeResubmissionUnlock) {
+            if ($submission->activeResubmissionUnlock()->exists()) {
                 return true;
             }
 
-            return in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED]);
+            return in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true);
         }
 
         return false;

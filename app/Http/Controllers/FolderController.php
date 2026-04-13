@@ -28,6 +28,7 @@ class FolderController extends Controller
             'folderTree' => $roots,
             'currentFolder' => null,
             'contents' => [],
+            'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
         ]);
     }
 
@@ -36,6 +37,15 @@ class FolderController extends Controller
         $this->authorize('view', $folder);
 
         $contents = $folder->load(['children', 'files.uploadedBy', 'files.submission']);
+        $user = $request->user();
+
+        $visibleChildren = $contents->children
+            ->filter(fn (FolderNode $child) => $user->can('view', $child))
+            ->values();
+
+        $visibleFiles = $contents->files
+            ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
+            ->values();
 
         // Re-fetch tree structure if needed, or pass it via props (already loaded in index if SPA navigation works well, 
         // but Inertia reloads props on visit unless partial reload).
@@ -44,7 +54,6 @@ class FolderController extends Controller
         // But for robust initial load, we might need the tree.
         
         // Let's return the tree structure as well, perhaps optimized.
-        $user = $request->user();
         $roots = $this->storageService->getAccessibleRoots($user);
 
         $folder->load('semester');
@@ -53,9 +62,10 @@ class FolderController extends Controller
             'folderTree' => $roots,
             'currentFolder' => $folder,
             'semesterName' => $folder->semester?->name,
+            'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
             'contents' => [
-                'folders' => $folder->children,
-                'files' => $folder->files->map(function ($file) {
+                'folders' => $visibleChildren,
+                'files' => $visibleFiles->map(function ($file) use ($user) {
                     return [
                         'id' => $file->id,
                         'name' => $file->file_name,
@@ -63,7 +73,7 @@ class FolderController extends Controller
                         'uploaded_at' => $file->uploaded_at->format('Y-m-d H:i'),
                         'uploaded_by' => $file->uploadedBy->name,
                         'status' => $file->submission ? $file->submission->status->value : null,
-                        'can_delete' => request()->user()->can('delete', $file),
+                        'can_delete' => $user->can('delete', $file),
                         'download_url' => route('files.download', $file->id),
                     ];
                 }),

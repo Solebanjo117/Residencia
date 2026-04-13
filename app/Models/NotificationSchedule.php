@@ -10,6 +10,8 @@ class NotificationSchedule extends Model
 {
     use HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'semester_id',
         'evidence_item_id',

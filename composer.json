@@ -69,6 +69,14 @@
             "@test:lint",
             "@php artisan test"
         ],
+        "test:domain": [
+            "@php artisan config:clear --ansi",
+            "@php artisan test --testsuite=Domain"
+        ],
+        "test:critical": [
+            "@php artisan config:clear --ansi",
+            "@php artisan test tests/Feature/Domain tests/Feature/Security tests/Feature/Teacher/EvidenceUnlockWindowTest.php tests/Feature/Console"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
