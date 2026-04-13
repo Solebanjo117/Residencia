@@ -57,16 +57,31 @@ const formatSize = (bytes: number) => {
 
 const getStatusColor = (status: string | null) => {
     switch (status) {
-        case 'APPROVED':
+        case 'OFFICE_APPROVED':
             return 'bg-green-100 text-green-800 border-green-200';
+        case 'FINAL_APPROVED':
+            return 'bg-emerald-100 text-emerald-800 border-emerald-200';
         case 'REJECTED':
             return 'bg-red-100 text-red-800 border-red-200';
         case 'DRAFT':
             return 'bg-gray-100 text-gray-800 border-gray-200';
         case 'SUBMITTED':
             return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'NA':
+            return 'bg-slate-100 text-slate-700 border-slate-200';
         default:
             return 'bg-gray-50 text-gray-500 border-gray-200';
+    }
+};
+
+const statusLabel = (status: string | null) => {
+    switch (status) {
+        case 'OFFICE_APPROVED':
+            return 'OFICINA';
+        case 'FINAL_APPROVED':
+            return 'FINAL';
+        default:
+            return status || 'Sin estado';
     }
 };
 
@@ -321,7 +336,10 @@ const handleReplaceSelected = (event: Event) => {
                                                         ),
                                                     ]"
                                                 >
-                                                    {{ file.status }}
+                                                    {{ statusLabel(file.status) }}
+                                                </span>
+                                                <span v-if="file.is_late" class="ml-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
+                                                    EXT
                                                 </span>
                                                 <span
                                                     v-else

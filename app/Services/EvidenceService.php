@@ -65,11 +65,20 @@ class EvidenceService
         }
 
         DB::transaction(function () use ($submission, $newStatus, $user, $reason, $oldStatus) {
-            $submission->update([
+            $attributes = [
                 'status' => $newStatus,
                 'last_updated_at' => now(),
                 'submitted_at' => ($newStatus === SubmissionStatus::SUBMITTED) ? now() : $submission->submitted_at,
-            ]);
+            ];
+
+            if ($newStatus !== SubmissionStatus::APPROVED) {
+                $attributes['office_reviewed_at'] = null;
+                $attributes['office_reviewed_by_user_id'] = null;
+                $attributes['final_approved_at'] = null;
+                $attributes['final_approved_by_user_id'] = null;
+            }
+
+            $submission->update($attributes);
 
             EvidenceStatusHistory::create([
                 'submission_id' => $submission->id,
@@ -112,6 +121,7 @@ class EvidenceService
                 'submission_id' => $submission->id,
                 'reviewed_by_user_id' => $reviewer->id,
                 'decision' => $decision,
+                'stage' => EvidenceReview::STAGE_OFFICE,
                 'comments' => $comments,
                 'reviewed_at' => now(),
             ]);
@@ -124,6 +134,15 @@ class EvidenceService
 
             // Update status
             $this->changeStatus($submission, $newStatus, $reviewer, "Review decision: " . $decision->value);
+
+            if ($newStatus === SubmissionStatus::APPROVED) {
+                $submission->update([
+                    'office_reviewed_at' => now(),
+                    'office_reviewed_by_user_id' => $reviewer->id,
+                    'final_approved_at' => null,
+                    'final_approved_by_user_id' => null,
+                ]);
+            }
 
             // Notify teacher
             $type = ($decision === ReviewDecision::APPROVE) 
@@ -148,6 +167,62 @@ class EvidenceService
             'semester_id' => $submission->semester_id,
             'evidence_item_id' => $submission->evidence_item_id,
             'decision' => $decision->value,
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
+
+        return $result;
+    }
+
+    public function finalApprove(EvidenceSubmission $submission, User $reviewer, ?string $comments = null)
+    {
+        if (!$submission->isOfficeApproved()) {
+            throw new \InvalidArgumentException('La evidencia todavia no cuenta con aprobacion de oficina.');
+        }
+
+        if ($submission->isFinalApproved()) {
+            throw new \InvalidArgumentException('La evidencia ya cuenta con visto bueno final.');
+        }
+
+        $startedAt = microtime(true);
+
+        $result = DB::transaction(function () use ($submission, $reviewer, $comments) {
+            EvidenceReview::create([
+                'submission_id' => $submission->id,
+                'reviewed_by_user_id' => $reviewer->id,
+                'decision' => ReviewDecision::APPROVE,
+                'stage' => EvidenceReview::STAGE_FINAL,
+                'comments' => $comments,
+                'reviewed_at' => now(),
+            ]);
+
+            $submission->update([
+                'final_approved_at' => now(),
+                'final_approved_by_user_id' => $reviewer->id,
+                'last_updated_at' => now(),
+            ]);
+
+            $this->auditService->log($reviewer, 'FINAL_APPROVE', 'EvidenceSubmission', $submission->id, [
+                'submission_status' => $submission->status->value,
+                'comments' => $comments,
+            ]);
+
+            $this->notificationService->notifyImmediate(
+                $submission->teacher,
+                NotificationType::SUBMISSION_APPROVED,
+                'Evidencia liberada por jefatura',
+                'Tu evidencia recibio el visto bueno final del jefe de departamento.' . ($comments ? ' Comentarios: ' . $comments : ''),
+                $submission
+            );
+
+            return $submission;
+        });
+
+        Log::channel('operations')->info('evidence.final_approval_completed', [
+            'actor_user_id' => $reviewer->id,
+            'actor_role_id' => $reviewer->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
 

@@ -113,7 +113,7 @@ it('does not auto submit evidence when uploading from file manager', function ()
     ]);
 });
 
-it('blocks file manager upload when window is closed and there is no unlock', function () {
+it('allows file manager upload when regular window already closed and treats it as late workflow', function () {
     Storage::fake('local');
 
     $ctx = createFileManagerContext(windowOpen: false);
@@ -126,9 +126,10 @@ it('blocks file manager upload when window is closed and there is no unlock', fu
         ]);
 
     $response->assertRedirect('/files/manager');
-    $response->assertSessionHasErrors('file');
     expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
-    $this->assertDatabaseCount('evidence_files', 0);
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+    ]);
 });
 
 it('forbids jefe oficina from uploading files on teacher submission via file manager', function () {

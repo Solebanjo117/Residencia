@@ -69,6 +69,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])
         ->name('asesorias.review');
+    Route::post('asesorias/{submission}/final-approval', [\App\Http\Controllers\Admin\AdvisoryController::class, 'finalApprove'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.final-approval');
+    Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.cells.status');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');

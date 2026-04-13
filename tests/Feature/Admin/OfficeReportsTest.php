@@ -92,7 +92,8 @@ it('renders office reports with aggregated teacher metrics', function () {
             ->where('summary.teachers', 1)
             ->where('summary.submissions', 2)
             ->where('summary.submitted', 1)
-            ->where('summary.approved', 1)
+            ->where('summary.office_approved', 1)
+            ->where('summary.final_approved', 0)
             ->has('rows', 1)
             ->where('rows.0.teacher_name', $ctx['teacher']->name)
         );

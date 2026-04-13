@@ -126,7 +126,7 @@ const daysRemaining = (closesAt: string | null): string => {
                 </div>
             </section>
 
-            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
                 <article
                     v-for="metric in props.overview"
                     :key="metric.key"

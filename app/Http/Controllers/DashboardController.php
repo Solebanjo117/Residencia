@@ -10,14 +10,14 @@ use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
-use App\Models\TeachingLoad;
 use App\Models\User;
+use App\Services\EvidenceFlowService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, EvidenceFlowService $flowService)
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
@@ -30,8 +30,8 @@ class DashboardController extends Controller
         $upcomingDeadlines = [];
 
         if ($semester) {
-            $overview = $this->overviewFor($user, $semester);
-            $upcomingDeadlines = $this->upcomingDeadlinesFor($user, $semester);
+            $overview = $this->overviewFor($user, $semester, $flowService);
+            $upcomingDeadlines = $this->upcomingDeadlinesFor($user, $semester, $flowService);
         }
 
         $overview[] = [
@@ -50,10 +50,10 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function overviewFor(User $user, Semester $semester): array
+    private function overviewFor(User $user, Semester $semester, EvidenceFlowService $flowService): array
     {
         if ($user->isDocente()) {
-            return $this->docenteOverview($user, $semester);
+            return $this->docenteOverview($user, $semester, $flowService);
         }
 
         if ($user->isJefeOficina()) {
@@ -61,7 +61,7 @@ class DashboardController extends Controller
         }
 
         if ($user->isJefeDepto()) {
-            return $this->jefeDeptoOverview($user, $semester);
+            return $this->jefeDeptoOverview($user, $semester, $flowService);
         }
 
         return [
@@ -75,7 +75,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function docenteOverview(User $user, Semester $semester): array
+    private function docenteOverview(User $user, Semester $semester, EvidenceFlowService $flowService): array
     {
         $base = EvidenceSubmission::query()
             ->where('teacher_user_id', $user->id)
@@ -84,23 +84,28 @@ class DashboardController extends Controller
         $mandatoryItems = collect();
         $department = $user->departments()->first();
         if ($department) {
-            $mandatoryItems = EvidenceRequirement::query()
-                ->where('semester_id', $semester->id)
-                ->where('department_id', $department->id)
-                ->where('is_mandatory', true)
+            $mandatoryItems = $flowService->requirementsForDepartment($semester->id, $department->id)
+                ->filter(fn (EvidenceRequirement $requirement) => $requirement->is_mandatory)
                 ->pluck('evidence_item_id');
         }
 
-        $mandatorySubmitted = 0;
+        $mandatorySubmissions = collect();
         if ($mandatoryItems->isNotEmpty()) {
-            $mandatorySubmitted = EvidenceSubmission::query()
+            $mandatorySubmissions = EvidenceSubmission::query()
                 ->where('teacher_user_id', $user->id)
                 ->where('semester_id', $semester->id)
                 ->whereIn('evidence_item_id', $mandatoryItems)
-                ->whereIn('status', [SubmissionStatus::SUBMITTED, SubmissionStatus::APPROVED])
-                ->distinct('evidence_item_id')
-                ->count('evidence_item_id');
+                ->get()
+                ->keyBy('evidence_item_id');
         }
+
+        $applicableMandatory = $mandatoryItems->reject(function ($itemId) use ($mandatorySubmissions) {
+            return $mandatorySubmissions->get($itemId)?->status === SubmissionStatus::NA;
+        });
+
+        $mandatorySubmitted = $applicableMandatory->filter(function ($itemId) use ($mandatorySubmissions) {
+            return in_array($mandatorySubmissions->get($itemId)?->status, [SubmissionStatus::SUBMITTED, SubmissionStatus::APPROVED], true);
+        })->count();
 
         return [
             [
@@ -112,26 +117,40 @@ class DashboardController extends Controller
             ],
             [
                 'key' => 'my_under_review',
-                'label' => 'En revisión',
+                'label' => 'En revision',
                 'value' => (clone $base)->where('status', SubmissionStatus::SUBMITTED)->count(),
-                'description' => 'Evidencias enviadas en espera de dictamen.',
+                'description' => 'Evidencias enviadas en espera de dictamen institucional.',
                 'tone' => 'blue',
             ],
             [
-                'key' => 'my_approved',
-                'label' => 'Aprobadas',
-                'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->count(),
-                'description' => 'Evidencias ya aprobadas para el semestre.',
+                'key' => 'my_office_approved',
+                'label' => 'Aprobadas por oficina',
+                'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
+                'description' => 'Evidencias pendientes de visto bueno final.',
                 'tone' => 'green',
+            ],
+            [
+                'key' => 'my_final_approved',
+                'label' => 'Liberadas',
+                'value' => (clone $base)->whereNotNull('final_approved_at')->count(),
+                'description' => 'Evidencias con visto bueno final.',
+                'tone' => 'slate',
             ],
             [
                 'key' => 'mandatory_progress',
                 'label' => 'Obligatorias cubiertas',
-                'value' => $mandatoryItems->isNotEmpty()
-                    ? $mandatorySubmitted . ' / ' . $mandatoryItems->count()
+                'value' => $applicableMandatory->isNotEmpty()
+                    ? $mandatorySubmitted . ' / ' . $applicableMandatory->count()
                     : '0 / 0',
-                'description' => 'Avance sobre los requerimientos obligatorios.',
+                'description' => 'Avance sobre los requerimientos obligatorios aplicables.',
                 'tone' => 'slate',
+            ],
+            [
+                'key' => 'my_late_submissions',
+                'label' => 'Extemporaneas',
+                'value' => (clone $base)->where('submitted_late', true)->count(),
+                'description' => 'Entregas realizadas despues del cierre regular.',
+                'tone' => 'amber',
             ],
         ];
     }
@@ -143,39 +162,53 @@ class DashboardController extends Controller
         return [
             [
                 'key' => 'pending_review',
-                'label' => 'Pendientes de revisión',
+                'label' => 'Pendientes de revision',
                 'value' => (clone $base)->where('status', SubmissionStatus::SUBMITTED)->count(),
                 'description' => 'Entregas listas para dictamen institucional.',
                 'tone' => 'amber',
             ],
             [
-                'key' => 'approved',
-                'label' => 'Aprobadas',
-                'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->count(),
-                'description' => 'Entregas aprobadas en el semestre actual.',
+                'key' => 'office_approved',
+                'label' => 'Aprobadas por oficina',
+                'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
+                'description' => 'Entregas pendientes de visto bueno final.',
                 'tone' => 'green',
+            ],
+            [
+                'key' => 'final_approved',
+                'label' => 'Liberadas',
+                'value' => (clone $base)->whereNotNull('final_approved_at')->count(),
+                'description' => 'Entregas con liberacion final.',
+                'tone' => 'blue',
             ],
             [
                 'key' => 'rejected',
                 'label' => 'Rechazadas',
                 'value' => (clone $base)->where('status', SubmissionStatus::REJECTED)->count(),
-                'description' => 'Entregas devueltas para corrección.',
+                'description' => 'Entregas devueltas para correccion.',
                 'tone' => 'red',
             ],
             [
+                'key' => 'late_submissions',
+                'label' => 'Extemporaneas',
+                'value' => (clone $base)->where('submitted_late', true)->count(),
+                'description' => 'Entregas recibidas fuera del periodo regular.',
+                'tone' => 'amber',
+            ],
+            [
                 'key' => 'reviews_today',
-                'label' => 'Dictámenes hoy',
+                'label' => 'Dictamenes hoy',
                 'value' => EvidenceReview::query()
                     ->where('reviewed_by_user_id', $user->id)
                     ->whereDate('reviewed_at', now()->toDateString())
                     ->count(),
-                'description' => 'Actividad de revisión del día.',
+                'description' => 'Actividad de revision del dia.',
                 'tone' => 'blue',
             ],
         ];
     }
 
-    private function jefeDeptoOverview(User $user, Semester $semester): array
+    private function jefeDeptoOverview(User $user, Semester $semester, EvidenceFlowService $flowService): array
     {
         $departmentIds = $user->departments()->pluck('departments.id');
 
@@ -197,11 +230,13 @@ class DashboardController extends Controller
                 $query->whereRaw('1 = 0');
             });
 
-        $itemIds = EvidenceRequirement::query()
-            ->where('semester_id', $semester->id)
-            ->whereIn('department_id', $departmentIds)
-            ->pluck('evidence_item_id')
-            ->unique();
+        $itemIds = collect();
+        foreach ($departmentIds as $departmentId) {
+            $itemIds = $itemIds->merge(
+                $flowService->requirementsForDepartment($semester->id, (int) $departmentId)->pluck('evidence_item_id')
+            );
+        }
+        $itemIds = $itemIds->unique()->values();
 
         $activeWindows = 0;
         if ($itemIds->isNotEmpty()) {
@@ -210,7 +245,6 @@ class DashboardController extends Controller
                 ->whereIn('evidence_item_id', $itemIds)
                 ->where('status', 'ACTIVE')
                 ->where('opens_at', '<=', now())
-                ->where('closes_at', '>=', now())
                 ->count();
         }
 
@@ -223,22 +257,32 @@ class DashboardController extends Controller
                 'tone' => 'blue',
             ],
             [
-                'key' => 'mandatory_requirements',
-                'label' => 'Requerimientos obligatorios',
-                'value' => EvidenceRequirement::query()
-                    ->where('semester_id', $semester->id)
-                    ->whereIn('department_id', $departmentIds)
-                    ->where('is_mandatory', true)
-                    ->count(),
-                'description' => 'Matriz activa de evidencias por departamento.',
-                'tone' => 'slate',
+                'key' => 'final_pending',
+                'label' => 'Pendientes de visto bueno',
+                'value' => (clone $submissionBase)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
+                'description' => 'Entregas aprobadas por oficina que esperan tu liberacion.',
+                'tone' => 'amber',
             ],
             [
-                'key' => 'pending_review_scope',
-                'label' => 'Pendientes por revisar',
-                'value' => (clone $submissionBase)->where('status', SubmissionStatus::SUBMITTED)->count(),
-                'description' => 'Entregas de tu alcance en estado SUBMITTED.',
-                'tone' => 'amber',
+                'key' => 'final_approved',
+                'label' => 'Liberadas',
+                'value' => (clone $submissionBase)->whereNotNull('final_approved_at')->count(),
+                'description' => 'Entregas con visto bueno final.',
+                'tone' => 'green',
+            ],
+            [
+                'key' => 'mandatory_requirements',
+                'label' => 'Requerimientos activos',
+                'value' => EvidenceRequirement::query()
+                    ->where('semester_id', $semester->id)
+                    ->where(function ($query) use ($departmentIds) {
+                        $query->whereNull('department_id')
+                            ->orWhereIn('department_id', $departmentIds);
+                    })
+                    ->where('is_mandatory', true)
+                    ->count(),
+                'description' => 'Matriz obligatoria vigente para tu alcance.',
+                'tone' => 'slate',
             ],
             [
                 'key' => 'active_windows_scope',
@@ -250,7 +294,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function upcomingDeadlinesFor(User $user, Semester $semester): array
+    private function upcomingDeadlinesFor(User $user, Semester $semester, EvidenceFlowService $flowService): array
     {
         $query = SubmissionWindow::query()
             ->with('evidenceItem')
@@ -261,11 +305,15 @@ class DashboardController extends Controller
 
         if ($user->isJefeDepto()) {
             $departmentIds = $user->departments()->pluck('departments.id');
-            $itemIds = EvidenceRequirement::query()
-                ->where('semester_id', $semester->id)
-                ->whereIn('department_id', $departmentIds)
-                ->pluck('evidence_item_id')
-                ->unique();
+            $itemIds = collect();
+
+            foreach ($departmentIds as $departmentId) {
+                $itemIds = $itemIds->merge(
+                    $flowService->requirementsForDepartment($semester->id, (int) $departmentId)->pluck('evidence_item_id')
+                );
+            }
+
+            $itemIds = $itemIds->unique()->values();
 
             if ($itemIds->isEmpty()) {
                 return [];
@@ -300,12 +348,12 @@ class DashboardController extends Controller
             return [
                 [
                     'title' => 'Mis Evidencias',
-                    'description' => 'Inicializa, carga y envía tus documentos.',
+                    'description' => 'Inicializa, carga y envia tus documentos.',
                     'href' => '/docente/evidencias',
                 ],
                 [
-                    'title' => 'Mis Asesorías',
-                    'description' => 'Registra sesiones y actividades de asesoría.',
+                    'title' => 'Mis Asesorias',
+                    'description' => 'Registra sesiones y actividades de asesoria.',
                     'href' => '/docente/asesorias',
                 ],
                 [
@@ -319,7 +367,7 @@ class DashboardController extends Controller
         if ($user->isJefeOficina()) {
             return [
                 [
-                    'title' => 'Pendientes de Revisión',
+                    'title' => 'Pendientes de Revision',
                     'description' => 'Atiende entregas en estado SUBMITTED.',
                     'href' => '/oficina/revisiones',
                 ],
@@ -329,8 +377,8 @@ class DashboardController extends Controller
                     'href' => '/oficina/reportes',
                 ],
                 [
-                    'title' => 'Auditoría',
-                    'description' => 'Revisa bitácora institucional de acciones.',
+                    'title' => 'Auditoria',
+                    'description' => 'Revisa bitacora institucional de acciones.',
                     'href' => '/admin/audits',
                 ],
             ];
@@ -340,12 +388,12 @@ class DashboardController extends Controller
             return [
                 [
                     'title' => 'Ventanas de Entrega',
-                    'description' => 'Configura calendarios de recepción.',
+                    'description' => 'Configura calendarios de recepcion.',
                     'href' => '/admin/windows',
                 ],
                 [
                     'title' => 'Matriz de Evidencias',
-                    'description' => 'Mantén la asignación por semestre.',
+                    'description' => 'Manten la asignacion por semestre.',
                     'href' => '/admin/requirements',
                 ],
                 [
@@ -364,7 +412,7 @@ class DashboardController extends Controller
             ],
             [
                 'title' => 'Seguimiento Docente',
-                'description' => 'Consulta el tablero de control académico.',
+                'description' => 'Consulta el tablero de control academico.',
                 'href' => '/asesorias',
             ],
         ];
@@ -376,7 +424,6 @@ class DashboardController extends Controller
             ->where('semester_id', $semester->id)
             ->where('status', 'ACTIVE')
             ->where('opens_at', '<=', now())
-            ->where('closes_at', '>=', now())
             ->count();
     }
 }

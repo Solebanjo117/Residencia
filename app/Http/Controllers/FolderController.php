@@ -66,13 +66,20 @@ class FolderController extends Controller
             'contents' => [
                 'folders' => $visibleChildren,
                 'files' => $visibleFiles->map(function ($file) use ($user) {
+                    $submission = $file->submission;
+
                     return [
                         'id' => $file->id,
                         'name' => $file->file_name,
                         'size' => $file->size_bytes,
                         'uploaded_at' => $file->uploaded_at->format('Y-m-d H:i'),
                         'uploaded_by' => $file->uploadedBy->name,
-                        'status' => $file->submission ? $file->submission->status->value : null,
+                        'status' => $submission
+                            ? ($submission->final_approved_at
+                                ? 'FINAL_APPROVED'
+                                : ($submission->status->value === 'APPROVED' ? 'OFFICE_APPROVED' : $submission->status->value))
+                            : null,
+                        'is_late' => (bool) $submission?->submitted_late,
                         'can_delete' => $user->can('delete', $file),
                         'download_url' => route('files.download', $file->id),
                     ];

@@ -2,8 +2,11 @@
 
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
+use App\Models\EvidenceRequirement;
+use App\Models\Department;
 use App\Models\Role;
 use App\Models\Semester;
+use App\Models\SubmissionWindow;
 use App\Models\Subject;
 use App\Models\TeachingLoad;
 use App\Models\User;
@@ -13,6 +16,10 @@ function createTeacherInitContext(): array
 {
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
+    $department = Department::create([
+        'name' => 'Dept INIT ' . Str::upper(Str::random(4)),
+    ]);
+    $teacher->departments()->attach($department->id);
 
     $semester = Semester::create([
         'name' => 'SEM-INIT-' . Str::upper(Str::random(6)),
@@ -41,6 +48,22 @@ function createTeacherInitContext(): array
         'description' => 'Item init test',
         'requires_subject' => true,
         'active' => true,
+    ]);
+
+    EvidenceRequirement::create([
+        'semester_id' => $semester->id,
+        'department_id' => $department->id,
+        'evidence_item_id' => $item->id,
+        'is_mandatory' => true,
+    ]);
+
+    SubmissionWindow::create([
+        'semester_id' => $semester->id,
+        'evidence_item_id' => $item->id,
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addDay(),
+        'created_by_user_id' => $teacher->id,
+        'status' => 'ACTIVE',
     ]);
 
     return compact('teacher', 'load', 'item');

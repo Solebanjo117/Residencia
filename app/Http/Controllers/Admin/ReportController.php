@@ -21,8 +21,11 @@ class ReportController extends Controller
                     'teachers' => 0,
                     'submissions' => 0,
                     'submitted' => 0,
-                    'approved' => 0,
+                    'office_approved' => 0,
+                    'final_approved' => 0,
                     'rejected' => 0,
+                    'late' => 0,
+                    'na' => 0,
                 ],
                 'filters' => [
                     'semester_id' => null,
@@ -80,8 +83,11 @@ class ReportController extends Controller
                 COUNT(*) as total_submissions,
                 SUM(CASE WHEN status = 'DRAFT' THEN 1 ELSE 0 END) as draft_count,
                 SUM(CASE WHEN status = 'SUBMITTED' THEN 1 ELSE 0 END) as submitted_count,
-                SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN status = 'APPROVED' AND final_approved_at IS NULL THEN 1 ELSE 0 END) as office_approved_count,
+                SUM(CASE WHEN final_approved_at IS NOT NULL THEN 1 ELSE 0 END) as final_approved_count,
                 SUM(CASE WHEN status = 'REJECTED' THEN 1 ELSE 0 END) as rejected_count,
+                SUM(CASE WHEN status = 'NA' THEN 1 ELSE 0 END) as na_count,
+                SUM(CASE WHEN submitted_late = 1 THEN 1 ELSE 0 END) as late_count,
                 SUM(CASE WHEN status IN ('DRAFT','REJECTED') THEN 1 ELSE 0 END) as delayed_count")
             ->groupBy('teacher_user_id');
 
@@ -99,8 +105,11 @@ class ReportController extends Controller
                 COALESCE(subs.total_submissions, 0) as total_submissions,
                 COALESCE(subs.draft_count, 0) as draft_count,
                 COALESCE(subs.submitted_count, 0) as submitted_count,
-                COALESCE(subs.approved_count, 0) as approved_count,
+                COALESCE(subs.office_approved_count, 0) as office_approved_count,
+                COALESCE(subs.final_approved_count, 0) as final_approved_count,
                 COALESCE(subs.rejected_count, 0) as rejected_count,
+                COALESCE(subs.na_count, 0) as na_count,
+                COALESCE(subs.late_count, 0) as late_count,
                 COALESCE(subs.delayed_count, 0) as delayed_count")
             ->orderBy('users.name');
 
@@ -112,11 +121,13 @@ class ReportController extends Controller
         }
 
         $rows = collect($query->get())->map(function ($row) {
-            $completed = ((int) $row->approved_count) + ((int) $row->submitted_count);
             $total = (int) $row->total_submissions;
+            $naCount = (int) $row->na_count;
+            $applicableTotal = max($total - $naCount, 0);
+            $completed = ((int) $row->submitted_count) + ((int) $row->office_approved_count) + ((int) $row->final_approved_count);
 
-            $compliance = $total > 0
-                ? (int) round(($completed / $total) * 100)
+            $compliance = $applicableTotal > 0
+                ? (int) round(($completed / $applicableTotal) * 100)
                 : 0;
 
             return [
@@ -127,8 +138,11 @@ class ReportController extends Controller
                 'total_submissions' => $total,
                 'draft_count' => (int) $row->draft_count,
                 'submitted_count' => (int) $row->submitted_count,
-                'approved_count' => (int) $row->approved_count,
+                'office_approved_count' => (int) $row->office_approved_count,
+                'final_approved_count' => (int) $row->final_approved_count,
                 'rejected_count' => (int) $row->rejected_count,
+                'na_count' => $naCount,
+                'late_count' => (int) $row->late_count,
                 'delayed_count' => (int) $row->delayed_count,
                 'compliance' => $compliance,
             ];
@@ -141,7 +155,10 @@ class ReportController extends Controller
     {
         return match ($statusFocus) {
             'pending_review' => $rows->where('submitted_count', '>', 0),
-            'approved' => $rows->where('approved_count', '>', 0),
+            'office_approved' => $rows->where('office_approved_count', '>', 0),
+            'final_approved' => $rows->where('final_approved_count', '>', 0),
+            'late' => $rows->where('late_count', '>', 0),
+            'no_apply' => $rows->where('na_count', '>', 0),
             'delayed' => $rows->where('delayed_count', '>', 0),
             'no_submissions' => $rows->where('total_submissions', 0),
             default => $rows,
@@ -156,8 +173,11 @@ class ReportController extends Controller
             'teachers' => $collection->count(),
             'submissions' => $collection->sum('total_submissions'),
             'submitted' => $collection->sum('submitted_count'),
-            'approved' => $collection->sum('approved_count'),
+            'office_approved' => $collection->sum('office_approved_count'),
+            'final_approved' => $collection->sum('final_approved_count'),
             'rejected' => $collection->sum('rejected_count'),
+            'late' => $collection->sum('late_count'),
+            'na' => $collection->sum('na_count'),
         ];
     }
 
@@ -175,8 +195,11 @@ class ReportController extends Controller
                 'Entregas Totales',
                 'Borrador',
                 'En Revision',
-                'Aprobadas',
+                'Aprobadas Oficina',
+                'Liberadas',
                 'Rechazadas',
+                'No Aplica',
+                'Extemporaneas',
                 'Con Atraso',
                 'Cumplimiento %',
             ]);
@@ -189,8 +212,11 @@ class ReportController extends Controller
                     $row['total_submissions'],
                     $row['draft_count'],
                     $row['submitted_count'],
-                    $row['approved_count'],
+                    $row['office_approved_count'],
+                    $row['final_approved_count'],
                     $row['rejected_count'],
+                    $row['na_count'],
+                    $row['late_count'],
                     $row['delayed_count'],
                     $row['compliance'],
                 ]);

@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { ref, computed } from 'vue';
-import { FileStack, UploadCloud, Send, File, CheckCircle2, Clock, AlertTriangle, AlertCircle } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import {
+    AlertCircle,
+    AlertTriangle,
+    CheckCircle2,
+    Clock,
+    File as FileIcon,
+    FileStack,
+    Send,
+    ShieldCheck,
+    UploadCloud,
+} from 'lucide-vue-next';
 
 interface Task {
     id: number | null;
@@ -15,17 +25,57 @@ interface Task {
         item_id: number;
         item_name: string;
         is_mandatory: boolean;
+        stage_order: number;
+        stage_label: string;
     };
     submission: {
         status: string | null;
+        ui_status: string;
         files_count: number;
-        files: any[];
+        files: Array<{
+            id: number;
+            file_name: string;
+            size: number;
+            uploaded_at: string;
+            download_url: string;
+        }>;
+        submitted_late: boolean;
+        office_approved_at: string | null;
+        office_approved_by: string | null;
+        final_approved_at: string | null;
+        final_approved_by: string | null;
+        last_review: {
+            stage: string;
+            decision: string;
+            comments: string | null;
+            reviewed_at: string | null;
+            reviewer_name: string | null;
+        } | null;
+        review_trail: Array<{
+            stage: string;
+            decision: string;
+            comments: string | null;
+            reviewed_at: string | null;
+            reviewer_name: string | null;
+        }>;
+    };
+    availability: {
+        code: string;
+        label: string;
+        is_available: boolean;
+        is_late: boolean;
+        is_future: boolean;
     };
     window: {
         opens_at: string;
         closes_at: string;
+        state_code: string;
+        state_label: string;
         is_open: boolean;
     } | null;
+    can_initialize: boolean;
+    can_upload: boolean;
+    can_submit: boolean;
 }
 
 const props = defineProps<{
@@ -56,14 +106,24 @@ const initForm = useForm({
 
 const taskKey = (task: Task) => `${task.teaching_load.id}-${task.requirement.item_id}`;
 
-// Computed properties for grouping
 const groupedTasks = computed(() => {
     const groups: Record<string, Task[]> = {};
-    props.tasks.forEach(task => {
+    props.tasks.forEach((task) => {
         const key = `${task.teaching_load.subject_name} - Grupo ${task.teaching_load.group}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(task);
     });
+
+    Object.values(groups).forEach((tasks) => {
+        tasks.sort((left, right) => {
+            if (left.requirement.stage_order !== right.requirement.stage_order) {
+                return left.requirement.stage_order - right.requirement.stage_order;
+            }
+
+            return left.requirement.item_name.localeCompare(right.requirement.item_name);
+        });
+    });
+
     return groups;
 });
 
@@ -71,16 +131,33 @@ const selectTask = (task: Task) => {
     selectedTask.value = task;
 };
 
-const getStatusConfig = (status: string | null) => {
-    if (!status) return { class: 'bg-slate-100 text-slate-700', label: 'Sin iniciar', icon: Clock };
-
-    switch(status) {
-        case 'DRAFT': return { class: 'bg-gray-100 text-gray-800', label: 'Borrador', icon: Clock };
-        case 'SUBMITTED': return { class: 'bg-blue-100 text-blue-800', label: 'Enviado', icon: Send };
-        case 'APPROVED': return { class: 'bg-green-100 text-green-800', label: 'Aprobado', icon: CheckCircle2 };
-        case 'REJECTED': return { class: 'bg-red-100 text-red-800', label: 'Rechazado (Requiere Corrección)', icon: AlertTriangle };
-        default: return { class: 'bg-gray-100 text-gray-800', label: status, icon: Clock };
+const getStatusConfig = (task: Task) => {
+    switch (task.submission.ui_status) {
+        case 'VF':
+            return { class: 'bg-emerald-100 text-emerald-800', label: 'Liberado', icon: ShieldCheck };
+        case 'AO':
+            return { class: 'bg-green-100 text-green-800', label: 'Aprobado Oficina', icon: CheckCircle2 };
+        case 'PA':
+            return { class: 'bg-amber-100 text-amber-800', label: 'Pendiente', icon: Send };
+        case 'R':
+            return { class: 'bg-rose-100 text-rose-800', label: 'Rechazado', icon: AlertTriangle };
+        case 'BL':
+            return { class: 'bg-blue-100 text-blue-800', label: 'Bloqueado', icon: Clock };
+        case 'NA':
+            return { class: 'bg-slate-100 text-slate-700', label: 'No aplica', icon: AlertCircle };
+        default:
+            return { class: 'bg-slate-100 text-slate-700', label: 'Sin evidencia', icon: Clock };
     }
+};
+
+const availabilityClasses: Record<string, string> = {
+    OPEN: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    LATE: 'bg-amber-50 text-amber-700 border-amber-200',
+    UNLOCKED: 'bg-amber-50 text-amber-700 border-amber-200',
+    UPCOMING: 'bg-blue-50 text-blue-700 border-blue-200',
+    STAGE_LOCKED: 'bg-blue-50 text-blue-700 border-blue-200',
+    NOT_CONFIGURED: 'bg-rose-50 text-rose-700 border-rose-200',
+    NA: 'bg-slate-50 text-slate-700 border-slate-200',
 };
 
 const triggerUpload = () => {
@@ -96,14 +173,13 @@ const handleFileSelected = (event: Event) => {
         }
 
         uploadForm.file = target.files[0];
-        
+
         uploadForm.post(`/docente/evidencias/${selectedTask.value.id}/upload`, {
             preserveScroll: true,
             onSuccess: () => {
                 target.value = '';
                 uploadForm.reset();
-                // Task data is refreshed automatically by Inertia, but we need to re-select it
-                const updatedTask = props.tasks.find(t => t.id === selectedTask.value?.id);
+                const updatedTask = props.tasks.find((task) => task.id === selectedTask.value?.id);
                 if (updatedTask) selectedTask.value = updatedTask;
             },
         });
@@ -111,16 +187,15 @@ const handleFileSelected = (event: Event) => {
 };
 
 const submitEvidence = () => {
-    if (!selectedTask.value) return;
-    if (!selectedTask.value.id) return;
-    
-    if (confirm('¿Estás seguro de enviar esta evidencia? Una vez enviada, no podrás modificar los archivos hasta que sea revisada.')) {
+    if (!selectedTask.value?.id) return;
+
+    if (confirm('Se enviara esta evidencia para revision. Continuar?')) {
         router.post(`/docente/evidencias/${selectedTask.value.id}/submit`, {}, {
             preserveScroll: true,
             onSuccess: () => {
-                const updatedTask = props.tasks.find(t => t.id === selectedTask.value?.id);
+                const updatedTask = props.tasks.find((task) => task.id === selectedTask.value?.id);
                 if (updatedTask) selectedTask.value = updatedTask;
-            }
+            },
         });
     }
 };
@@ -136,7 +211,7 @@ const initSubmission = () => {
     initForm.post('/docente/evidencias/init', {
         preserveScroll: true,
         onSuccess: () => {
-            const updatedTask = props.tasks.find((t) => taskKey(t) === selectedKey);
+            const updatedTask = props.tasks.find((task) => taskKey(task) === selectedKey);
             if (updatedTask) {
                 selectedTask.value = updatedTask;
             }
@@ -144,12 +219,14 @@ const initSubmission = () => {
     });
 };
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Sin fecha';
+
     return new Date(dateString).toLocaleDateString('es-ES', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
     });
 };
 
@@ -166,57 +243,53 @@ const formatBytes = (bytes: number) => {
     <Head title="Mis Evidencias" />
 
     <AppLayout :breadcrumbs="[{ title: 'Mi Espacio', href: '/docente/evidencias' }]">
-        
-        <div class="px-6 py-8 mx-auto max-w-7xl h-[calc(100vh-4rem)] flex flex-col">
-            
+        <div class="mx-auto flex h-[calc(100vh-4rem)] max-w-7xl flex-col px-6 py-8">
             <div class="mb-6">
-                <h1 class="text-2xl font-bold text-gray-900 flex items-center">
-                    <FileStack class="w-6 h-6 mr-3 text-indigo-600" />
+                <h1 class="flex items-center text-2xl font-bold text-slate-900">
+                    <FileStack class="mr-3 h-6 w-6 text-indigo-600" />
                     Mis Entregas y Evidencias
                 </h1>
-                <p class="mt-1 text-sm text-gray-500">Sube tus documentos requeridos por la jefatura para el semestre actual.</p>
+                <p class="mt-1 text-sm text-slate-500">
+                    Visualiza tus etapas activas, carga evidencia y monitorea aprobacion de oficina y liberacion final.
+                </p>
             </div>
 
-            <div v-if="!semester" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md">
-                <div class="flex">
-                    <div class="ml-3"><p class="text-sm text-yellow-700">El semestre no está activo.</p></div>
-                </div>
+            <div v-if="!semester" class="rounded-md border-l-4 border-amber-400 bg-amber-50 p-4">
+                <p class="text-sm text-amber-700">El semestre no esta activo.</p>
             </div>
 
             <div v-else class="flex flex-1 gap-6 overflow-hidden pb-8">
-                
-                <!-- Left Panel: Task List (Grouped by Subject) -->
-                <div class="w-1/3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-                    <div class="p-4 border-b border-gray-200 bg-gray-50">
-                        <h2 class="font-semibold text-gray-800">Materias Asignadas</h2>
+                <div class="flex w-1/3 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-200 bg-slate-50 p-4">
+                        <h2 class="font-semibold text-slate-800">Materias Asignadas</h2>
                     </div>
-                    <div class="overflow-y-auto flex-1 p-2">
-                        
-                        <div v-if="Object.keys(groupedTasks).length === 0" class="p-4 text-sm text-gray-500 text-center">
-                            No tienes cargas académicas asignadas.
+                    <div class="flex-1 overflow-y-auto p-2">
+                        <div v-if="Object.keys(groupedTasks).length === 0" class="p-4 text-center text-sm text-slate-500">
+                            No tienes cargas academicas asignadas.
                         </div>
 
                         <div v-for="(groupTasks, subjectName) in groupedTasks" :key="subjectName" class="mb-4">
-                            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider px-3 mb-2">{{ subjectName }}</h3>
+                            <h3 class="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-slate-500">{{ subjectName }}</h3>
                             <ul class="space-y-1">
                                 <li v-for="task in groupTasks" :key="taskKey(task)">
-                                    <button type="button" @click="selectTask(task)"
-                                        class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors border"
-                                        :class="selectedTask && taskKey(selectedTask) === taskKey(task) ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-inset ring-blue-500' : 'border-transparent hover:bg-gray-100 text-gray-700'"
+                                    <button
+                                        type="button"
+                                        @click="selectTask(task)"
+                                        class="w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors"
+                                        :class="selectedTask && taskKey(selectedTask) === taskKey(task) ? 'border-blue-200 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-500' : 'border-transparent text-slate-700 hover:bg-slate-100'"
                                     >
-                                        <div class="font-medium flex justify-between items-center">
-                                            <span class="truncate pr-2">{{ task.requirement.item_name }}</span>
-                                            <span v-if="task.requirement.is_mandatory" class="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-sm shrink-0">Req</span>
-                                        </div>
-                                        <div class="flex justify-between items-center mt-1">
-                                            <span 
-                                                class="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                                                :class="getStatusConfig(task.submission.status).class"
-                                            >
-                                                {{ getStatusConfig(task.submission.status).label }}
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="truncate font-medium">{{ task.requirement.item_name }}</span>
+                                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                                {{ task.requirement.stage_label }}
                                             </span>
-                                            <span class="text-xs text-gray-500 flex items-center">
-                                                <File class="w-3 h-3 mr-1" /> {{ task.submission.files_count }}
+                                        </div>
+                                        <div class="mt-1 flex items-center justify-between">
+                                            <span class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide" :class="getStatusConfig(task).class">
+                                                {{ getStatusConfig(task).label }}
+                                            </span>
+                                            <span class="flex items-center text-xs text-slate-500">
+                                                <FileIcon class="mr-1 h-3 w-3" /> {{ task.submission.files_count }}
                                             </span>
                                         </div>
                                     </button>
@@ -226,112 +299,146 @@ const formatBytes = (bytes: number) => {
                     </div>
                 </div>
 
-                <!-- Right Panel: Task Details & Upload Container -->
-                <div class="w-2/3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden relative">
-                    
-                    <div v-if="!selectedTask" class="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center">
-                        <FileStack class="w-16 h-16 text-gray-200 mb-4" />
-                        <p class="text-lg font-medium text-gray-600">Selecciona un Documento</p>
-                        <p class="text-sm mt-1">Haz clic en un entregable de la lista izquierda para ver sus detalles y subir archivos.</p>
+                <div class="relative flex w-2/3 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div v-if="!selectedTask" class="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-400">
+                        <FileStack class="mb-4 h-16 w-16 text-slate-200" />
+                        <p class="text-lg font-medium text-slate-600">Selecciona un documento</p>
+                        <p class="mt-1 text-sm">Haz clic en un entregable para ver su detalle y sus reglas operativas.</p>
                     </div>
 
-                    <div v-else class="flex flex-col h-full">
-                        <!-- Header Details -->
-                        <div class="p-6 border-b border-gray-200 bg-white">
-                            <div class="flex justify-between items-start mb-4">
+                    <div v-else class="flex h-full flex-col">
+                        <div class="border-b border-slate-200 bg-white p-6">
+                            <div class="mb-4 flex items-start justify-between">
                                 <div>
-                                    <h2 class="text-xl font-bold text-gray-900">{{ selectedTask.requirement.item_name }}</h2>
-                                    <p class="text-sm text-gray-500 mt-1">{{ selectedTask.teaching_load.subject_name }} - Grupo {{ selectedTask.teaching_load.group }}</p>
+                                    <div class="mb-2 flex flex-wrap items-center gap-2">
+                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
+                                            {{ selectedTask.requirement.stage_label }}
+                                        </span>
+                                        <span
+                                            class="rounded-full border px-2 py-1 text-xs font-semibold"
+                                            :class="availabilityClasses[selectedTask.availability.code] || 'bg-slate-50 text-slate-700 border-slate-200'"
+                                        >
+                                            {{ selectedTask.availability.label }}
+                                        </span>
+                                        <span v-if="selectedTask.submission.submitted_late || selectedTask.availability.is_late" class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+                                            Extemporanea
+                                        </span>
+                                    </div>
+                                    <h2 class="text-xl font-bold text-slate-900">{{ selectedTask.requirement.item_name }}</h2>
+                                    <p class="mt-1 text-sm text-slate-500">{{ selectedTask.teaching_load.subject_name }} - Grupo {{ selectedTask.teaching_load.group }}</p>
                                 </div>
-                                <span 
-                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
-                                    :class="getStatusConfig(selectedTask.submission.status).class"
-                                >
-                                    <component :is="getStatusConfig(selectedTask.submission.status).icon" class="w-4 h-4 mr-1.5" />
-                                    {{ getStatusConfig(selectedTask.submission.status).label }}
+                                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider" :class="getStatusConfig(selectedTask).class">
+                                    <component :is="getStatusConfig(selectedTask).icon" class="mr-1.5 h-4 w-4" />
+                                    {{ getStatusConfig(selectedTask).label }}
                                 </span>
                             </div>
 
-                            <div v-if="selectedTask.window" class="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start">
-                                <Clock class="w-5 h-5 text-blue-500 mr-2 shrink-0 mt-0.5" />
-                                <div class="text-sm text-blue-800">
-                                    <span class="font-semibold">Ventana de Recepción:</span> 
-                                    Abre {{ formatDate(selectedTask.window.opens_at) }} y Cierra {{ formatDate(selectedTask.window.closes_at) }}.
-                                    <div class="mt-1">
-                                        Estado temporal: 
-                                        <span class="font-bold" :class="selectedTask.window.is_open ? 'text-green-600' : 'text-red-500'">
-                                            {{ selectedTask.window.is_open ? 'ABIERTA' : 'CERRADA' }}
-                                        </span>
-                                    </div>
-                                </div>
+                            <div v-if="selectedTask.window" class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+                                <div><strong>Apertura:</strong> {{ formatDate(selectedTask.window.opens_at) }}</div>
+                                <div><strong>Cierre:</strong> {{ formatDate(selectedTask.window.closes_at) }}</div>
+                                <div class="mt-1 font-semibold">{{ selectedTask.window.state_label }}</div>
                             </div>
-                            <div v-else class="bg-red-50 border border-red-100 rounded-lg p-3 flex items-start">
-                                <AlertCircle class="w-5 h-5 text-red-500 mr-2 shrink-0 mt-0.5" />
-                                <div class="text-sm text-red-800">
-                                    No hay una ventana de recepción configurada o activa para este documento actualmente.
+                            <div v-else class="rounded-lg border border-rose-100 bg-rose-50 p-3 text-sm text-rose-800">
+                                No hay una ventana configurada para este documento.
+                            </div>
+
+                            <div v-if="selectedTask.submission.office_approved_at || selectedTask.submission.final_approved_at" class="mt-4 grid gap-3 md:grid-cols-2">
+                                <div v-if="selectedTask.submission.office_approved_at" class="rounded-lg border border-green-100 bg-green-50 p-3 text-sm text-green-800">
+                                    <div class="text-xs font-semibold uppercase">Aprobado por oficina</div>
+                                    <div class="mt-1 font-medium">{{ selectedTask.submission.office_approved_by }}</div>
+                                    <div class="text-xs">{{ selectedTask.submission.office_approved_at }}</div>
+                                </div>
+                                <div v-if="selectedTask.submission.final_approved_at" class="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800">
+                                    <div class="text-xs font-semibold uppercase">Visto bueno final</div>
+                                    <div class="mt-1 font-medium">{{ selectedTask.submission.final_approved_by }}</div>
+                                    <div class="text-xs">{{ selectedTask.submission.final_approved_at }}</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Main Action Area (Files list and Uploads) -->
-                        <div class="flex-1 overflow-y-auto p-6 bg-gray-50">
-                            
-                            <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-sm font-semibold tracking-wider text-gray-500 uppercase">Archivos Adjuntos</h3>
-                                
-                                <button type="button" v-if="(selectedTask.submission.status === 'DRAFT' || selectedTask.submission.status === 'REJECTED') && selectedTask.window?.is_open"
+                        <div class="flex-1 overflow-y-auto bg-slate-50 p-6">
+                            <div class="mb-4 flex items-center justify-between">
+                                <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Archivos adjuntos</h3>
+
+                                <button
+                                    v-if="selectedTask.can_upload"
+                                    type="button"
                                     @click="triggerUpload"
                                     :disabled="uploadForm.processing"
-                                    class="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 rounded-md text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                                    class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
                                 >
-                                    <UploadCloud class="w-4 h-4 mr-1.5" />
+                                    <UploadCloud class="mr-1.5 h-4 w-4" />
                                     Subir Archivo
                                 </button>
-                                <input type="file" ref="fileInput" class="hidden" :accept="uploadAccept" @change="handleFileSelected" />
+                                <input ref="fileInput" type="file" class="hidden" :accept="uploadAccept" @change="handleFileSelected" />
                             </div>
 
-                            <ul v-if="selectedTask.submission.files.length > 0" class="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 shadow-sm">
-                                <li v-for="file in selectedTask.submission.files" :key="file.id" class="p-4 flex items-center justify-between hover:bg-gray-50 transition">
-                                    <div class="flex items-center min-w-0">
-                                        <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 mr-4 shrink-0">
-                                            <File class="w-5 h-5" />
+                            <ul v-if="selectedTask.submission.files.length > 0" class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                                <li v-for="file in selectedTask.submission.files" :key="file.id" class="flex items-center justify-between p-4 transition hover:bg-slate-50">
+                                    <div class="flex min-w-0 items-center">
+                                        <div class="mr-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                                            <FileIcon class="h-5 w-5" />
                                         </div>
                                         <div class="min-w-0">
-                                            <p class="text-sm font-medium text-gray-900 truncate">{{ file.file_name }}</p>
-                                            <p class="text-xs text-gray-500 mt-0.5">{{ formatBytes(file.size) }} • Subido el {{ formatDate(file.uploaded_at) }}</p>
+                                            <p class="truncate text-sm font-medium text-slate-900">{{ file.file_name }}</p>
+                                            <p class="mt-0.5 text-xs text-slate-500">{{ formatBytes(file.size) }} - Subido el {{ formatDate(file.uploaded_at) }}</p>
                                         </div>
                                     </div>
-                                    <!-- Add delete/replace buttons here if needed later -->
+                                    <a :href="file.download_url" class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                                        Descargar
+                                    </a>
                                 </li>
                             </ul>
-                            
-                            <div v-else class="text-center py-10 bg-white border border-dashed border-gray-300 rounded-xl">
-                                <UploadCloud class="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                                <p class="text-sm text-gray-500">No hay archivos adjuntos.</p>
+
+                            <div v-else class="rounded-xl border border-dashed border-slate-300 bg-white py-10 text-center">
+                                <UploadCloud class="mx-auto mb-2 h-10 w-10 text-slate-300" />
+                                <p class="text-sm text-slate-500">No hay archivos adjuntos.</p>
                             </div>
 
+                            <div v-if="selectedTask.submission.last_review" class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <h3 class="mb-2 text-sm font-semibold text-slate-900">Ultima revision</h3>
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                    <span class="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">
+                                        {{ selectedTask.submission.last_review.stage === 'FINAL' ? 'FINAL' : 'OFICINA' }}
+                                    </span>
+                                    <span class="font-semibold" :class="selectedTask.submission.last_review.decision === 'APPROVE' ? 'text-green-700' : 'text-rose-700'">
+                                        {{ selectedTask.submission.last_review.decision === 'APPROVE' ? 'Aprobado' : 'Rechazado' }}
+                                    </span>
+                                    <span class="text-slate-500">{{ selectedTask.submission.last_review.reviewed_at }}</span>
+                                </div>
+                                <div class="mt-1 text-xs text-slate-500">{{ selectedTask.submission.last_review.reviewer_name }}</div>
+                                <div v-if="selectedTask.submission.last_review.comments" class="mt-2 text-sm text-slate-700">
+                                    {{ selectedTask.submission.last_review.comments }}
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Footer Actions -->
-                        <div v-if="selectedTask.submission.status === null || selectedTask.submission.status === 'DRAFT' || selectedTask.submission.status === 'REJECTED'" class="p-4 border-t border-gray-200 bg-white flex justify-end">
-                            <button v-if="selectedTask.submission.status === null" type="button" @click="initSubmission"
-                                :disabled="initForm.processing"
-                                class="inline-flex items-center px-5 py-2.5 bg-slate-700 border border-transparent rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 transition"
+                        <div class="flex justify-end border-t border-slate-200 bg-white p-4">
+                            <button
+                                v-if="selectedTask.submission.status === null"
+                                type="button"
+                                @click="initSubmission"
+                                :disabled="!selectedTask.can_initialize || initForm.processing"
+                                class="inline-flex items-center rounded-lg bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 Inicializar Entrega
                             </button>
 
-                            <button v-else type="button" @click="submitEvidence"
-                                :disabled="!selectedTask.window?.is_open || selectedTask.submission.files.length === 0"
-                                class="inline-flex items-center px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
-                                :class="{'opacity-50 cursor-not-allowed': !selectedTask.window?.is_open || selectedTask.submission.files.length === 0}"
+                            <button
+                                v-else-if="selectedTask.can_submit"
+                                type="button"
+                                @click="submitEvidence"
+                                class="inline-flex items-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
                             >
-                                <Send class="w-4 h-4 mr-2 -ml-1" />
-                                Enviar Evidencia a Revisión
+                                <Send class="mr-2 h-4 w-4 -ml-1" />
+                                Enviar Evidencia a Revision
                             </button>
+
+                            <div v-else class="text-sm text-slate-500">
+                                {{ selectedTask.availability.label }}
+                            </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
