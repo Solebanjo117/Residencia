@@ -91,7 +91,7 @@ it('renders role dashboard with docente quick actions and deadlines', function (
         ->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
             ->where('semester.name', $ctx['semester']->name)
-            ->has('overview', 5)
+            ->has('overview', 7)
             ->where('quickActions.0.href', '/docente/evidencias')
             ->has('upcomingDeadlines', 1)
         );
@@ -140,7 +140,7 @@ it('renders role dashboard with oficina quick actions and pending review metrics
         ->assertInertia(fn (Assert $page) => $page
             ->component('Dashboard')
             ->where('semester.name', $ctx['semester']->name)
-            ->has('overview', 5)
+            ->has('overview', 7)
             ->where('quickActions.0.href', '/oficina/revisiones')
             ->has('upcomingDeadlines', 1)
         );

@@ -19,12 +19,20 @@ class EvidenceSubmission extends Model
         'teaching_load_id',
         'status',
         'submitted_at',
+        'submitted_late',
+        'office_reviewed_at',
+        'office_reviewed_by_user_id',
+        'final_approved_at',
+        'final_approved_by_user_id',
         'last_updated_at'
     ];
 
     protected $casts = [
         'status' => SubmissionStatus::class,
         'submitted_at' => 'datetime',
+        'submitted_late' => 'boolean',
+        'office_reviewed_at' => 'datetime',
+        'final_approved_at' => 'datetime',
         'last_updated_at' => 'datetime',
     ];
 
@@ -50,6 +58,11 @@ class EvidenceSubmission extends Model
 
     public function files()
     {
+        return $this->hasMany(EvidenceFile::class, 'submission_id')->currentVersion();
+    }
+
+    public function allFiles()
+    {
         return $this->hasMany(EvidenceFile::class, 'submission_id');
     }
 
@@ -61,6 +74,16 @@ class EvidenceSubmission extends Model
     public function statusHistory()
     {
         return $this->hasMany(EvidenceStatusHistory::class, 'submission_id');
+    }
+
+    public function officeReviewer()
+    {
+        return $this->belongsTo(User::class, 'office_reviewed_by_user_id');
+    }
+
+    public function finalApprover()
+    {
+        return $this->belongsTo(User::class, 'final_approved_by_user_id');
     }
 
     public function activeResubmissionUnlock()
@@ -86,7 +109,7 @@ class EvidenceSubmission extends Model
             ];
         });
 
-        $files = $this->files()->withTrashed()->with(['uploadedBy', 'deletedBy'])->get()->map(function ($file) {
+        $files = $this->allFiles()->withTrashed()->with(['uploadedBy', 'editedBy', 'deletedBy'])->get()->map(function ($file) {
             $events = [];
             
             // Upload event
@@ -97,6 +120,16 @@ class EvidenceSubmission extends Model
                 'details' => "Archivo subido: {$file->file_name} (" . $this->formatBytes($file->size_bytes) . ")",
                 'file_id' => $file->id,
             ];
+
+            if ($file->last_edited_at) {
+                $events[] = [
+                    'type' => 'file_edit',
+                    'date' => $file->last_edited_at,
+                    'user' => $file->editedBy?->name ?? $file->uploadedBy->name,
+                    'details' => "Documento editado: {$file->file_name}",
+                    'file_id' => $file->id,
+                ];
+            }
 
             // Delete event (if applicable)
             if ($file->deleted_at) {
@@ -112,6 +145,16 @@ class EvidenceSubmission extends Model
         })->flatten(1);
 
         return $statusChanges->merge($files)->sortByDesc('date')->values();
+    }
+
+    public function isOfficeApproved(): bool
+    {
+        return $this->status === SubmissionStatus::APPROVED && $this->office_reviewed_at !== null;
+    }
+
+    public function isFinalApproved(): bool
+    {
+        return $this->isOfficeApproved() && $this->final_approved_at !== null;
     }
 
     private function formatBytes($bytes, $precision = 2)

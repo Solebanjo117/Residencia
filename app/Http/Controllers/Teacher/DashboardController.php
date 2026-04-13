@@ -11,10 +11,11 @@ use App\Models\TeachingLoad;
 use App\Models\SubmissionWindow;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
+use App\Services\EvidenceFlowService;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, EvidenceFlowService $flowService)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -54,20 +55,24 @@ class DashboardController extends Controller
 
             if ($department) {
                  // Get Requirements for this department and semester
-                 $requirements = EvidenceRequirement::with('evidenceItem')
-                    ->where('semester_id', $currentSemester->id)
-                    ->where('department_id', $department->id)
-                    ->get();
+                 $requirements = $flowService->requirementsForDepartment($currentSemester->id, $department->id);
 
-                 $progress['total'] = $requirements->where('is_mandatory', true)->count();
-
-                 // Count submitted evidence (status beyond DRAFT: SUBMITTED, APPROVED, etc.)
-                 $progress['submitted'] = EvidenceSubmission::where('teacher_user_id', $user->id)
+                 $mandatoryIds = $requirements->where('is_mandatory', true)->pluck('evidence_item_id');
+                 $mandatorySubmissions = EvidenceSubmission::where('teacher_user_id', $user->id)
                     ->where('semester_id', $currentSemester->id)
-                    ->whereIn('status', ['SUBMITTED', 'APPROVED'])
-                    ->whereIn('evidence_item_id', $requirements->where('is_mandatory', true)->pluck('evidence_item_id'))
-                    ->distinct('evidence_item_id')
-                    ->count('evidence_item_id');
+                    ->whereIn('evidence_item_id', $mandatoryIds)
+                    ->get()
+                    ->keyBy('evidence_item_id');
+
+                 $applicableMandatory = $mandatoryIds->reject(function ($itemId) use ($mandatorySubmissions) {
+                    return $mandatorySubmissions->get($itemId)?->status === \App\Enums\SubmissionStatus::NA;
+                 });
+
+                 $progress['total'] = $applicableMandatory->count();
+
+                 $progress['submitted'] = $applicableMandatory->filter(function ($itemId) use ($mandatorySubmissions) {
+                    return in_array($mandatorySubmissions->get($itemId)?->status?->value, ['SUBMITTED', 'APPROVED'], true);
+                 })->count();
 
                  $progress['percentage'] = $progress['total'] > 0
                     ? round(($progress['submitted'] / $progress['total']) * 100)

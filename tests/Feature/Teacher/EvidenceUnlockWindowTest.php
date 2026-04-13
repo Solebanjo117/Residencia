@@ -11,6 +11,7 @@ use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
 use App\Models\Subject;
+use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -159,4 +160,38 @@ it('rejects unsupported extensions using the unified upload matrix', function ()
     $response->assertRedirect('/docente/evidencias');
     $response->assertSessionHasErrors('file');
     $this->assertDatabaseCount('evidence_files', 0);
+});
+
+it('marks submission as late when teacher submits after regular window closes', function () {
+    $ctx = createTeacherEvidenceContext();
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['submission']->semester_id,
+        'evidence_item_id' => $ctx['submission']->evidence_item_id,
+        'opens_at' => now()->subDays(10),
+        'closes_at' => now()->subDay(),
+        'created_by_user_id' => $ctx['teacher']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'evidencia.pdf',
+        'stored_relative_path' => 'tmp/evidencia.pdf',
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 1234,
+        'file_hash' => str_repeat('b', 64),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $response = $this
+        ->from('/docente/evidencias')
+        ->actingAs($ctx['teacher'])
+        ->post(route('docente.evidencias.submit', $ctx['submission']->id));
+
+    $response->assertRedirect('/docente/evidencias');
+    expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::SUBMITTED);
+    expect($ctx['submission']->fresh()->submitted_late)->toBeTrue();
 });

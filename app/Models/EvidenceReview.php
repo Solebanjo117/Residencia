@@ -14,6 +14,7 @@ class EvidenceReview extends Model
         'submission_id',
         'reviewed_by_user_id',
         'decision',
+        'stage',
         'comments',
         'reviewed_at'
     ];
@@ -24,6 +25,9 @@ class EvidenceReview extends Model
     ];
 
     public $timestamps = false;
+
+    public const STAGE_OFFICE = 'OFFICE';
+    public const STAGE_FINAL = 'FINAL';
 
     public function submission()
     {

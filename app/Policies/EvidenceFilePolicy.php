@@ -22,9 +22,24 @@ class EvidenceFilePolicy
         return $this->view($user, $file);
     }
 
+    public function preview(User $user, EvidenceFile $file): bool
+    {
+        return $this->view($user, $file);
+    }
+
+    public function replace(User $user, EvidenceFile $file): bool
+    {
+        return $this->canManage($user, $file);
+    }
+
     public function delete(User $user, EvidenceFile $file): bool
     {
-        if ($user->isJefeOficina()) {
+        return $this->canManage($user, $file);
+    }
+
+    private function canManage(User $user, EvidenceFile $file): bool
+    {
+        if ($user->isJefeOficina() || $user->isJefeDepto()) {
             return true;
         }
 

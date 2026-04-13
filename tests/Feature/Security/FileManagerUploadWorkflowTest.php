@@ -113,7 +113,7 @@ it('does not auto submit evidence when uploading from file manager', function ()
     ]);
 });
 
-it('blocks file manager upload when window is closed and there is no unlock', function () {
+it('allows file manager upload when regular window already closed and treats it as late workflow', function () {
     Storage::fake('local');
 
     $ctx = createFileManagerContext(windowOpen: false);
@@ -126,12 +126,13 @@ it('blocks file manager upload when window is closed and there is no unlock', fu
         ]);
 
     $response->assertRedirect('/files/manager');
-    $response->assertSessionHasErrors('file');
     expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
-    $this->assertDatabaseCount('evidence_files', 0);
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+    ]);
 });
 
-it('forbids jefe oficina from uploading files on teacher submission via file manager', function () {
+it('allows jefe oficina to upload files on teacher submission via file manager', function () {
     Storage::fake('local');
 
     $ctx = createFileManagerContext(windowOpen: true);
@@ -140,13 +141,57 @@ it('forbids jefe oficina from uploading files on teacher submission via file man
     $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
 
     $response = $this
+        ->from('/files/manager')
         ->actingAs($jefeOficina)
         ->post(route('files.store', $ctx['folder']->id), [
             'file' => UploadedFile::fake()->create('evidencia.pdf', 200, 'application/pdf'),
         ]);
 
-    $response->assertForbidden();
+    $response->assertRedirect('/files/manager');
     expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+        'uploaded_by_user_id' => $jefeOficina->id,
+    ]);
+});
+
+it('allows jefe depto to upload files on teacher submission via file manager', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+
+    $response = $this
+        ->from('/files/manager')
+        ->actingAs($jefeDepto)
+        ->post(route('files.store', $ctx['folder']->id), [
+            'file' => UploadedFile::fake()->create('evidencia.pdf', 200, 'application/pdf'),
+        ]);
+
+    $response->assertRedirect('/files/manager');
+    expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => $ctx['submission']->id,
+        'uploaded_by_user_id' => $jefeDepto->id,
+    ]);
+});
+
+it('forbids docente from uploading files into another teacher folder', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $otherTeacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $otherTeacher = User::factory()->create(['role_id' => $otherTeacherRoleId]);
+
+    $response = $this
+        ->actingAs($otherTeacher)
+        ->post(route('files.store', $ctx['folder']->id), [
+            'file' => UploadedFile::fake()->create('evidencia.pdf', 200, 'application/pdf'),
+        ]);
+
+    $response->assertForbidden();
     $this->assertDatabaseCount('evidence_files', 0);
 });
 
@@ -276,6 +321,63 @@ it('logs audit entry on successful file download', function () {
         'entity_type' => 'EvidenceFile',
         'entity_id' => $file->id,
     ]);
+});
+
+it('allows jefe depto to preview a pdf file inside the page', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+
+    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    Storage::disk('local')->put($storedPath, '%PDF-1.4 preview');
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'archivo.pdf',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 120,
+        'file_hash' => hash('sha256', '%PDF-1.4 preview'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($jefeDepto)
+        ->get(route('files.preview', $file->id))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf');
+});
+
+it('forbids docente from previewing a file outside their own folder', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $otherTeacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $otherTeacher = User::factory()->create(['role_id' => $otherTeacherRoleId]);
+
+    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    Storage::disk('local')->put($storedPath, '%PDF-1.4 private');
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'archivo.pdf',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 120,
+        'file_hash' => hash('sha256', '%PDF-1.4 private'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($otherTeacher)
+        ->get(route('files.preview', $file->id))
+        ->assertForbidden();
 });
 
 it('forbids teacher from deleting files when submission is already submitted', function () {

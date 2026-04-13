@@ -5,10 +5,12 @@ import FolderTree from '@/components/FileManager/FolderTree.vue';
 import {
     Folder,
     FileText,
+    Eye,
     Download,
     Trash2,
     Upload,
     RefreshCw,
+    X,
 } from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed } from 'vue';
@@ -31,6 +33,8 @@ const uploadAccept = computed(() => {
 
     return extensions.map((extension) => `.${extension}`).join(',');
 });
+
+const canUploadCurrentFolder = computed(() => Boolean(props.currentFolder?.can_upload));
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -57,22 +61,38 @@ const formatSize = (bytes: number) => {
 
 const getStatusColor = (status: string | null) => {
     switch (status) {
-        case 'APPROVED':
+        case 'OFFICE_APPROVED':
             return 'bg-green-100 text-green-800 border-green-200';
+        case 'FINAL_APPROVED':
+            return 'bg-emerald-100 text-emerald-800 border-emerald-200';
         case 'REJECTED':
             return 'bg-red-100 text-red-800 border-red-200';
         case 'DRAFT':
             return 'bg-gray-100 text-gray-800 border-gray-200';
         case 'SUBMITTED':
             return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'NA':
+            return 'bg-slate-100 text-slate-700 border-slate-200';
         default:
             return 'bg-gray-50 text-gray-500 border-gray-200';
+    }
+};
+
+const statusLabel = (status: string | null) => {
+    switch (status) {
+        case 'OFFICE_APPROVED':
+            return 'OFICINA';
+        case 'FINAL_APPROVED':
+            return 'FINAL';
+        default:
+            return status || 'Sin estado';
     }
 };
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const replaceFileInput = ref<HTMLInputElement | null>(null);
 const fileToReplace = ref<number | null>(null);
+const previewFile = ref<any | null>(null);
 
 const uploadForm = useForm({
     file: null as File | null,
@@ -83,6 +103,10 @@ const replaceForm = useForm({
 });
 
 const triggerUpload = () => {
+    if (!canUploadCurrentFolder.value) {
+        return;
+    }
+
     fileInput.value?.click();
 };
 
@@ -120,6 +144,8 @@ const triggerReplace = (fileId: number) => {
 
 const handleReplaceSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
+    uploadError.value = '';
+    uploadSuccess.value = '';
     if (
         target.files &&
         target.files.length > 0 &&
@@ -132,9 +158,25 @@ const handleReplaceSelected = (event: Event) => {
                 target.value = '';
                 fileToReplace.value = null;
                 replaceForm.reset();
+                uploadSuccess.value = 'Archivo reemplazado correctamente.';
+                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+            },
+            onError: (errors: any) => {
+                target.value = '';
+                fileToReplace.value = null;
+                replaceForm.reset();
+                uploadError.value = errors.file || 'Error al reemplazar archivo.';
             },
         });
     }
+};
+
+const openPreview = (file: any) => {
+    previewFile.value = file;
+};
+
+const closePreview = () => {
+    previewFile.value = null;
 };
 </script>
 
@@ -173,7 +215,7 @@ const handleReplaceSelected = (event: Event) => {
                         <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         Subiendo...
                     </div>
-                    <button type="button" v-if="currentFolder && !uploadForm.processing"
+                    <button type="button" v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing"
                         @click="triggerUpload"
                         class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
                     >
@@ -312,22 +354,28 @@ const handleReplaceSelected = (event: Event) => {
                                             <td
                                                 class="px-6 py-4 whitespace-nowrap"
                                             >
-                                                <span
-                                                    v-if="file.status"
-                                                    :class="[
-                                                        'inline-flex rounded-full border px-2 py-1 text-xs leading-5 font-semibold',
-                                                        getStatusColor(
-                                                            file.status,
-                                                        ),
-                                                    ]"
-                                                >
-                                                    {{ file.status }}
-                                                </span>
-                                                <span
-                                                    v-else
-                                                    class="text-xs text-gray-400 italic"
-                                                    >Sin estado</span
-                                                >
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <span
+                                                        v-if="file.status"
+                                                        :class="[
+                                                            'inline-flex rounded-full border px-2 py-1 text-xs leading-5 font-semibold',
+                                                            getStatusColor(
+                                                                file.status,
+                                                            ),
+                                                        ]"
+                                                    >
+                                                        {{ statusLabel(file.status) }}
+                                                    </span>
+                                                    <span
+                                                        v-if="!file.status"
+                                                        class="text-xs text-gray-400 italic"
+                                                    >
+                                                        Sin estado
+                                                    </span>
+                                                    <span v-if="file.is_late" class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
+                                                        EXT
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td
                                                 class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
@@ -350,7 +398,24 @@ const handleReplaceSelected = (event: Event) => {
                                                 <div
                                                     class="flex justify-end gap-2"
                                                 >
-                                                    <button type="button" v-if="file.can_delete"
+                                                    <Link
+                                                        v-if="file.is_docx && file.docx_editor_url"
+                                                        :href="file.docx_editor_url"
+                                                        class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                                        :title="file.can_edit_docx ? 'Abrir editor DOCX' : 'Ver documento DOCX'"
+                                                    >
+                                                        {{ file.can_edit_docx ? 'Editar DOCX' : 'Ver DOCX' }}
+                                                    </Link>
+                                                    <button
+                                                        v-else-if="file.can_preview"
+                                                        type="button"
+                                                        class="p-1 text-slate-600 hover:text-slate-900"
+                                                        title="Ver en la pagina"
+                                                        @click="openPreview(file)"
+                                                    >
+                                                        <Eye class="h-4 w-4" />
+                                                    </button>
+                                                    <button type="button" v-if="file.can_replace"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
                                                         title="Reemplazar"
                                                         @click="
@@ -404,6 +469,59 @@ const handleReplaceSelected = (event: Event) => {
                         >
                             <p class="text-gray-500">Esta carpeta está vacía.</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="previewFile" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+            <div class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <div class="min-w-0">
+                        <h3 class="truncate text-base font-semibold text-slate-900">{{ previewFile.name }}</h3>
+                        <p class="text-xs text-slate-500">{{ previewFile.mime_type || 'Archivo' }}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a
+                            :href="previewFile.download_url"
+                            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            <Download class="h-4 w-4" />
+                            Descargar
+                        </a>
+                        <button
+                            v-if="previewFile.can_replace"
+                            type="button"
+                            class="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100"
+                            @click="triggerReplace(previewFile.id)"
+                        >
+                            <RefreshCw class="h-4 w-4" />
+                            Reemplazar
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                            @click="closePreview"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-hidden bg-slate-100">
+                    <iframe
+                        v-if="previewFile.mime_type === 'application/pdf'"
+                        :src="previewFile.preview_url"
+                        class="h-full w-full border-0"
+                        title="Vista previa del archivo"
+                    />
+                    <div v-else class="flex h-full items-center justify-center bg-white p-6">
+                        <img
+                            v-if="previewFile.mime_type?.startsWith('image/')"
+                            :src="previewFile.preview_url"
+                            :alt="previewFile.name"
+                            class="max-h-full max-w-full rounded-xl object-contain shadow"
+                        />
                     </div>
                 </div>
             </div>

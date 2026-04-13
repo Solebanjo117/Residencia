@@ -2,34 +2,28 @@
 
 namespace App\Http\Controllers\Teacher;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
 use App\Enums\SubmissionStatus;
-use App\Models\EvidenceStatusHistory;
-use App\Models\Semester;
-use App\Models\TeachingLoad;
+use App\Http\Controllers\Controller;
 use App\Models\EvidenceRequirement;
+use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
-use App\Models\SubmissionWindow;
 use App\Models\FolderNode;
+use App\Models\Semester;
 use App\Models\StorageRoot;
+use App\Models\SubmissionWindow;
+use App\Models\TeachingLoad;
+use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use App\Services\StorageService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 
 class EvidenceController extends Controller
 {
-    /**
-     * WARNING: This GET endpoint previously created EvidenceSubmission records as a
-     * side-effect (auto-initializing DRAFT submissions for every load+requirement pair).
-     * That behavior was extracted to the dedicated POST initSubmission() action, but the
-     * frontend still depends on submissions existing before files can be uploaded. If
-     * submissions appear to be "missing" for a teacher, check that initSubmission() was
-     * called or that a migration back-filled existing records.
-     */
-    public function index(Request $request)
+    public function index(Request $request, EvidenceFlowService $flowService)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -46,44 +40,48 @@ class EvidenceController extends Controller
             ]);
         }
 
-        // 1. Get Teacher's Loads
         $loads = TeachingLoad::with('subject')
             ->where('teacher_user_id', $user->id)
             ->where('semester_id', $currentSemester->id)
             ->get();
 
-        // 2. Get Requirements for the Dept
-        $requirements = EvidenceRequirement::with('evidenceItem')
-            ->where('semester_id', $currentSemester->id)
-            ->where('department_id', $department->id)
-            ->get();
+        $requirements = $flowService->requirementsForDepartment($currentSemester->id, $department->id);
 
-        // 3. Get Existing Submissions (no side-effect creation here)
-        $submissions = EvidenceSubmission::with(['files', 'statusHistory'])
+        $submissions = EvidenceSubmission::with([
+            'files',
+            'statusHistory',
+            'reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
+            'officeReviewer',
+            'finalApprover',
+            'activeResubmissionUnlock',
+        ])
             ->where('teacher_user_id', $user->id)
             ->where('semester_id', $currentSemester->id)
             ->get()
-            ->keyBy(function($item) {
-                return $item->teaching_load_id . '_' . $item->evidence_item_id;
-            });
+            ->groupBy('teaching_load_id');
 
-        // 4. Get Active Windows
-        $windows = SubmissionWindow::where('semester_id', $currentSemester->id)
+        $windows = SubmissionWindow::query()
+            ->where('semester_id', $currentSemester->id)
             ->where('status', 'ACTIVE')
             ->get()
             ->keyBy('evidence_item_id');
 
-        // Build a flatten Task List
         $tasks = [];
 
         foreach ($loads as $load) {
-            foreach ($requirements as $req) {
-                $key = $load->id . '_' . $req->evidence_item_id;
-                $submission = $submissions->get($key);
-                $window = $windows->get($req->evidence_item_id);
+            $loadSubmissions = ($submissions->get($load->id) ?? collect())->keyBy('evidence_item_id');
 
-                $now = now();
-                $isOpen = $window ? ($now >= $window->opens_at && $now <= $window->closes_at) : false;
+            foreach ($requirements as $requirement) {
+                $submission = $loadSubmissions->get($requirement->evidence_item_id);
+                $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
+                $availability = $flowService->resolveAvailability(
+                    $windows->get($requirement->evidence_item_id),
+                    $stageUnlocked,
+                    $submission?->activeResubmissionUnlock !== null,
+                    $submission
+                );
+
+                $latestReview = $submission?->reviews?->first();
 
                 $tasks[] = [
                     'id' => $submission?->id,
@@ -93,31 +91,63 @@ class EvidenceController extends Controller
                         'group' => $load->group_name,
                     ],
                     'requirement' => [
-                        'item_id' => $req->evidence_item_id,
-                        'item_name' => $req->evidenceItem->name,
-                        'is_mandatory' => $req->is_mandatory,
+                        'item_id' => $requirement->evidence_item_id,
+                        'item_name' => $requirement->evidenceItem->name,
+                        'is_mandatory' => $requirement->is_mandatory,
+                        'stage_order' => $flowService->stageOrder($requirement->evidenceItem->name),
+                        'stage_label' => $flowService->stageLabel($flowService->stageOrder($requirement->evidenceItem->name)),
                     ],
-                    'submission' => $submission ? [
-                        'status' => $submission->status->value,
-                        'files_count' => $submission->files->count(),
-                        'files' => $submission->files->map(function($f) {
-                            return [
-                                'id' => $f->id,
-                                'file_name' => $f->file_name,
-                                'size' => $f->size_bytes,
-                                'uploaded_at' => $f->uploaded_at
-                            ];
-                        })
-                    ] : [
-                        'status' => null,
-                        'files_count' => 0,
-                        'files' => []
+                    'submission' => [
+                        'status' => $submission?->status?->value,
+                        'ui_status' => $flowService->uiStatus($submission, $availability),
+                        'files_count' => $submission?->files->count() ?? 0,
+                        'files' => $submission
+                            ? $submission->files->map(fn ($file) => [
+                                'id' => $file->id,
+                                'file_name' => $file->file_name,
+                                'size' => $file->size_bytes,
+                                'uploaded_at' => $file->uploaded_at,
+                                'download_url' => route('files.download', $file->id),
+                            ])->values()->toArray()
+                            : [],
+                        'submitted_late' => (bool) $submission?->submitted_late,
+                        'office_approved_at' => $submission?->office_reviewed_at?->toDateTimeString(),
+                        'office_approved_by' => $submission?->officeReviewer?->name,
+                        'final_approved_at' => $submission?->final_approved_at?->toDateTimeString(),
+                        'final_approved_by' => $submission?->finalApprover?->name,
+                        'last_review' => $latestReview ? [
+                            'stage' => $latestReview->stage,
+                            'decision' => $latestReview->decision->value,
+                            'comments' => $latestReview->comments,
+                            'reviewed_at' => $latestReview->reviewed_at?->toDateTimeString(),
+                            'reviewer_name' => $latestReview->reviewer?->name,
+                        ] : null,
+                        'review_trail' => $submission
+                            ? $submission->reviews->map(fn (EvidenceReview $review) => [
+                                'stage' => $review->stage,
+                                'decision' => $review->decision->value,
+                                'comments' => $review->comments,
+                                'reviewed_at' => $review->reviewed_at?->toDateTimeString(),
+                                'reviewer_name' => $review->reviewer?->name,
+                            ])->values()->toArray()
+                            : [],
                     ],
-                    'window' => $window ? [
+                    'availability' => $availability,
+                    'window' => ($window = $windows->get($requirement->evidence_item_id)) ? [
                         'opens_at' => $window->opens_at,
                         'closes_at' => $window->closes_at,
-                        'is_open' => $isOpen
+                        'state_code' => $availability['code'],
+                        'state_label' => $availability['label'],
+                        'is_open' => $availability['code'] === 'OPEN',
                     ] : null,
+                    'can_initialize' => !$submission && $availability['is_available'],
+                    'can_upload' => $submission
+                        && in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
+                        && $availability['is_available'],
+                    'can_submit' => $submission
+                        && in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
+                        && $submission->files->count() > 0
+                        && $availability['is_available'],
                 ];
             }
         }
@@ -129,11 +159,7 @@ class EvidenceController extends Controller
         ]);
     }
 
-    /**
-     * Initialize a DRAFT submission for a specific load + evidence item.
-     * Called via POST when the teacher starts working on an evidence task.
-     */
-    public function initSubmission(Request $request)
+    public function initSubmission(Request $request, EvidenceFlowService $flowService)
     {
         $startedAt = microtime(true);
 
@@ -159,6 +185,36 @@ class EvidenceController extends Controller
             abort(403);
         }
 
+        $requirements = $this->teacherRequirementsForLoad($user, $load, $flowService);
+        $requirement = $requirements->firstWhere('evidence_item_id', (int) $request->evidence_item_id);
+
+        if (!$requirement) {
+            return back()->with('error', 'La evidencia solicitada no forma parte de tu matriz activa.');
+        }
+
+        $existingSubmissions = EvidenceSubmission::query()
+            ->where('teacher_user_id', $user->id)
+            ->where('semester_id', $load->semester_id)
+            ->where('teaching_load_id', $load->id)
+            ->get()
+            ->keyBy('evidence_item_id');
+
+        $window = SubmissionWindow::query()
+            ->where('semester_id', $load->semester_id)
+            ->where('evidence_item_id', $requirement->evidence_item_id)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        $availability = $flowService->resolveAvailability(
+            $window,
+            $flowService->isStageUnlocked($requirement, $requirements, $existingSubmissions),
+            false
+        );
+
+        if (!$availability['is_available']) {
+            return back()->with('error', 'Esta evidencia aun no se puede iniciar: ' . $availability['label'] . '.');
+        }
+
         $submission = EvidenceSubmission::firstOrCreate(
             [
                 'semester_id' => $load->semester_id,
@@ -167,7 +223,8 @@ class EvidenceController extends Controller
                 'teaching_load_id' => $load->id,
             ],
             [
-                'status' => 'DRAFT',
+                'status' => SubmissionStatus::DRAFT,
+                'last_updated_at' => now(),
             ]
         );
 
@@ -186,13 +243,12 @@ class EvidenceController extends Controller
         return back()->with('success', 'Entrega inicializada.')->with('submission_id', $submission->id);
     }
 
-    public function submit(Request $request, EvidenceSubmission $submission, EvidenceService $evidenceService)
+    public function submit(Request $request, EvidenceSubmission $submission, EvidenceService $evidenceService, EvidenceFlowService $flowService)
     {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
         $actor = $request->user();
 
-        // Authorize teacher owns this submission
         if ($submission->teacher_user_id !== Auth::id()) {
             Log::channel('operations')->warning('evidence.submit_forbidden', [
                 'actor_user_id' => $actor?->id,
@@ -206,8 +262,7 @@ class EvidenceController extends Controller
             abort(403);
         }
 
-        // Only DRAFT or REJECTED can be submitted
-        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED])) {
+        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
             Log::channel('operations')->warning('evidence.submit_invalid_state', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -219,31 +274,21 @@ class EvidenceController extends Controller
             return back()->with('error', 'Esta entrega no puede ser enviada en su estado actual.');
         }
 
-        // Verify window is open or unlocked
-        $window = SubmissionWindow::where('semester_id', $submission->semester_id)
-            ->where('evidence_item_id', $submission->evidence_item_id)
-            ->where('status', 'ACTIVE')
-            ->first();
+        $context = $this->resolveSubmissionContext($submission, $flowService);
 
-        $now = now();
-        $isWindowOpen = $window && $now >= $window->opens_at && $now <= $window->closes_at;
-
-        $hasUnlock = $this->hasActiveUnlock($submission);
-
-        if (!$isWindowOpen && !$hasUnlock) {
+        if (!$context['availability']['is_available']) {
             Log::channel('operations')->warning('evidence.submit_window_closed', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
                 'submission_id' => $submission->id,
                 'semester_id' => $submission->semester_id,
                 'evidence_item_id' => $submission->evidence_item_id,
-                'window_id' => $window?->id,
-                'window_open' => $isWindowOpen,
-                'has_unlock' => $hasUnlock,
+                'window_id' => $context['window']?->id,
+                'availability' => $context['availability']['code'],
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('error', 'La ventana de recepcion para este documento esta cerrada y no cuenta con prorroga.');
+            return back()->with('error', 'La evidencia no esta disponible para envio: ' . $context['availability']['label'] . '.');
         }
 
         if ($submission->files()->count() === 0) {
@@ -259,13 +304,17 @@ class EvidenceController extends Controller
             return back()->with('error', 'Debes adjuntar al menos un archivo para poder enviar la evidencia.');
         }
 
-        // Use EvidenceService for the status transition (handles audit, history, validation)
         $evidenceService->changeStatus(
             $submission,
             SubmissionStatus::SUBMITTED,
             $request->user(),
             'Enviado por el Docente'
         );
+
+        $submission->update([
+            'submitted_late' => $context['availability']['is_late'],
+            'last_updated_at' => now(),
+        ]);
 
         Log::channel('operations')->info('evidence.submitted', [
             'actor_user_id' => $actor?->id,
@@ -274,22 +323,24 @@ class EvidenceController extends Controller
             'semester_id' => $submission->semester_id,
             'evidence_item_id' => $submission->evidence_item_id,
             'teaching_load_id' => $submission->teaching_load_id,
-            'window_id' => $window?->id,
-            'window_open' => $isWindowOpen,
-            'has_unlock' => $hasUnlock,
+            'window_id' => $context['window']?->id,
+            'availability' => $context['availability']['code'],
+            'submitted_late' => $context['availability']['is_late'],
             'duration_ms' => $this->elapsedMs($startedAt),
         ]);
 
-        return back()->with('success', 'Evidencia enviada exitosamente para revision.');
+        return back()->with('success', $context['availability']['is_late']
+            ? 'Evidencia enviada exitosamente de forma extemporanea.'
+            : 'Evidencia enviada exitosamente para revision.'
+        );
     }
 
-    public function storeFile(Request $request, EvidenceSubmission $submission, StorageService $storageService)
+    public function storeFile(Request $request, EvidenceSubmission $submission, StorageService $storageService, EvidenceFlowService $flowService)
     {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
         $actor = $request->user();
 
-        // 1. Authorization
         if ($submission->teacher_user_id !== Auth::id()) {
             Log::channel('operations')->warning('evidence.file_upload_forbidden', [
                 'actor_user_id' => $actor?->id,
@@ -303,7 +354,7 @@ class EvidenceController extends Controller
             abort(403);
         }
 
-        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED])) {
+        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
             Log::channel('operations')->warning('evidence.file_upload_invalid_state', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -315,38 +366,27 @@ class EvidenceController extends Controller
             return back()->with('error', 'No puedes subir archivos a una entrega que ya fue enviada o aprobada.');
         }
 
-        // 2. Validate Window or Unlock
-        $window = SubmissionWindow::where('semester_id', $submission->semester_id)
-            ->where('evidence_item_id', $submission->evidence_item_id)
-            ->where('status', 'ACTIVE')
-            ->first();
+        $context = $this->resolveSubmissionContext($submission, $flowService);
 
-        $now = now();
-        $isWindowOpen = $window && $now >= $window->opens_at && $now <= $window->closes_at;
-
-        $hasUnlock = $this->hasActiveUnlock($submission);
-
-        if (!$isWindowOpen && !$hasUnlock) {
+        if (!$context['availability']['is_available']) {
             Log::channel('operations')->warning('evidence.file_upload_window_closed', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
                 'submission_id' => $submission->id,
                 'semester_id' => $submission->semester_id,
                 'evidence_item_id' => $submission->evidence_item_id,
-                'window_id' => $window?->id,
-                'window_open' => $isWindowOpen,
-                'has_unlock' => $hasUnlock,
+                'window_id' => $context['window']?->id,
+                'availability' => $context['availability']['code'],
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('error', 'La ventana de recepcion para este documento esta cerrada y no cuenta con permisos de re-subida.');
+            return back()->with('error', 'La evidencia no esta disponible para carga: ' . $context['availability']['label'] . '.');
         }
 
         $request->validate([
             'file' => 'required|file|mimes:' . implode(',', $this->allowedUploadExtensions()) . '|max:' . $this->maxUploadKb(),
         ]);
 
-        // 3. Find or Create Folder Node
         $root = StorageRoot::where('is_active', true)->first();
         if (!$root) {
             return back()->with('error', 'Error del sistema: No hay una ruta de almacenamiento activa configurada.');
@@ -356,29 +396,24 @@ class EvidenceController extends Controller
         $teacherPath = "{$semesterPath}/docente_{$submission->teacher_user_id}";
         $itemPath = "{$teacherPath}/item_{$submission->evidence_item_id}";
 
-        // We could just create the single terminal node. For simplicity, we ensure it exists.
         $folderNode = FolderNode::firstOrCreate(
             [
                 'storage_root_id' => $root->id,
                 'relative_path' => $itemPath,
             ],
             [
-                // We fake a generic parent_id NULL or build parents if we strictly want a clean tree.
-                // Given the File Manager just queries nodes, we just provide the basic fields.
                 'name' => 'Entregables Item ' . $submission->evidence_item_id,
                 'owner_user_id' => $submission->teacher_user_id,
                 'semester_id' => $submission->semester_id,
-                'parent_id' => null, // Standalone node in the DB tree logic for this direct upload
+                'parent_id' => null,
             ]
         );
 
-        // 4. Store using StorageService
         try {
             $uploadedFile = $request->file('file');
             $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
 
-            // Mark last_updated_at
-            $submission->touch();
+            $submission->update(['last_updated_at' => now()]);
 
             Log::channel('operations')->info('evidence.file_uploaded', [
                 'actor_user_id' => $actor?->id,
@@ -388,15 +423,17 @@ class EvidenceController extends Controller
                 'evidence_item_id' => $submission->evidence_item_id,
                 'teaching_load_id' => $submission->teaching_load_id,
                 'folder_node_id' => $folderNode->id,
-                'window_id' => $window?->id,
-                'window_open' => $isWindowOpen,
-                'has_unlock' => $hasUnlock,
+                'window_id' => $context['window']?->id,
+                'availability' => $context['availability']['code'],
                 'file_name' => $uploadedFile?->getClientOriginalName(),
                 'file_size_bytes' => $uploadedFile?->getSize(),
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('success', 'Archivo subido correctamente.');
+            return back()->with('success', $context['availability']['is_late']
+                ? 'Archivo subido correctamente en periodo extemporaneo.'
+                : 'Archivo subido correctamente.'
+            );
         } catch (\Exception $e) {
             Log::channel('operations')->error('evidence.file_upload_failed', [
                 'actor_user_id' => $actor?->id,
@@ -405,15 +442,59 @@ class EvidenceController extends Controller
                 'semester_id' => $submission->semester_id,
                 'evidence_item_id' => $submission->evidence_item_id,
                 'teaching_load_id' => $submission->teaching_load_id,
-                'window_id' => $window?->id,
-                'window_open' => $isWindowOpen,
-                'has_unlock' => $hasUnlock,
+                'window_id' => $context['window']?->id,
+                'availability' => $context['availability']['code'],
                 'error' => $e->getMessage(),
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
             return back()->with('error', 'Error al guardar el archivo: ' . $e->getMessage());
         }
+    }
+
+    private function teacherRequirementsForLoad($user, TeachingLoad $load, EvidenceFlowService $flowService): Collection
+    {
+        $department = $user->departments()->first();
+
+        return $flowService->requirementsForDepartment($load->semester_id, $department?->id);
+    }
+
+    private function resolveSubmissionContext(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
+    {
+        $requirements = $flowService->requirementsForDepartment(
+            $submission->semester_id,
+            $submission->teacher->departments()->first()?->id
+        );
+
+        $requirement = $requirements->firstWhere('evidence_item_id', $submission->evidence_item_id);
+
+        $loadSubmissions = EvidenceSubmission::query()
+            ->where('teacher_user_id', $submission->teacher_user_id)
+            ->where('semester_id', $submission->semester_id)
+            ->where('teaching_load_id', $submission->teaching_load_id)
+            ->get()
+            ->keyBy('evidence_item_id');
+
+        $window = SubmissionWindow::query()
+            ->where('semester_id', $submission->semester_id)
+            ->where('evidence_item_id', $submission->evidence_item_id)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        $stageUnlocked = $requirement
+            ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)
+            : true;
+
+        return [
+            'requirement' => $requirement,
+            'window' => $window,
+            'availability' => $flowService->resolveAvailability(
+                $window,
+                $stageUnlocked,
+                $this->hasActiveUnlock($submission),
+                $submission
+            ),
+        ];
     }
 
     private function hasActiveUnlock(EvidenceSubmission $submission): bool

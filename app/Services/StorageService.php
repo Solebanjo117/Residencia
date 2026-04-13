@@ -8,6 +8,7 @@ use App\Models\FolderNode;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -82,6 +83,90 @@ class StorageService
         return $evidenceFile;
     }
 
+    public function storeGeneratedEvidenceVersion(
+        string $binaryContents,
+        string $fileName,
+        string $mimeType,
+        FolderNode $folderNode,
+        User $user,
+        EvidenceSubmission $submission,
+        ?EvidenceFile $baseFile = null,
+        ?string $editorSource = null,
+        ?array $editorMeta = null
+    ): EvidenceFile {
+        $validatedUpload = $this->validateGeneratedUpload($fileName, $mimeType, $binaryContents);
+
+        $root = $folderNode->root;
+        if (!$root || !$root->is_active) {
+            throw new \RuntimeException('Storage root not active or defined.');
+        }
+
+        $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
+        $storedName = (string) Str::uuid() . '.' . $validatedUpload['extension'];
+        $relativePath = $normalizedFolderPath . '/' . $storedName;
+        $normalizedStoredPath = $this->normalizeRelativePath($relativePath);
+
+        if (!Storage::disk('local')->put($normalizedStoredPath, $binaryContents)) {
+            throw new \RuntimeException('No se pudo guardar la nueva version del documento.');
+        }
+
+        $this->assertPathInsideFolder($folderNode, $normalizedStoredPath);
+        $fileHash = hash('sha256', $binaryContents);
+
+        try {
+            $evidenceFile = DB::transaction(function () use (
+                $submission,
+                $folderNode,
+                $user,
+                $validatedUpload,
+                $normalizedStoredPath,
+                $fileHash,
+                $baseFile,
+                $editorSource,
+                $editorMeta
+            ) {
+                if ($baseFile) {
+                    $baseFile->forceFill(['is_current_version' => false])->save();
+                }
+
+                $rootFileId = $baseFile?->root_file_id ?: $baseFile?->id;
+
+                return EvidenceFile::create([
+                    'submission_id' => $submission->id,
+                    'previous_version_file_id' => $baseFile?->id,
+                    'root_file_id' => $rootFileId,
+                    'folder_node_id' => $folderNode->id,
+                    'file_name' => $validatedUpload['safe_file_name'],
+                    'stored_relative_path' => $normalizedStoredPath,
+                    'mime_type' => $validatedUpload['mime_type'],
+                    'size_bytes' => $validatedUpload['size_bytes'],
+                    'file_hash' => $fileHash,
+                    'uploaded_at' => now(),
+                    'last_edited_at' => now(),
+                    'last_edited_by_user_id' => $user->id,
+                    'editor_source' => $editorSource,
+                    'editor_meta' => $editorMeta,
+                    'is_current_version' => true,
+                    'uploaded_by_user_id' => $user->id,
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($normalizedStoredPath);
+
+            throw $exception;
+        }
+
+        $this->auditService->log($user, 'SAVE_DOCX_VERSION', 'EvidenceFile', $evidenceFile->id, [
+            'previous_version_file_id' => $baseFile?->id,
+            'root_file_id' => $evidenceFile->root_file_id ?: $evidenceFile->id,
+            'stored_relative_path' => $normalizedStoredPath,
+            'file_name' => $evidenceFile->file_name,
+            'editor_source' => $editorSource,
+        ]);
+
+        return $evidenceFile;
+    }
+
     public function deleteEvidence(EvidenceFile $file, User $user)
     {
         $this->assertEvidenceFilePath($file);
@@ -115,12 +200,8 @@ class StorageService
 
     public function getAccessibleRoots(User $user)
     {
-        if ($user->isJefeOficina()) {
+        if ($user->isJefeOficina() || $user->isJefeDepto()) {
             return $this->buildTree(FolderNode::all());
-        }
-
-        if ($user->isJefeDepto()) {
-            return $this->buildTree($this->getDepartmentScopedNodes($user));
         }
 
         if ($user->isDocente()) {
@@ -148,42 +229,6 @@ class StorageService
 
         return $roots->values();
     }
-
-    private function getDepartmentScopedNodes(User $user)
-    {
-        $departmentIds = $user->departments()->pluck('departments.id');
-        if ($departmentIds->isEmpty()) {
-            return collect();
-        }
-
-        $teacherIds = User::whereHas('departments', function ($query) use ($departmentIds) {
-                $query->whereIn('departments.id', $departmentIds);
-            })
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id);
-
-        if ($teacherIds->isEmpty()) {
-            return collect();
-        }
-
-        $allNodes = FolderNode::all()->keyBy('id');
-        $visibleNodes = collect();
-
-        foreach ($allNodes as $node) {
-            if ($node->owner_user_id === null || !$teacherIds->contains((int) $node->owner_user_id)) {
-                continue;
-            }
-
-            $current = $node;
-            while ($current) {
-                $visibleNodes->put($current->id, $current);
-                $current = $current->parent_id ? $allNodes->get($current->parent_id) : null;
-            }
-        }
-
-        return $visibleNodes->values();
-    }
-
     private function validateUpload(UploadedFile $file): array
     {
         $originalName = (string) $file->getClientOriginalName();
@@ -243,6 +288,65 @@ class StorageService
             'safe_file_name' => $safeBaseName . '.' . $extension,
             'extension' => $extension,
             'mime_type' => $mimeType,
+            'size_bytes' => $sizeBytes,
+        ];
+    }
+
+    private function validateGeneratedUpload(string $fileName, string $mimeType, string $binaryContents): array
+    {
+        $originalName = trim($fileName);
+        if ($originalName === '') {
+            throw new \InvalidArgumentException('Nombre de archivo invalido.');
+        }
+
+        if (preg_match('/[\\\\\/]/', $originalName) === 1) {
+            throw new \InvalidArgumentException('El nombre del archivo no puede contener rutas.');
+        }
+
+        $extension = strtolower((string) pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            throw new \InvalidArgumentException('El archivo generado debe incluir una extension valida.');
+        }
+
+        $allowedExtensions = $this->allowedExtensions();
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new \InvalidArgumentException('Formato no permitido. Formatos validos: ' . implode(', ', $allowedExtensions));
+        }
+
+        $sizeBytes = strlen($binaryContents);
+        if ($sizeBytes <= 0) {
+            throw new \InvalidArgumentException('El documento generado esta vacio.');
+        }
+
+        $maxBytes = $this->maxUploadKb() * 1024;
+        if ($sizeBytes > $maxBytes) {
+            throw new \InvalidArgumentException('El documento generado excede el tamano maximo permitido de ' . $this->maxUploadKb() . ' KB.');
+        }
+
+        $allowedMimeTypes = $this->allowedMimeTypes();
+        $expectedMimeTypes = array_map('strtolower', $allowedMimeTypes[$extension] ?? []);
+        $normalizedMimeType = strtolower(trim($mimeType));
+
+        if (!empty($expectedMimeTypes) && !in_array($normalizedMimeType, $expectedMimeTypes, true)) {
+            throw new \InvalidArgumentException('El MIME del documento generado no corresponde con la extension del archivo.');
+        }
+
+        $baseName = (string) pathinfo($originalName, PATHINFO_FILENAME);
+        $safeBaseName = preg_replace('/[^\pL\pN\-_ ]/u', '_', $baseName);
+        $safeBaseName = preg_replace('/\s+/', ' ', (string) $safeBaseName);
+        $safeBaseName = trim((string) $safeBaseName, " ._\t\n\r\0\x0B");
+
+        if ($safeBaseName === '') {
+            $safeBaseName = 'archivo';
+        }
+
+        $safeBaseName = mb_substr($safeBaseName, 0, $this->maxFilenameChars());
+
+        return [
+            'original_name' => $originalName,
+            'safe_file_name' => $safeBaseName . '.' . $extension,
+            'extension' => $extension,
+            'mime_type' => $normalizedMimeType,
             'size_bytes' => $sizeBytes,
         ];
     }

@@ -60,19 +60,39 @@ class FolderController extends Controller
 
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
-            'currentFolder' => $folder,
+            'currentFolder' => [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'can_upload' => $user->can('upload', $folder),
+            ],
             'semesterName' => $folder->semester?->name,
             'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
             'contents' => [
                 'folders' => $visibleChildren,
                 'files' => $visibleFiles->map(function ($file) use ($user) {
+                    $submission = $file->submission;
+                    $isDocx = $file->isDocx();
+                    $canPreview = in_array($file->mime_type, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true);
+
                     return [
                         'id' => $file->id,
                         'name' => $file->file_name,
                         'size' => $file->size_bytes,
                         'uploaded_at' => $file->uploaded_at->format('Y-m-d H:i'),
                         'uploaded_by' => $file->uploadedBy->name,
-                        'status' => $file->submission ? $file->submission->status->value : null,
+                        'mime_type' => $file->mime_type,
+                        'status' => $submission
+                            ? ($submission->final_approved_at
+                                ? 'FINAL_APPROVED'
+                                : ($submission->status->value === 'APPROVED' ? 'OFFICE_APPROVED' : $submission->status->value))
+                            : null,
+                        'is_late' => (bool) $submission?->submitted_late,
+                        'is_docx' => $isDocx,
+                        'can_preview' => $canPreview,
+                        'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
+                        'docx_editor_url' => $isDocx ? route('files.docx.show', $file->id) : null,
+                        'can_edit_docx' => $isDocx && $user->can('replace', $file),
+                        'can_replace' => $user->can('replace', $file),
                         'can_delete' => $user->can('delete', $file),
                         'download_url' => route('files.download', $file->id),
                     ];

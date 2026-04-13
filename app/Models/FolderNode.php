@@ -47,6 +47,11 @@ class FolderNode extends Model
 
     public function files()
     {
+        return $this->hasMany(EvidenceFile::class, 'folder_node_id')->currentVersion();
+    }
+
+    public function allFiles()
+    {
         return $this->hasMany(EvidenceFile::class, 'folder_node_id');
     }
 }

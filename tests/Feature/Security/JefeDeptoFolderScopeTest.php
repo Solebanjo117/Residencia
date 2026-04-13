@@ -61,7 +61,7 @@ function createJefeDeptoScopeContext(): array
     return compact('jefeDepto', 'semesterFolder', 'allowedFolder', 'forbiddenFolder');
 }
 
-it('shows only department-scoped folders in file manager tree for jefe de departamento', function () {
+it('shows full file manager tree for jefe de departamento', function () {
     $ctx = createJefeDeptoScopeContext();
 
     $this
@@ -72,12 +72,13 @@ it('shows only department-scoped folders in file manager tree for jefe de depart
             ->component('FileManager/Index')
             ->has('folderTree', 1)
             ->where('folderTree.0.id', $ctx['semesterFolder']->id)
-            ->has('folderTree.0.children', 1)
+            ->has('folderTree.0.children', 2)
             ->where('folderTree.0.children.0.id', $ctx['allowedFolder']->id)
+            ->where('folderTree.0.children.1.id', $ctx['forbiddenFolder']->id)
         );
 });
 
-it('filters folder contents by department scope in file manager view', function () {
+it('shows all folder contents for jefe de departamento in file manager view', function () {
     $ctx = createJefeDeptoScopeContext();
 
     $this
@@ -86,16 +87,17 @@ it('filters folder contents by department scope in file manager view', function 
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('FileManager/Index')
-            ->has('contents.folders', 1)
+            ->has('contents.folders', 2)
             ->where('contents.folders.0.id', $ctx['allowedFolder']->id)
+            ->where('contents.folders.1.id', $ctx['forbiddenFolder']->id)
         );
 });
 
-it('forbids jefe de departamento from opening foreign department teacher folder', function () {
+it('allows jefe de departamento to open any teacher folder in file manager', function () {
     $ctx = createJefeDeptoScopeContext();
 
     $this
         ->actingAs($ctx['jefeDepto'])
         ->get(route('folders.show', $ctx['forbiddenFolder']->id))
-        ->assertForbidden();
+        ->assertOk();
 });

@@ -53,6 +53,15 @@ class EvidenceSubmissionPolicy
     {
         return $user->isJefeOficina() && $submission->status === SubmissionStatus::SUBMITTED;
     }
+
+    public function finalApprove(User $user, EvidenceSubmission $submission): bool
+    {
+        return $user->isJefeDepto()
+            && $submission->status === SubmissionStatus::APPROVED
+            && $submission->office_reviewed_at !== null
+            && $submission->final_approved_at === null
+            && $this->isDepartmentScoped($user, $submission);
+    }
     
     public function unlock(User $user, EvidenceSubmission $submission): bool
     {
@@ -61,6 +70,21 @@ class EvidenceSubmissionPolicy
 
     public function markAsNA(User $user, EvidenceSubmission $submission): bool
     {
-        return $user->isJefeOficina();
+        if ($user->isJefeOficina()) {
+            return true;
+        }
+
+        return $user->isJefeDepto() && $this->isDepartmentScoped($user, $submission);
+    }
+
+    private function isDepartmentScoped(User $user, EvidenceSubmission $submission): bool
+    {
+        $deptIds = $user->departments()->pluck('departments.id');
+
+        if ($deptIds->isEmpty()) {
+            return false;
+        }
+
+        return $submission->teacher->departments()->whereIn('departments.id', $deptIds)->exists();
     }
 }

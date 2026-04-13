@@ -37,18 +37,14 @@ class ReviewController extends Controller
             ]);
         }
 
-        // Get all Teaching loads for the active semester that map to these departments
-        // and eager load the teacher + submissions
-        // We'll calculate the pending items
         $teachingLoads = TeachingLoad::with(['teacher', 'subject', 'submissions' => function($q) use ($activeSemester) {
             $q->where('semester_id', $activeSemester->id)
               ->where('status', SubmissionStatus::SUBMITTED);
         }])
         ->where('semester_id', $activeSemester->id)
-        // If they are specific to a department
         ->when($departments->count() > 0, function($q) use ($departments) {
-            $q->whereHas('subject', function($sq) use ($departments) {
-                // Assuming subject belongs to department if needed, otherwise we filter by user's department
+            $q->whereHas('teacher.departments', function($sq) use ($departments) {
+                $sq->whereIn('departments.id', $departments);
             });
         })
         ->get();
@@ -100,9 +96,23 @@ class ReviewController extends Controller
             return redirect()->route('oficina.revisiones');
         }
 
-        $teacherLoads = TeachingLoad::with(['subject', 'submissions.evidenceItem', 'submissions.files'])
+        $teacherLoads = TeachingLoad::with([
+                'subject',
+                'submissions.evidenceItem',
+                'submissions.files',
+                'submissions.reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
+                'submissions.officeReviewer',
+                'submissions.finalApprover',
+            ])
             ->where('teacher_user_id', $teacher_id)
             ->where('semester_id', $activeSemester->id)
+            ->when($reviewer->departments()->exists(), function ($query) use ($reviewer) {
+                $departmentIds = $reviewer->departments()->pluck('departments.id');
+
+                $query->whereHas('teacher.departments', function ($teacherQuery) use ($departmentIds) {
+                    $teacherQuery->whereIn('departments.id', $departmentIds);
+                });
+            })
             ->get();
 
         $teacher = User::findOrFail($teacher_id);

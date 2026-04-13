@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FileController;
 
@@ -69,6 +70,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])
         ->name('asesorias.review');
+    Route::post('asesorias/{submission}/final-approval', [\App\Http\Controllers\Admin\AdvisoryController::class, 'finalApprove'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.final-approval');
+    Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.cells.status');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');
@@ -77,6 +84,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
     Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->name('folders.show');
     Route::post('/files/folders/{folder}/upload', [FileController::class, 'store'])->name('files.store');
+    Route::get('/files/{file}/docx', [DocxEditorController::class, 'show'])->name('files.docx.show');
+    Route::post('/files/{file}/docx', [DocxEditorController::class, 'store'])->name('files.docx.store');
+    Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{file}/download', [FileController::class, 'download'])->name('files.download');
     Route::post('/files/{file}/replace', [FileController::class, 'replace'])->name('files.replace');
     Route::delete('/files/{file}', [FileController::class, 'destroy'])->name('files.destroy');
