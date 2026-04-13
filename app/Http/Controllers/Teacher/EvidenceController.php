@@ -13,11 +13,11 @@ use App\Models\TeachingLoad;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
 use App\Models\SubmissionWindow;
-use App\Models\ResubmissionUnlock;
 use App\Models\FolderNode;
 use App\Models\StorageRoot;
 use App\Services\EvidenceService;
 use App\Services\StorageService;
+use Illuminate\Support\Facades\Log;
 
 class EvidenceController extends Controller
 {
@@ -41,7 +41,8 @@ class EvidenceController extends Controller
         if (!$currentSemester || !$department) {
             return Inertia::render('Teacher/Evidencias/Index', [
                 'tasks' => [],
-                'semester' => $currentSemester
+                'semester' => $currentSemester,
+                'allowedExtensions' => $this->allowedUploadExtensions(),
             ]);
         }
 
@@ -123,7 +124,8 @@ class EvidenceController extends Controller
 
         return Inertia::render('Teacher/Evidencias/Index', [
             'tasks' => $tasks,
-            'semester' => $currentSemester
+            'semester' => $currentSemester,
+            'allowedExtensions' => $this->allowedUploadExtensions(),
         ]);
     }
 
@@ -133,6 +135,8 @@ class EvidenceController extends Controller
      */
     public function initSubmission(Request $request)
     {
+        $startedAt = microtime(true);
+
         $request->validate([
             'teaching_load_id' => 'required|exists:teaching_loads,id',
             'evidence_item_id' => 'required|integer',
@@ -144,6 +148,14 @@ class EvidenceController extends Controller
         $load = TeachingLoad::findOrFail($request->teaching_load_id);
 
         if ($load->teacher_user_id !== $user->id) {
+            Log::channel('operations')->warning('evidence.init_submission_forbidden', [
+                'actor_user_id' => $user->id,
+                'actor_role_id' => $user->role_id,
+                'teaching_load_id' => $load->id,
+                'expected_teacher_id' => $load->teacher_user_id,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             abort(403);
         }
 
@@ -159,18 +171,51 @@ class EvidenceController extends Controller
             ]
         );
 
+        Log::channel('operations')->info('evidence.init_submission', [
+            'actor_user_id' => $user->id,
+            'actor_role_id' => $user->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'status' => $submission->status->value,
+            'created' => $submission->wasRecentlyCreated,
+            'duration_ms' => $this->elapsedMs($startedAt),
+        ]);
+
         return back()->with('success', 'Entrega inicializada.')->with('submission_id', $submission->id);
     }
 
     public function submit(Request $request, EvidenceSubmission $submission, EvidenceService $evidenceService)
     {
+        $startedAt = microtime(true);
+        /** @var \App\Models\User|null $actor */
+        $actor = $request->user();
+
         // Authorize teacher owns this submission
         if ($submission->teacher_user_id !== Auth::id()) {
+            Log::channel('operations')->warning('evidence.submit_forbidden', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'submission_teacher_user_id' => $submission->teacher_user_id,
+                'status' => $submission->status->value,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             abort(403);
         }
 
         // Only DRAFT or REJECTED can be submitted
         if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED])) {
+            Log::channel('operations')->warning('evidence.submit_invalid_state', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'status' => $submission->status->value,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'Esta entrega no puede ser enviada en su estado actual.');
         }
 
@@ -183,15 +228,34 @@ class EvidenceController extends Controller
         $now = now();
         $isWindowOpen = $window && $now >= $window->opens_at && $now <= $window->closes_at;
 
-        $hasUnlock = ResubmissionUnlock::where('submission_id', $submission->id)
-            ->where('expires_at', '>', $now)
-            ->exists();
+        $hasUnlock = $this->hasActiveUnlock($submission);
 
         if (!$isWindowOpen && !$hasUnlock) {
+            Log::channel('operations')->warning('evidence.submit_window_closed', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'semester_id' => $submission->semester_id,
+                'evidence_item_id' => $submission->evidence_item_id,
+                'window_id' => $window?->id,
+                'window_open' => $isWindowOpen,
+                'has_unlock' => $hasUnlock,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'La ventana de recepcion para este documento esta cerrada y no cuenta con prorroga.');
         }
 
         if ($submission->files()->count() === 0) {
+            Log::channel('operations')->warning('evidence.submit_without_files', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'semester_id' => $submission->semester_id,
+                'evidence_item_id' => $submission->evidence_item_id,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'Debes adjuntar al menos un archivo para poder enviar la evidencia.');
         }
 
@@ -203,17 +267,51 @@ class EvidenceController extends Controller
             'Enviado por el Docente'
         );
 
+        Log::channel('operations')->info('evidence.submitted', [
+            'actor_user_id' => $actor?->id,
+            'actor_role_id' => $actor?->role_id,
+            'submission_id' => $submission->id,
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'window_id' => $window?->id,
+            'window_open' => $isWindowOpen,
+            'has_unlock' => $hasUnlock,
+            'duration_ms' => $this->elapsedMs($startedAt),
+        ]);
+
         return back()->with('success', 'Evidencia enviada exitosamente para revision.');
     }
 
     public function storeFile(Request $request, EvidenceSubmission $submission, StorageService $storageService)
     {
+        $startedAt = microtime(true);
+        /** @var \App\Models\User|null $actor */
+        $actor = $request->user();
+
         // 1. Authorization
         if ($submission->teacher_user_id !== Auth::id()) {
+            Log::channel('operations')->warning('evidence.file_upload_forbidden', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'submission_teacher_user_id' => $submission->teacher_user_id,
+                'status' => $submission->status->value,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             abort(403);
         }
 
         if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED])) {
+            Log::channel('operations')->warning('evidence.file_upload_invalid_state', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'status' => $submission->status->value,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'No puedes subir archivos a una entrega que ya fue enviada o aprobada.');
         }
 
@@ -226,16 +324,26 @@ class EvidenceController extends Controller
         $now = now();
         $isWindowOpen = $window && $now >= $window->opens_at && $now <= $window->closes_at;
 
-        $hasUnlock = ResubmissionUnlock::where('submission_id', $submission->id)
-            ->where('expires_at', '>', $now)
-            ->exists();
+        $hasUnlock = $this->hasActiveUnlock($submission);
 
         if (!$isWindowOpen && !$hasUnlock) {
+            Log::channel('operations')->warning('evidence.file_upload_window_closed', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'semester_id' => $submission->semester_id,
+                'evidence_item_id' => $submission->evidence_item_id,
+                'window_id' => $window?->id,
+                'window_open' => $isWindowOpen,
+                'has_unlock' => $hasUnlock,
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'La ventana de recepcion para este documento esta cerrada y no cuenta con permisos de re-subida.');
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:docx,pdf,zip,rar|max:15360', // 15MB
+            'file' => 'required|file|mimes:' . implode(',', $this->allowedUploadExtensions()) . '|max:' . $this->maxUploadKb(),
         ]);
 
         // 3. Find or Create Folder Node
@@ -266,14 +374,65 @@ class EvidenceController extends Controller
 
         // 4. Store using StorageService
         try {
-            $storageService->storeEvidence($request->file('file'), $folderNode, $request->user(), $submission);
+            $uploadedFile = $request->file('file');
+            $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
 
             // Mark last_updated_at
             $submission->touch();
 
+            Log::channel('operations')->info('evidence.file_uploaded', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'semester_id' => $submission->semester_id,
+                'evidence_item_id' => $submission->evidence_item_id,
+                'teaching_load_id' => $submission->teaching_load_id,
+                'folder_node_id' => $folderNode->id,
+                'window_id' => $window?->id,
+                'window_open' => $isWindowOpen,
+                'has_unlock' => $hasUnlock,
+                'file_name' => $uploadedFile?->getClientOriginalName(),
+                'file_size_bytes' => $uploadedFile?->getSize(),
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('success', 'Archivo subido correctamente.');
         } catch (\Exception $e) {
+            Log::channel('operations')->error('evidence.file_upload_failed', [
+                'actor_user_id' => $actor?->id,
+                'actor_role_id' => $actor?->role_id,
+                'submission_id' => $submission->id,
+                'semester_id' => $submission->semester_id,
+                'evidence_item_id' => $submission->evidence_item_id,
+                'teaching_load_id' => $submission->teaching_load_id,
+                'window_id' => $window?->id,
+                'window_open' => $isWindowOpen,
+                'has_unlock' => $hasUnlock,
+                'error' => $e->getMessage(),
+                'duration_ms' => $this->elapsedMs($startedAt),
+            ]);
+
             return back()->with('error', 'Error al guardar el archivo: ' . $e->getMessage());
         }
+    }
+
+    private function hasActiveUnlock(EvidenceSubmission $submission): bool
+    {
+        return $submission->activeResubmissionUnlock()->exists();
+    }
+
+    private function allowedUploadExtensions(): array
+    {
+        return config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']);
+    }
+
+    private function maxUploadKb(): int
+    {
+        return (int) config('evidence.upload.max_kb', 15360);
+    }
+
+    private function elapsedMs(float $startedAt): int
+    {
+        return (int) round((microtime(true) - $startedAt) * 1000);
     }
 }

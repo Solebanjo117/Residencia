@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import FolderTree from '@/components/FileManager/FolderTree.vue';
@@ -17,15 +17,24 @@ const props = defineProps<{
     folderTree: any[];
     currentFolder: any | null;
     semesterName?: string | null;
+    allowedExtensions?: string[];
     contents: {
         folders: any[];
         files: any[];
     };
 }>();
 
+const uploadAccept = computed(() => {
+    const extensions = props.allowedExtensions?.length
+        ? props.allowedExtensions
+        : ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    return extensions.map((extension) => `.${extension}`).join(',');
+});
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'File Manager',
+        title: 'Gestor de Archivos',
         href: '/files/manager',
     },
     ...(props.currentFolder
@@ -130,7 +139,7 @@ const handleReplaceSelected = (event: Event) => {
 </script>
 
 <template>
-    <Head title="File Manager" />
+    <Head title="Gestor de Archivos" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-[calc(100vh-4rem)] overflow-hidden">
@@ -138,7 +147,7 @@ const handleReplaceSelected = (event: Event) => {
             <div
                 class="w-1/4 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
             >
-                <h3 class="mb-4 px-2 font-semibold text-gray-700">Folders</h3>
+                <h3 class="mb-4 px-2 font-semibold text-gray-700">Carpetas</h3>
                 <FolderTree
                     v-for="root in folderTree"
                     :key="root.id"
@@ -154,7 +163,7 @@ const handleReplaceSelected = (event: Event) => {
                 >
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">
-                            {{ currentFolder ? currentFolder.name : 'Select a folder' }}
+                            {{ currentFolder ? currentFolder.name : 'Selecciona una carpeta' }}
                         </h2>
                         <span v-if="semesterName" class="text-xs text-gray-500">
                             Semestre: <b>{{ semesterName }}</b>
@@ -169,21 +178,21 @@ const handleReplaceSelected = (event: Event) => {
                         class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
                     >
                         <Upload class="mr-2 h-4 w-4" />
-                        Upload File
+                        Subir Archivo
                     </button>
                     <!-- Hidden inputs for file picking -->
                     <input
                         type="file"
                         class="hidden"
                         ref="fileInput"
-                        accept=".docx,.pdf,.jpg,.jpeg,.png,.webp"
+                        :accept="uploadAccept"
                         @change="handleFileSelected"
                     />
                     <input
                         type="file"
                         class="hidden"
                         ref="replaceFileInput"
-                        accept=".docx,.pdf,.jpg,.jpeg,.png,.webp"
+                        :accept="uploadAccept"
                         @change="handleReplaceSelected"
                     />
                 </div>
@@ -203,7 +212,7 @@ const handleReplaceSelected = (event: Event) => {
                         class="flex h-full flex-col items-center justify-center text-gray-400"
                     >
                         <Folder class="mb-4 h-16 w-16 text-gray-300" />
-                        <p>Select a folder from the tree to view contents</p>
+                        <p>Selecciona una carpeta del árbol para ver su contenido</p>
                     </div>
 
                     <div v-else>
@@ -212,7 +221,7 @@ const handleReplaceSelected = (event: Event) => {
                             <h4
                                 class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
                             >
-                                Subfolders
+                                Subcarpetas
                             </h4>
                             <div
                                 class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
@@ -237,7 +246,7 @@ const handleReplaceSelected = (event: Event) => {
                             <h4
                                 class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
                             >
-                                Files
+                                Archivos
                             </h4>
                             <div
                                 class="overflow-x-auto rounded-lg border border-gray-200 bg-white"
@@ -250,32 +259,32 @@ const handleReplaceSelected = (event: Event) => {
                                             <th
                                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Name
+                                                Nombre
                                             </th>
                                             <th
                                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Status
+                                                Estado
                                             </th>
                                             <th
                                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Size
+                                                Tamaño
                                             </th>
                                             <th
                                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Uploaded By
+                                                Subido por
                                             </th>
                                             <th
                                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Date
+                                                Fecha
                                             </th>
                                             <th
                                                 class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
                                             >
-                                                Actions
+                                                Acciones
                                             </th>
                                         </tr>
                                     </thead>
@@ -317,7 +326,7 @@ const handleReplaceSelected = (event: Event) => {
                                                 <span
                                                     v-else
                                                     class="text-xs text-gray-400 italic"
-                                                    >No status</span
+                                                    >Sin estado</span
                                                 >
                                             </td>
                                             <td
@@ -343,7 +352,7 @@ const handleReplaceSelected = (event: Event) => {
                                                 >
                                                     <button type="button" v-if="file.can_delete"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
-                                                        title="Replace"
+                                                        title="Reemplazar"
                                                         @click="
                                                             triggerReplace(
                                                                 file.id,
@@ -359,7 +368,7 @@ const handleReplaceSelected = (event: Event) => {
                                                             file.download_url
                                                         "
                                                         class="p-1 text-blue-600 hover:text-blue-900"
-                                                        title="Download"
+                                                        title="Descargar"
                                                     >
                                                         <Download
                                                             class="h-4 w-4"
@@ -367,7 +376,7 @@ const handleReplaceSelected = (event: Event) => {
                                                     </a>
                                                     <button type="button" v-if="file.can_delete"
                                                         class="p-1 text-red-600 hover:text-red-900"
-                                                        title="Delete"
+                                                        title="Eliminar"
                                                         @click="
                                                             router.delete(
                                                                 `/files/${file.id}`,
@@ -393,7 +402,7 @@ const handleReplaceSelected = (event: Event) => {
                             "
                             class="py-12 text-center"
                         >
-                            <p class="text-gray-500">This folder is empty.</p>
+                            <p class="text-gray-500">Esta carpeta está vacía.</p>
                         </div>
                     </div>
                 </div>

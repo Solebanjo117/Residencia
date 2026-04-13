@@ -80,7 +80,7 @@ const submitForm = () => {
 };
 
 const destroyWindow = (id: number) => {
-    if (confirm('Are you sure you want to delete this submission window? Teachers will lose access immediately if it was active.')) {
+    if (confirm('¿Seguro que deseas eliminar esta ventana de entrega? Si estaba activa, los docentes perderán acceso de inmediato.')) {
         router.delete(`/admin/windows/${id}`, { preserveScroll: true });
     }
 };

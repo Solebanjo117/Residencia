@@ -65,7 +65,7 @@ const submitForm = () => {
 const destroySemester = (id: number) => {
     if (
         confirm(
-            'Are you sure you want to delete this semester? This action cannot be undone unless it has active loads.',
+            '¿Seguro que deseas eliminar este semestre? Esta acción no se puede deshacer si tiene cargas activas asociadas.',
         )
     ) {
         router.delete(`/admin/semesters/${id}`);
@@ -74,7 +74,7 @@ const destroySemester = (id: number) => {
 
 const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('es-ES', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -83,29 +83,29 @@ const formatDate = (dateString: string) => {
 </script>
 
 <template>
-    <Head title="Manage Semesters" />
+    <Head title="Administrar Semestres" />
 
     <AppLayout
         :breadcrumbs="[
             { title: 'Admin', href: '#' },
-            { title: 'Semesters', href: '/admin/semesters' },
+            { title: 'Semestres', href: '/admin/semesters' },
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
             <div class="mb-6 flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">
-                        Academic Semesters
+                        Semestres Académicos
                     </h1>
                     <p class="mt-1 text-sm text-gray-500">
-                        Configure global active semesters and timelines.
+                        Configura los semestres globales y su vigencia institucional.
                     </p>
                 </div>
                 <button type="button" @click="openCreateModal"
                     class="inline-flex items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
                 >
                     <CalendarPlus class="mr-2 h-5 w-5" />
-                    New Semester
+                    Nuevo Semestre
                 </button>
             </div>
 
@@ -127,31 +127,31 @@ const formatDate = (dateString: string) => {
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Name
+                                Nombre
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Academic Period
+                                Periodo Académico
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Timeline
+                                Vigencia
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Status
+                                Estado
                             </th>
                             <th
                                 scope="col"
                                 class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
                             >
-                                Actions
+                                Acciones
                             </th>
                         </tr>
                     </thead>
@@ -173,7 +173,7 @@ const formatDate = (dateString: string) => {
                                     {{
                                         semester.academic_period
                                             ? semester.academic_period.name
-                                            : 'Unassigned'
+                                            : 'Sin asignar'
                                     }}
                                 </div>
                             </td>
@@ -188,13 +188,13 @@ const formatDate = (dateString: string) => {
                                     v-if="semester.status === 'OPEN'"
                                     class="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"
                                 >
-                                    <CalendarHeart class="mr-1 h-3 w-3" /> OPEN
+                                    <CalendarHeart class="mr-1 h-3 w-3" /> ABIERTO
                                 </span>
                                 <span
                                     v-else
                                     class="inline-flex items-center rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800"
                                 >
-                                    <CalendarOff class="mr-1 h-3 w-3" /> CLOSED
+                                    <CalendarOff class="mr-1 h-3 w-3" /> CERRADO
                                 </span>
                             </td>
                             <td
@@ -202,13 +202,13 @@ const formatDate = (dateString: string) => {
                             >
                                 <button type="button" @click="openEditModal(semester)"
                                     class="mr-3 text-indigo-600 hover:text-indigo-900"
-                                    title="Edit"
+                                    title="Editar"
                                 >
                                     <Edit2 class="h-4 w-4" />
                                 </button>
                                 <button type="button" @click="destroySemester(semester.id)"
                                     class="text-red-600 hover:text-red-900"
-                                    title="Delete"
+                                    title="Eliminar"
                                 >
                                     <Trash2 class="h-4 w-4" />
                                 </button>
@@ -219,7 +219,7 @@ const formatDate = (dateString: string) => {
                                 colspan="5"
                                 class="bg-gray-50 px-6 py-12 text-center text-gray-500"
                             >
-                                No semesters configured yet.
+                                Aún no hay semestres configurados.
                             </td>
                         </tr>
                     </tbody>
@@ -271,8 +271,8 @@ const formatDate = (dateString: string) => {
                                     >
                                         {{
                                             editingSemester
-                                                ? 'Edit Semester'
-                                                : 'Create Semester'
+                                                ? 'Editar Semestre'
+                                                : 'Crear Semestre'
                                         }}
                                     </h3>
                                 </div>
@@ -282,7 +282,7 @@ const formatDate = (dateString: string) => {
                                         <label
                                             for="name"
                                             class="block text-sm font-medium text-gray-700"
-                                            >Name (e.g., Ago-Dic 2026)</label
+                                            >Nombre (ej. Ago-Dic 2026)</label
                                         >
                                         <input
                                             type="text"
@@ -304,7 +304,7 @@ const formatDate = (dateString: string) => {
                                             <label
                                                 for="start_date"
                                                 class="block text-sm font-medium text-gray-700"
-                                                >Start Date</label
+                                                >Fecha de Inicio</label
                                             >
                                             <input
                                                 type="date"
@@ -324,7 +324,7 @@ const formatDate = (dateString: string) => {
                                             <label
                                                 for="end_date"
                                                 class="block text-sm font-medium text-gray-700"
-                                                >End Date</label
+                                                >Fecha de Fin</label
                                             >
                                             <input
                                                 type="date"
@@ -346,7 +346,7 @@ const formatDate = (dateString: string) => {
                                         <label
                                             for="academic_period"
                                             class="block text-sm font-medium text-gray-700"
-                                            >Academic Period (Optional)</label
+                                            >Periodo Académico (Opcional)</label
                                         >
                                         <select
                                             id="academic_period"
@@ -354,7 +354,7 @@ const formatDate = (dateString: string) => {
                                             class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-blue-500 focus:ring-blue-500 focus:outline-none sm:text-sm"
                                         >
                                             <option value="">
-                                                -- No Period Assigned --
+                                                -- Sin periodo asignado --
                                             </option>
                                             <option
                                                 v-for="period in academicPeriods"
@@ -378,7 +378,7 @@ const formatDate = (dateString: string) => {
                                         <label
                                             for="status"
                                             class="block text-sm font-medium text-gray-700"
-                                            >Status</label
+                                            >Estado</label
                                         >
                                         <select
                                             id="status"
@@ -386,10 +386,10 @@ const formatDate = (dateString: string) => {
                                             class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-blue-500 focus:ring-blue-500 focus:outline-none sm:text-sm"
                                         >
                                             <option value="OPEN">
-                                                OPEN (Active & Visible)
+                                                ABIERTO (Activo y visible)
                                             </option>
                                             <option value="CLOSED">
-                                                CLOSED (Archived)
+                                                CERRADO (Archivado)
                                             </option>
                                         </select>
                                         <div
@@ -411,14 +411,14 @@ const formatDate = (dateString: string) => {
                                 >
                                     {{
                                         editingSemester
-                                            ? 'Save Changes'
-                                            : 'Create'
+                                            ? 'Guardar Cambios'
+                                            : 'Crear'
                                     }}
                                 </button>
                                 <button type="button" @click="closeModal"
                                     class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </button>
                             </div>
                         </form>

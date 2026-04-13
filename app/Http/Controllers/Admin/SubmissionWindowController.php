@@ -9,6 +9,7 @@ use App\Models\EvidenceItem;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class SubmissionWindowController extends Controller
 {
@@ -47,6 +48,8 @@ class SubmissionWindowController extends Controller
             'status' => 'required|in:ACTIVE,INACTIVE',
         ]);
 
+        $this->ensureNoActiveWindowOverlap($validated);
+
         $validated['created_by_user_id'] = Auth::id();
 
         SubmissionWindow::create($validated);
@@ -64,6 +67,8 @@ class SubmissionWindowController extends Controller
             'status' => 'required|in:ACTIVE,INACTIVE',
         ]);
 
+        $this->ensureNoActiveWindowOverlap($validated, $window->id);
+
         $window->update($validated);
 
         return redirect()->back()->with('success', 'Submission window updated successfully.');
@@ -74,5 +79,29 @@ class SubmissionWindowController extends Controller
         $window->delete();
 
         return redirect()->back()->with('success', 'Submission window deleted successfully.');
+    }
+
+    private function ensureNoActiveWindowOverlap(array $data, ?int $ignoreWindowId = null): void
+    {
+        if (($data['status'] ?? null) !== 'ACTIVE') {
+            return;
+        }
+
+        $query = SubmissionWindow::query()
+            ->where('semester_id', $data['semester_id'])
+            ->where('evidence_item_id', $data['evidence_item_id'])
+            ->where('status', 'ACTIVE')
+            ->where('opens_at', '<=', $data['closes_at'])
+            ->where('closes_at', '>=', $data['opens_at']);
+
+        if ($ignoreWindowId) {
+            $query->where('id', '!=', $ignoreWindowId);
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'opens_at' => 'Ya existe una ventana activa que se solapa para el mismo semestre y evidencia.',
+            ]);
+        }
     }
 }

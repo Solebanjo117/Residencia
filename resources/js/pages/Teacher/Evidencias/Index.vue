@@ -1,11 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { ref, computed } from 'vue';
 import { FileStack, UploadCloud, Send, File, CheckCircle2, Clock, AlertTriangle, AlertCircle } from 'lucide-vue-next';
 
 interface Task {
-    id: number;
+    id: number | null;
     teaching_load: {
         id: number;
         subject_name: string;
@@ -17,7 +17,7 @@ interface Task {
         is_mandatory: boolean;
     };
     submission: {
-        status: string;
+        status: string | null;
         files_count: number;
         files: any[];
     };
@@ -31,7 +31,16 @@ interface Task {
 const props = defineProps<{
     semester: any | null;
     tasks: Task[];
+    allowedExtensions?: string[];
 }>();
+
+const uploadAccept = computed(() => {
+    const extensions = props.allowedExtensions?.length
+        ? props.allowedExtensions
+        : ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    return extensions.map((extension) => `.${extension}`).join(',');
+});
 
 const selectedTask = ref<Task | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -39,6 +48,13 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const uploadForm = useForm({
     file: null as File | null,
 });
+
+const initForm = useForm({
+    teaching_load_id: null as number | null,
+    evidence_item_id: null as number | null,
+});
+
+const taskKey = (task: Task) => `${task.teaching_load.id}-${task.requirement.item_id}`;
 
 // Computed properties for grouping
 const groupedTasks = computed(() => {
@@ -55,7 +71,9 @@ const selectTask = (task: Task) => {
     selectedTask.value = task;
 };
 
-const getStatusConfig = (status: string) => {
+const getStatusConfig = (status: string | null) => {
+    if (!status) return { class: 'bg-slate-100 text-slate-700', label: 'Sin iniciar', icon: Clock };
+
     switch(status) {
         case 'DRAFT': return { class: 'bg-gray-100 text-gray-800', label: 'Borrador', icon: Clock };
         case 'SUBMITTED': return { class: 'bg-blue-100 text-blue-800', label: 'Enviado', icon: Send };
@@ -72,6 +90,11 @@ const triggerUpload = () => {
 const handleFileSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
     if (target.files && target.files.length > 0 && selectedTask.value) {
+        if (!selectedTask.value.id) {
+            target.value = '';
+            return;
+        }
+
         uploadForm.file = target.files[0];
         
         uploadForm.post(`/docente/evidencias/${selectedTask.value.id}/upload`, {
@@ -89,6 +112,7 @@ const handleFileSelected = (event: Event) => {
 
 const submitEvidence = () => {
     if (!selectedTask.value) return;
+    if (!selectedTask.value.id) return;
     
     if (confirm('¿Estás seguro de enviar esta evidencia? Una vez enviada, no podrás modificar los archivos hasta que sea revisada.')) {
         router.post(`/docente/evidencias/${selectedTask.value.id}/submit`, {}, {
@@ -99,6 +123,25 @@ const submitEvidence = () => {
             }
         });
     }
+};
+
+const initSubmission = () => {
+    if (!selectedTask.value) return;
+
+    initForm.teaching_load_id = selectedTask.value.teaching_load.id;
+    initForm.evidence_item_id = selectedTask.value.requirement.item_id;
+
+    const selectedKey = taskKey(selectedTask.value);
+
+    initForm.post('/docente/evidencias/init', {
+        preserveScroll: true,
+        onSuccess: () => {
+            const updatedTask = props.tasks.find((t) => taskKey(t) === selectedKey);
+            if (updatedTask) {
+                selectedTask.value = updatedTask;
+            }
+        },
+    });
 };
 
 const formatDate = (dateString: string) => {
@@ -156,10 +199,10 @@ const formatBytes = (bytes: number) => {
                         <div v-for="(groupTasks, subjectName) in groupedTasks" :key="subjectName" class="mb-4">
                             <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider px-3 mb-2">{{ subjectName }}</h3>
                             <ul class="space-y-1">
-                                <li v-for="task in groupTasks" :key="task.id">
+                                <li v-for="task in groupTasks" :key="taskKey(task)">
                                     <button type="button" @click="selectTask(task)"
                                         class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors border"
-                                        :class="selectedTask?.id === task.id ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-inset ring-blue-500' : 'border-transparent hover:bg-gray-100 text-gray-700'"
+                                        :class="selectedTask && taskKey(selectedTask) === taskKey(task) ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-inset ring-blue-500' : 'border-transparent hover:bg-gray-100 text-gray-700'"
                                     >
                                         <div class="font-medium flex justify-between items-center">
                                             <span class="truncate pr-2">{{ task.requirement.item_name }}</span>
@@ -244,7 +287,7 @@ const formatBytes = (bytes: number) => {
                                     <UploadCloud class="w-4 h-4 mr-1.5" />
                                     Subir Archivo
                                 </button>
-                                <input type="file" ref="fileInput" class="hidden" accept=".docx,.pdf,.zip,.rar" @change="handleFileSelected" />
+                                <input type="file" ref="fileInput" class="hidden" :accept="uploadAccept" @change="handleFileSelected" />
                             </div>
 
                             <ul v-if="selectedTask.submission.files.length > 0" class="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 shadow-sm">
@@ -270,8 +313,15 @@ const formatBytes = (bytes: number) => {
                         </div>
 
                         <!-- Footer Actions -->
-                        <div v-if="selectedTask.submission.status === 'DRAFT' || selectedTask.submission.status === 'REJECTED'" class="p-4 border-t border-gray-200 bg-white flex justify-end">
-                            <button type="button" @click="submitEvidence"
+                        <div v-if="selectedTask.submission.status === null || selectedTask.submission.status === 'DRAFT' || selectedTask.submission.status === 'REJECTED'" class="p-4 border-t border-gray-200 bg-white flex justify-end">
+                            <button v-if="selectedTask.submission.status === null" type="button" @click="initSubmission"
+                                :disabled="initForm.processing"
+                                class="inline-flex items-center px-5 py-2.5 bg-slate-700 border border-transparent rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-slate-800 disabled:opacity-50 transition"
+                            >
+                                Inicializar Entrega
+                            </button>
+
+                            <button v-else type="button" @click="submitEvidence"
                                 :disabled="!selectedTask.window?.is_open || selectedTask.submission.files.length === 0"
                                 class="inline-flex items-center px-5 py-2.5 bg-indigo-600 border border-transparent rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
                                 :class="{'opacity-50 cursor-not-allowed': !selectedTask.window?.is_open || selectedTask.submission.files.length === 0}"

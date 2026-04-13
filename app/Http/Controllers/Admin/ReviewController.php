@@ -14,6 +14,7 @@ use App\Models\EvidenceSubmission;
 use App\Models\User;
 use App\Services\EvidenceService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ReviewController extends Controller
 {
@@ -115,6 +116,8 @@ class ReviewController extends Controller
 
     public function updateStatus(Request $request, $submission_id)
     {
+        $startedAt = microtime(true);
+
         $request->validate([
             'status' => 'required|in:APPROVED,REJECTED,NA,NE',
             'comments' => 'nullable|string|max:500'
@@ -122,36 +125,68 @@ class ReviewController extends Controller
 
         $submission = EvidenceSubmission::findOrFail($submission_id);
         $newStatus = SubmissionStatus::from($request->status);
+        $oldStatus = $submission->status;
 
         /** @var \App\Models\User $reviewer */
         $reviewer = Auth::user();
 
-        // For APPROVED/REJECTED, use the review workflow which creates
-        // a review record, changes status, logs audit, and notifies teacher.
-        if (in_array($newStatus, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED])) {
-            $decision = $newStatus === SubmissionStatus::APPROVED
-                ? ReviewDecision::APPROVE
-                : ReviewDecision::REJECT;
+        Log::channel('operations')->info('review.status_update_requested', [
+            'actor_user_id' => $reviewer->id,
+            'actor_role_id' => $reviewer->role_id,
+            'submission_id' => $submission->id,
+            'old_status' => $oldStatus->value,
+            'requested_status' => $newStatus->value,
+        ]);
 
-            $this->evidenceService->review($submission, $reviewer, $decision, $request->comments);
+        try {
+            // For APPROVED/REJECTED, use the review workflow which creates
+            // a review record, changes status, logs audit, and notifies teacher.
+            if (in_array($newStatus, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED])) {
+                $decision = $newStatus === SubmissionStatus::APPROVED
+                    ? ReviewDecision::APPROVE
+                    : ReviewDecision::REJECT;
 
-            // If rejected, create an unlock record so the teacher can re-submit
-            if ($newStatus === SubmissionStatus::REJECTED) {
-                $this->evidenceService->unlockForResubmission(
+                $this->evidenceService->review($submission, $reviewer, $decision, $request->comments);
+
+                // If rejected, create an unlock record so the teacher can re-submit
+                if ($newStatus === SubmissionStatus::REJECTED) {
+                    $this->evidenceService->unlockForResubmission(
+                        $submission,
+                        $reviewer,
+                        now()->addDays(3),
+                        'Automatico tras rechazo de documento.'
+                    );
+                }
+            } else {
+                // For NA/NE status changes, use changeStatus directly
+                $this->evidenceService->changeStatus(
                     $submission,
+                    $newStatus,
                     $reviewer,
-                    now()->addDays(3),
-                    'Automatico tras rechazo de documento.'
+                    'Revision por Jefatura'
                 );
             }
-        } else {
-            // For NA/NE status changes, use changeStatus directly
-            $this->evidenceService->changeStatus(
-                $submission,
-                $newStatus,
-                $reviewer,
-                'Revision por Jefatura'
-            );
+
+            Log::channel('operations')->info('review.status_updated', [
+                'actor_user_id' => $reviewer->id,
+                'actor_role_id' => $reviewer->role_id,
+                'submission_id' => $submission->id,
+                'old_status' => $oldStatus->value,
+                'new_status' => $newStatus->value,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::channel('operations')->error('review.status_update_failed', [
+                'actor_user_id' => $reviewer->id,
+                'actor_role_id' => $reviewer->role_id,
+                'submission_id' => $submission->id,
+                'old_status' => $oldStatus->value,
+                'requested_status' => $newStatus->value,
+                'error' => $exception->getMessage(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+
+            throw $exception;
         }
 
         return redirect()->back()->with('success', 'Estado de evidencia actualizado exitosamente.');

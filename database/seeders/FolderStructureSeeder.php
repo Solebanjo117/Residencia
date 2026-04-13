@@ -5,20 +5,21 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\EvidenceFile;
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\User;
 use App\Services\FolderStructureService;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class FolderStructureSeeder extends Seeder
 {
     public function run(): void
     {
         // 1. Clear existing evidence files and folder nodes
-        DB::statement('PRAGMA foreign_keys = OFF');
+        Schema::disableForeignKeyConstraints();
         EvidenceFile::query()->forceDelete();
         FolderNode::query()->delete();
-        DB::statement('PRAGMA foreign_keys = ON');
+        Schema::enableForeignKeyConstraints();
         $this->command->info('Folder nodes and evidence files cleared.');
 
         // 2. Get the active semester
@@ -30,8 +31,14 @@ class FolderStructureSeeder extends Seeder
             return;
         }
 
-        // 3. Get all docentes (role_id = 1)
-        $docentes = User::where('role_id', 1)->get();
+        // 3. Get all docentes by role name
+        $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+        if (!$docenteRoleId) {
+            $this->command->warn('DOCENTE role was not found.');
+            return;
+        }
+
+        $docentes = User::where('role_id', $docenteRoleId)->get();
 
         if ($docentes->isEmpty()) {
             $this->command->warn('No docentes found.');

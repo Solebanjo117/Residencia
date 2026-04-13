@@ -127,6 +127,8 @@ class AdvisoryController extends Controller
 
     public function reviewEvidence(Request $request, EvidenceSubmission $submission, EvidenceService $evidenceService)
     {
+        $this->authorize('review', $submission);
+
         $request->validate([
             'decision' => 'required|in:APPROVE,REJECT',
             'comments' => 'nullable|string|max:500',

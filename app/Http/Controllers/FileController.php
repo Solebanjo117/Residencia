@@ -7,26 +7,37 @@ use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
 use App\Models\TeachingLoad;
 use App\Models\EvidenceItem;
+use App\Models\SubmissionWindow;
+use App\Services\AuditService;
 use App\Services\StorageService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class FileController extends Controller
 {
     protected $storageService;
+    protected $auditService;
 
-    public function __construct(StorageService $storageService)
+    public function __construct(StorageService $storageService, AuditService $auditService)
     {
         $this->storageService = $storageService;
+        $this->auditService = $auditService;
     }
 
     public function download(Request $request, EvidenceFile $file)
     {
         $this->authorize('download', $file);
+        $this->storageService->assertEvidenceFilePath($file);
 
         if (!Storage::disk('local')->exists($file->stored_relative_path)) {
             abort(404);
         }
+
+        $this->auditService->log($request->user(), 'DOWNLOAD_FILE', 'EvidenceFile', $file->id, [
+            'file_name' => $file->file_name,
+            'stored_relative_path' => $file->stored_relative_path,
+        ]);
 
         return Storage::disk('local')->download($file->stored_relative_path, $file->file_name);
     }
@@ -36,7 +47,7 @@ class FileController extends Controller
         $this->authorize('view', $folder);
 
         $request->validate([
-            'file' => 'required|file|mimes:docx,pdf,jpg,jpeg,png,webp|max:15360',
+            'file' => 'required|file',
         ]);
 
         $user = $request->user();
@@ -98,15 +109,25 @@ class FileController extends Controller
             ]
         );
 
-        // If submission already existed, reset status to SUBMITTED so it goes through review
-        if (!$submission->wasRecentlyCreated) {
-            $submission->update(['status' => 'SUBMITTED']);
+        // Only the teacher owner can upload evidence files, and only when the
+        // submission is editable by business rules (policy handles status/unlock).
+        $this->authorize('update', $submission);
+
+        if (!$this->canUploadByWindowOrUnlock($submission)) {
+            return back()->withErrors([
+                'file' => 'La ventana de recepción está cerrada y no cuentas con prórroga activa.',
+            ]);
         }
 
         try {
             $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
-            $submission->update(['last_updated_at' => now(), 'status' => 'SUBMITTED']);
+
+            // Uploading files should not implicitly submit evidence for review.
+            $submission->update(['last_updated_at' => now()]);
+
             return back()->with('success', 'Archivo subido correctamente.');
+        } catch (AuthorizationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         }
@@ -117,17 +138,38 @@ class FileController extends Controller
         $this->authorize('delete', $file);
 
         $request->validate([
-            'file' => 'required|file|mimes:docx,pdf,jpg,jpeg,png,webp|max:15360',
+            'file' => 'required|file',
         ]);
 
         try {
+            $submission = $file->submission;
+            $originalFileId = $file->id;
+            $originalFileName = $file->file_name;
+
+            if ($submission && !$this->canUploadByWindowOrUnlock($submission)) {
+                return back()->withErrors([
+                    'file' => 'La ventana de recepción está cerrada y no cuentas con prórroga activa.',
+                ]);
+            }
+
             $this->storageService->deleteEvidence($file, $request->user());
 
-            $submission = $file->submission;
             $folder = $file->folderNode;
-            $this->storageService->storeEvidence($request->file('file'), $folder, $request->user(), $submission);
+            $newFile = $this->storageService->storeEvidence($request->file('file'), $folder, $request->user(), $submission);
+
+            $this->auditService->log($request->user(), 'REPLACE_FILE', 'EvidenceFile', $newFile->id, [
+                'replaced_file_id' => $originalFileId,
+                'replaced_file_name' => $originalFileName,
+                'new_file_name' => $newFile->file_name,
+            ]);
+
+            if ($submission) {
+                $submission->update(['last_updated_at' => now()]);
+            }
 
             return back()->with('success', 'Archivo reemplazado correctamente.');
+        } catch (AuthorizationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return back()->withErrors(['file' => $e->getMessage()]);
         }
@@ -204,5 +246,26 @@ class FileController extends Controller
         }
 
         return null;
+    }
+
+    private function canUploadByWindowOrUnlock(EvidenceSubmission $submission): bool
+    {
+        if ($submission->activeResubmissionUnlock()->exists()) {
+            return true;
+        }
+
+        $window = SubmissionWindow::where('semester_id', $submission->semester_id)
+            ->where('evidence_item_id', $submission->evidence_item_id)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        if (!$window) {
+            return false;
+        }
+
+        $now = now();
+
+        return $now->greaterThanOrEqualTo($window->opens_at)
+            && $now->lessThanOrEqualTo($window->closes_at);
     }
 }

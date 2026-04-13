@@ -8,6 +8,12 @@
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
         </testsuite>
+        <testsuite name="Domain">
+            <directory>tests/Feature/Domain</directory>
+            <directory>tests/Feature/Security</directory>
+            <directory>tests/Feature/Teacher</directory>
+            <directory>tests/Feature/Console</directory>
+        </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
