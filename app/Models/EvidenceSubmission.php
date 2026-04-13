@@ -58,6 +58,11 @@ class EvidenceSubmission extends Model
 
     public function files()
     {
+        return $this->hasMany(EvidenceFile::class, 'submission_id')->currentVersion();
+    }
+
+    public function allFiles()
+    {
         return $this->hasMany(EvidenceFile::class, 'submission_id');
     }
 
@@ -104,7 +109,7 @@ class EvidenceSubmission extends Model
             ];
         });
 
-        $files = $this->files()->withTrashed()->with(['uploadedBy', 'deletedBy'])->get()->map(function ($file) {
+        $files = $this->allFiles()->withTrashed()->with(['uploadedBy', 'editedBy', 'deletedBy'])->get()->map(function ($file) {
             $events = [];
             
             // Upload event
@@ -115,6 +120,16 @@ class EvidenceSubmission extends Model
                 'details' => "Archivo subido: {$file->file_name} (" . $this->formatBytes($file->size_bytes) . ")",
                 'file_id' => $file->id,
             ];
+
+            if ($file->last_edited_at) {
+                $events[] = [
+                    'type' => 'file_edit',
+                    'date' => $file->last_edited_at,
+                    'user' => $file->editedBy?->name ?? $file->uploadedBy->name,
+                    'details' => "Documento editado: {$file->file_name}",
+                    'file_id' => $file->id,
+                ];
+            }
 
             // Delete event (if applicable)
             if ($file->deleted_at) {

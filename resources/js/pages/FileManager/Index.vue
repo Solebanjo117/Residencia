@@ -398,8 +398,16 @@ const closePreview = () => {
                                                 <div
                                                     class="flex justify-end gap-2"
                                                 >
+                                                    <Link
+                                                        v-if="file.is_docx && file.docx_editor_url"
+                                                        :href="file.docx_editor_url"
+                                                        class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                                        :title="file.can_edit_docx ? 'Abrir editor DOCX' : 'Ver documento DOCX'"
+                                                    >
+                                                        {{ file.can_edit_docx ? 'Editar DOCX' : 'Ver DOCX' }}
+                                                    </Link>
                                                     <button
-                                                        v-if="file.can_preview"
+                                                        v-else-if="file.can_preview"
                                                         type="button"
                                                         class="p-1 text-slate-600 hover:text-slate-900"
                                                         title="Ver en la pagina"

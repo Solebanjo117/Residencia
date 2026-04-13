@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FileController;
 
@@ -83,6 +84,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
     Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->name('folders.show');
     Route::post('/files/folders/{folder}/upload', [FileController::class, 'store'])->name('files.store');
+    Route::get('/files/{file}/docx', [DocxEditorController::class, 'show'])->name('files.docx.show');
+    Route::post('/files/{file}/docx', [DocxEditorController::class, 'store'])->name('files.docx.store');
     Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{file}/download', [FileController::class, 'download'])->name('files.download');
     Route::post('/files/{file}/replace', [FileController::class, 'replace'])->name('files.replace');
