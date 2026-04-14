@@ -20,6 +20,28 @@ class Semester extends Model
         'status' => SemesterStatus::class,
     ];
 
+    public function scopeOpen($query)
+    {
+        return $query
+            ->where('status', SemesterStatus::OPEN->value)
+            ->orderByDesc('start_date')
+            ->orderByDesc('id');
+    }
+
+    public static function active(): ?self
+    {
+        return static::query()->open()->first();
+    }
+
+    public static function activeOrLatest(): ?self
+    {
+        return static::active()
+            ?? static::query()
+                ->orderByDesc('start_date')
+                ->orderByDesc('id')
+                ->first();
+    }
+
     public function academicPeriod()
     {
         return $this->belongsTo(AcademicPeriod::class);

@@ -66,8 +66,7 @@ class ReportController extends Controller
             return Semester::find($semesterId);
         }
 
-        return Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->first();
+        return Semester::activeOrLatest();
     }
 
     private function buildRows(int $semesterId, string $search, string $statusFocus)

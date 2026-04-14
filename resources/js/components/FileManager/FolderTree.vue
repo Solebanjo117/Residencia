@@ -8,10 +8,11 @@ const props = defineProps<{
     level?: number;
 }>();
 
-const isOpen = ref(false);
+const isOpen = ref(Boolean(props.node.is_virtual));
 const hasChildren = computed(
     () => props.node.children && props.node.children.length > 0,
 );
+const isVirtualNode = computed(() => Boolean(props.node.is_virtual));
 
 const toggle = () => {
     if (hasChildren.value) {
@@ -34,6 +35,7 @@ const toggle = () => {
             />
 
             <Link
+                v-if="!isVirtualNode"
                 :href="`/files/folders/${node.id}`"
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
                 :class="{
@@ -46,6 +48,16 @@ const toggle = () => {
                 />
                 {{ node.name }}
             </Link>
+            <div
+                v-else
+                class="flex flex-1 items-center gap-2 text-sm font-semibold text-gray-700"
+            >
+                <component
+                    :is="isOpen ? FolderOpen : Folder"
+                    class="h-4 w-4 text-yellow-500"
+                />
+                {{ node.name }}
+            </div>
         </div>
 
         <div v-if="isOpen && hasChildren" class="ml-4 border-l border-gray-200">

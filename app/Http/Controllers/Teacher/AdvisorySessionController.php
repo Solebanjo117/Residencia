@@ -23,8 +23,7 @@ class AdvisorySessionController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        $currentSemester = Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->first();
+        $currentSemester = Semester::activeOrLatest();
 
         // Fetch teaching loads to allow the user to select which group the session was for.
         $loads = TeachingLoad::with('subject')

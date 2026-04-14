@@ -22,8 +22,7 @@ class DashboardController extends Controller
         /** @var \App\Models\User $user */
         $user = $request->user();
 
-        $semester = Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->first();
+        $semester = Semester::activeOrLatest();
 
         $overview = [];
         $quickActions = $this->quickActionsFor($user);

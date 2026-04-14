@@ -3,6 +3,7 @@
 use App\Models\Department;
 use App\Models\FolderNode;
 use App\Models\Role;
+use App\Models\Semester;
 use App\Models\StorageRoot;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -31,12 +32,19 @@ function createJefeDeptoScopeContext(): array
         'is_active' => true,
     ]);
 
+    $semester = Semester::create([
+        'name' => 'SEMESTRE SCOPE ' . Str::upper(Str::random(4)),
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->addMonth()->toDateString(),
+        'status' => 'OPEN',
+    ]);
+
     $semesterFolder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'SEMESTRE SCOPE',
         'relative_path' => 'sem_scope_' . Str::lower(Str::random(6)),
         'owner_user_id' => null,
-        'semester_id' => null,
+        'semester_id' => $semester->id,
         'parent_id' => null,
     ]);
 
@@ -70,11 +78,15 @@ it('shows full file manager tree for jefe de departamento', function () {
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('FileManager/Index')
-            ->has('folderTree', 1)
-            ->where('folderTree.0.id', $ctx['semesterFolder']->id)
-            ->has('folderTree.0.children', 2)
-            ->where('folderTree.0.children.0.id', $ctx['allowedFolder']->id)
-            ->where('folderTree.0.children.1.id', $ctx['forbiddenFolder']->id)
+            ->has('folderTree', 2)
+            ->where('folderTree.0.id', 'active-semesters')
+            ->where('folderTree.0.name', 'Semestres activos')
+            ->has('folderTree.0.children', 1)
+            ->where('folderTree.0.children.0.id', $ctx['semesterFolder']->id)
+            ->has('folderTree.0.children.0.children', 2)
+            ->where('folderTree.0.children.0.children.0.id', $ctx['allowedFolder']->id)
+            ->where('folderTree.0.children.0.children.1.id', $ctx['forbiddenFolder']->id)
+            ->where('folderTree.1.id', 'inactive-semesters')
         );
 });
 
@@ -100,4 +112,42 @@ it('allows jefe de departamento to open any teacher folder in file manager', fun
         ->actingAs($ctx['jefeDepto'])
         ->get(route('folders.show', $ctx['forbiddenFolder']->id))
         ->assertOk();
+});
+
+it('moves semester folders between active and inactive groups when the active semester changes', function () {
+    $ctx = createJefeDeptoScopeContext();
+
+    $newSemester = Semester::create([
+        'name' => 'SEMESTRE NUEVO ' . Str::upper(Str::random(4)),
+        'start_date' => now()->addMonth()->toDateString(),
+        'end_date' => now()->addMonths(4)->toDateString(),
+        'status' => 'CLOSED',
+    ]);
+
+    FolderNode::query()->whereKey($ctx['semesterFolder']->id)->update(['semester_id' => $newSemester->id]);
+    $ctx['semesterFolder']->refresh();
+
+    $this
+        ->actingAs($ctx['jefeDepto'])
+        ->get(route('folders.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('folderTree.0.children', 0)
+            ->has('folderTree.1.children', 1)
+            ->where('folderTree.1.children.0.id', $ctx['semesterFolder']->id)
+        );
+
+    $newSemester->update(['status' => 'OPEN']);
+    Semester::query()
+        ->where('id', '!=', $newSemester->id)
+        ->update(['status' => 'CLOSED']);
+
+    $this
+        ->actingAs($ctx['jefeDepto'])
+        ->get(route('folders.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('folderTree.0.children', 1)
+            ->where('folderTree.0.children.0.id', $ctx['semesterFolder']->id)
+        );
 });

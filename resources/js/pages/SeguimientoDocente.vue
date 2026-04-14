@@ -59,9 +59,13 @@ function statusTooltip(cell) {
 function availabilityToneClasses(code) {
     if (code === 'OPEN') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (code === 'LATE' || code === 'UNLOCKED') return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (code === 'UPCOMING' || code === 'STAGE_LOCKED') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (code === 'UPCOMING' || code === 'STAGE_LOCKED' || code === 'HISTORICAL') return 'bg-blue-50 text-blue-700 border-blue-200';
     if (code === 'NOT_CONFIGURED') return 'bg-rose-50 text-rose-700 border-rose-200';
     return 'bg-slate-50 text-slate-700 border-slate-200';
+}
+
+function shouldShowAvailabilityBadge(availability) {
+    return availability?.code && availability.code !== 'NOT_CONFIGURED';
 }
 
 function exportStatus(cell) {
@@ -428,7 +432,11 @@ function formatBytes(bytes) {
                 <div class="space-y-4 px-5 py-4">
                     <div class="flex flex-wrap items-center gap-2 text-xs">
                         <span class="rounded-full border px-2 py-1 font-semibold text-slate-700">{{ cellModalData.stage_label }}</span>
-                        <span class="rounded-full border px-2 py-1 font-semibold" :class="availabilityToneClasses(cellModalData.availability?.code)">
+                        <span
+                            v-if="shouldShowAvailabilityBadge(cellModalData.availability)"
+                            class="rounded-full border px-2 py-1 font-semibold"
+                            :class="availabilityToneClasses(cellModalData.availability?.code)"
+                        >
                             {{ cellModalData.availability?.label }}
                         </span>
                         <span v-if="cellModalData.is_late" class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-700">

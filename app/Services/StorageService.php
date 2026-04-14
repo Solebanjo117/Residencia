@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Semester;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
@@ -201,12 +202,12 @@ class StorageService
     public function getAccessibleRoots(User $user)
     {
         if ($user->isJefeOficina() || $user->isJefeDepto()) {
-            return $this->buildTree(FolderNode::all());
+            return $this->groupRootsBySemesterStatus($this->buildTree(FolderNode::with('semester')->get()));
         }
 
         if ($user->isDocente()) {
-            $nodes = FolderNode::where('owner_user_id', $user->id)->get();
-            return $this->buildTree($nodes);
+            $nodes = FolderNode::with('semester')->where('owner_user_id', $user->id)->get();
+            return $this->groupRootsBySemesterStatus($this->buildTree($nodes));
         }
 
         return [];
@@ -228,6 +229,41 @@ class StorageService
         }
 
         return $roots->values();
+    }
+
+    private function groupRootsBySemesterStatus($roots): array
+    {
+        $activeSemesterId = Semester::active()?->id;
+
+        $activeRoots = [];
+        $inactiveRoots = [];
+
+        foreach ($roots as $root) {
+            $target = $root->semester_id && $root->semester_id === $activeSemesterId
+                ? 'active'
+                : 'inactive';
+
+            if ($target === 'active') {
+                $activeRoots[] = $root;
+            } else {
+                $inactiveRoots[] = $root;
+            }
+        }
+
+        return [
+            $this->virtualGroupNode('active-semesters', 'Semestres activos', $activeRoots),
+            $this->virtualGroupNode('inactive-semesters', 'Semestres no activos', $inactiveRoots),
+        ];
+    }
+
+    private function virtualGroupNode(string $id, string $name, array $children): array
+    {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'is_virtual' => true,
+            'children' => array_values($children),
+        ];
     }
     private function validateUpload(UploadedFile $file): array
     {

@@ -160,6 +160,12 @@ const availabilityClasses: Record<string, string> = {
     NA: 'bg-slate-50 text-slate-700 border-slate-200',
 };
 
+const shouldShowAvailabilityBadge = (task: Task | null) =>
+    !!task?.availability?.code && task.availability.code !== 'NOT_CONFIGURED';
+
+const footerAvailabilityLabel = (task: Task | null) =>
+    shouldShowAvailabilityBadge(task) ? task?.availability.label ?? '' : '';
+
 const triggerUpload = () => {
     fileInput.value?.click();
 };
@@ -315,6 +321,7 @@ const formatBytes = (bytes: number) => {
                                             {{ selectedTask.requirement.stage_label }}
                                         </span>
                                         <span
+                                            v-if="shouldShowAvailabilityBadge(selectedTask)"
                                             class="rounded-full border px-2 py-1 text-xs font-semibold"
                                             :class="availabilityClasses[selectedTask.availability.code] || 'bg-slate-50 text-slate-700 border-slate-200'"
                                         >
@@ -337,9 +344,6 @@ const formatBytes = (bytes: number) => {
                                 <div><strong>Apertura:</strong> {{ formatDate(selectedTask.window.opens_at) }}</div>
                                 <div><strong>Cierre:</strong> {{ formatDate(selectedTask.window.closes_at) }}</div>
                                 <div class="mt-1 font-semibold">{{ selectedTask.window.state_label }}</div>
-                            </div>
-                            <div v-else class="rounded-lg border border-rose-100 bg-rose-50 p-3 text-sm text-rose-800">
-                                No hay una ventana configurada para este documento.
                             </div>
 
                             <div v-if="selectedTask.submission.office_approved_at || selectedTask.submission.final_approved_at" class="mt-4 grid gap-3 md:grid-cols-2">
@@ -434,8 +438,8 @@ const formatBytes = (bytes: number) => {
                                 Enviar Evidencia a Revision
                             </button>
 
-                            <div v-else class="text-sm text-slate-500">
-                                {{ selectedTask.availability.label }}
+                            <div v-else-if="footerAvailabilityLabel(selectedTask)" class="text-sm text-slate-500">
+                                {{ footerAvailabilityLabel(selectedTask) }}
                             </div>
                         </div>
                     </div>

@@ -7,12 +7,18 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\FileController;
+use App\Http\Controllers\Auth\SocialAuthController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->name('auth.social.redirect');
+    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('auth.social.callback');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');

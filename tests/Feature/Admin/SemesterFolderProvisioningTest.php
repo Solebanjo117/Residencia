@@ -1,5 +1,9 @@
 <?php
 
+use App\Models\Department;
+use App\Models\EvidenceCategory;
+use App\Models\EvidenceItem;
+use App\Models\EvidenceRequirement;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
@@ -159,5 +163,81 @@ it('creates the base evidence tree for active teachers when an open semester is 
         'owner_user_id' => $activeTeacher->id,
         'parent_id' => $projectFolder->id,
         'name' => '4.1-CAPACITACION',
+    ]);
+});
+
+it('clones requirements and teaching loads from the latest semester with data when a new semester is created empty', function () {
+    $adminRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+
+    $admin = User::factory()->create(['role_id' => $adminRoleId]);
+    $teacher = User::factory()->create([
+        'role_id' => $teacherRoleId,
+        'is_active' => true,
+    ]);
+
+    $department = Department::create(['name' => 'DEP-CLONE-' . Str::upper(Str::random(5))]);
+    $teacher->departments()->attach($department->id);
+
+    $sourceSemester = Semester::create([
+        'name' => 'SEM-SOURCE-' . Str::upper(Str::random(6)),
+        'start_date' => now()->subMonths(5)->toDateString(),
+        'end_date' => now()->subMonth()->toDateString(),
+        'status' => 'CLOSED',
+    ]);
+
+    $subject = Subject::create([
+        'code' => 'SUB-CLONE-' . Str::upper(Str::random(6)),
+        'name' => 'Materia Clon ' . Str::upper(Str::random(4)),
+    ]);
+
+    $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
+    $item = EvidenceItem::create([
+        'category_id' => $categoryId,
+        'name' => 'INSTRUM CLONE ' . Str::upper(Str::random(4)),
+        'description' => 'Evidencia clonada',
+        'requires_subject' => true,
+        'active' => true,
+    ]);
+
+    EvidenceRequirement::create([
+        'semester_id' => $sourceSemester->id,
+        'department_id' => $department->id,
+        'evidence_item_id' => $item->id,
+        'is_mandatory' => true,
+    ]);
+
+    TeachingLoad::create([
+        'teacher_user_id' => $teacher->id,
+        'semester_id' => $sourceSemester->id,
+        'subject_id' => $subject->id,
+        'group_code' => 'A',
+        'hours_per_week' => 4,
+    ]);
+
+    $this
+        ->actingAs($admin)
+        ->post(route('admin.semesters.store'), [
+            'name' => 'SEM-TARGET-' . Str::upper(Str::random(6)),
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addMonths(4)->toDateString(),
+            'status' => 'CLOSED',
+            'academic_period_id' => null,
+        ])
+        ->assertRedirect(route('admin.semesters.index'));
+
+    $targetSemester = Semester::latest('id')->firstOrFail();
+
+    $this->assertDatabaseHas('evidence_requirements', [
+        'semester_id' => $targetSemester->id,
+        'department_id' => $department->id,
+        'evidence_item_id' => $item->id,
+    ]);
+
+    $this->assertDatabaseHas('teaching_loads', [
+        'semester_id' => $targetSemester->id,
+        'teacher_user_id' => $teacher->id,
+        'subject_id' => $subject->id,
+        'group_code' => 'A',
     ]);
 });

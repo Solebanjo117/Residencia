@@ -30,7 +30,7 @@ class AdvisoryController extends Controller
 
         $semester = $semesterQuery
             ? Semester::where('name', $semesterQuery)->first()
-            : (Semester::where('status', 'OPEN')->first() ?? Semester::orderBy('start_date', 'desc')->first());
+            : Semester::activeOrLatest();
 
         if (!$semester || !$department) {
             return Inertia::render('SeguimientoDocente', [
@@ -75,6 +75,7 @@ class AdvisoryController extends Controller
             ->where('status', 'ACTIVE')
             ->get()
             ->keyBy('evidence_item_id');
+        $isHistoricalSemester = $semester->status !== \App\Enums\SemesterStatus::OPEN;
 
         $rows = [];
 
@@ -99,7 +100,8 @@ class AdvisoryController extends Controller
                     $windows->get($item->id),
                     $stageUnlocked,
                     $submission?->activeResubmissionUnlock !== null,
-                    $submission
+                    $submission,
+                    $isHistoricalSemester
                 );
 
                 $uiStatus = $flowService->uiStatus($submission, $availability);
