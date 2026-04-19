@@ -24,6 +24,7 @@ class TeacherService
                 'password' => Hash::make($data['password'] ?? Str::random(12)), // Default random password
                 'role_id' => $roleDocente->id,
                 'is_active' => $data['is_active'] ?? true,
+                'folder_permission_keys' => $data['folder_permission_keys'] ?? null,
             ]);
 
             $user->departments()->sync($data['department_ids'] ?? []);
@@ -46,6 +47,10 @@ class TeacherService
 
             if (!empty($data['password'])) {
                 $updateData['password'] = Hash::make($data['password']);
+            }
+
+            if (array_key_exists('folder_permission_keys', $data)) {
+                $updateData['folder_permission_keys'] = $data['folder_permission_keys'];
             }
 
             $teacher->update($updateData);
