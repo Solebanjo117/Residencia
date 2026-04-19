@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { ref, watch } from 'vue';
 import {
     BookOpen,
     Edit2,
     Trash2,
     GraduationCap,
-    Filter,
 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+import SearchableSelect from '@/components/SearchableSelect.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 const props = defineProps<{
     teachingLoads: {
@@ -26,11 +26,54 @@ const editingLoad = ref<any | null>(null);
 
 const filterSemester = ref(props.selectedSemester || '');
 
+const activeSemesterId = computed(() => {
+    const activeSemester = props.semesters.find((semester) => semester.status === 'OPEN');
+
+    return activeSemester ? String(activeSemester.id) : null;
+});
+
+const semesterFilterOptions = computed(() => [
+    {
+        value: '',
+        label: 'Todos los semestres',
+        keywords: ['todos', 'sin filtro'],
+    },
+    ...props.semesters.map((semester) => ({
+        value: String(semester.id),
+        label: semester.status === 'OPEN' ? `${semester.name} (Activo)` : semester.name,
+        keywords: [semester.name, semester.status],
+    })),
+]);
+
+const semesterOptions = computed(() =>
+    props.semesters.map((semester) => ({
+        value: String(semester.id),
+        label: semester.status === 'OPEN' ? `${semester.name} (Activo)` : semester.name,
+        keywords: [semester.name, semester.status],
+    })),
+);
+
+const teacherOptions = computed(() =>
+    props.teachers.map((teacher) => ({
+        value: String(teacher.id),
+        label: `${teacher.name} (${teacher.email})`,
+        keywords: [teacher.name, teacher.email],
+    })),
+);
+
+const subjectOptions = computed(() =>
+    props.subjects.map((subject) => ({
+        value: String(subject.id),
+        label: `${subject.code} - ${subject.name}`,
+        keywords: [subject.code, subject.name],
+    })),
+);
+
 // Watch for filter changes to reload data
 watch(filterSemester, (newValue) => {
     router.get(
         '/admin/teaching-loads',
-        { semester_id: newValue },
+        newValue ? { semester_id: newValue } : {},
         { preserveState: true, replace: true },
     );
 });
@@ -46,17 +89,15 @@ const form = useForm({
 const openCreateModal = () => {
     editingLoad.value = null;
     form.reset();
-    if (filterSemester.value) {
-        form.semester_id = filterSemester.value; // Pre-fill if a semester is filtered
-    }
+    form.semester_id = filterSemester.value || activeSemesterId.value || '';
     isModalOpen.value = true;
 };
 
 const openEditModal = (load: any) => {
     editingLoad.value = load;
-    form.teacher_user_id = load.teacher_user_id;
-    form.semester_id = load.semester_id;
-    form.subject_id = load.subject_id;
+    form.teacher_user_id = String(load.teacher_user_id);
+    form.semester_id = String(load.semester_id);
+    form.subject_id = String(load.subject_id);
     form.group_code = load.group_code;
     form.hours_per_week = load.hours_per_week;
     isModalOpen.value = true;
@@ -108,26 +149,13 @@ const destroyLoad = (id: number) => {
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <div class="relative">
-                        <select
-                            v-model="filterSemester"
-                            class="appearance-none rounded-lg border border-gray-300 bg-white py-2 pr-10 pl-4 text-sm leading-tight text-gray-700 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none"
-                        >
-                            <option value="">Todos los semestres</option>
-                            <option
-                                v-for="sem in semesters"
-                                :key="sem.id"
-                                :value="sem.id"
-                            >
-                                {{ sem.name }}
-                            </option>
-                        </select>
-                        <div
-                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500"
-                        >
-                            <Filter class="h-4 w-4" />
-                        </div>
-                    </div>
+                    <SearchableSelect
+                        v-model="filterSemester"
+                        :options="semesterFilterOptions"
+                        placeholder="Filtrar por semestre"
+                        search-placeholder="Buscar semestre..."
+                        class="w-72"
+                    />
 
                     <button type="button" @click="openCreateModal"
                         class="inline-flex shrink-0 items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
@@ -272,9 +300,10 @@ const destroyLoad = (id: number) => {
                         :href="link.url"
                         class="px-3 py-1 rounded text-sm"
                         :class="link.active ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'"
-                        v-html="link.label"
                         preserve-state
-                    />
+                    >
+                        <span v-html="link.label" />
+                    </Link>
                     <span v-else class="px-3 py-1 text-sm text-gray-400" v-html="link.label" />
                 </template>
             </div>
@@ -319,24 +348,13 @@ const destroyLoad = (id: number) => {
                                             class="block text-sm font-medium text-gray-700"
                                             >Docente</label
                                         >
-                                        <select
+                                        <SearchableSelect
                                             v-model="form.teacher_user_id"
-                                            class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-blue-500 sm:text-sm"
-                                            required
-                                        >
-                                            <option value="" disabled>
-                                                Selecciona un docente...
-                                            </option>
-                                            <option
-                                                v-for="teacher in teachers"
-                                                :key="teacher.id"
-                                                :value="teacher.id"
-                                            >
-                                                {{ teacher.name }} ({{
-                                                    teacher.email
-                                                }})
-                                            </option>
-                                        </select>
+                                            :options="teacherOptions"
+                                            placeholder="Selecciona un docente..."
+                                            search-placeholder="Buscar docente..."
+                                            class="mt-1"
+                                        />
                                         <div
                                             v-if="form.errors.teacher_user_id"
                                             class="mt-1 text-xs text-red-500"
@@ -350,22 +368,13 @@ const destroyLoad = (id: number) => {
                                             class="block text-sm font-medium text-gray-700"
                                             >Semestre</label
                                         >
-                                        <select
+                                        <SearchableSelect
                                             v-model="form.semester_id"
-                                            class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-blue-500 sm:text-sm"
-                                            required
-                                        >
-                                            <option value="" disabled>
-                                                Selecciona semestre...
-                                            </option>
-                                            <option
-                                                v-for="sem in semesters"
-                                                :key="sem.id"
-                                                :value="sem.id"
-                                            >
-                                                {{ sem.name }}
-                                            </option>
-                                        </select>
+                                            :options="semesterOptions"
+                                            placeholder="Selecciona semestre..."
+                                            search-placeholder="Buscar semestre..."
+                                            class="mt-1"
+                                        />
                                         <div
                                             v-if="form.errors.semester_id"
                                             class="mt-1 text-xs text-red-500"
@@ -379,22 +388,13 @@ const destroyLoad = (id: number) => {
                                             class="block text-sm font-medium text-gray-700"
                                             >Materia</label
                                         >
-                                        <select
+                                        <SearchableSelect
                                             v-model="form.subject_id"
-                                            class="mt-1 block w-full rounded-md border-gray-300 py-2 pr-10 pl-3 text-base focus:border-blue-500 sm:text-sm"
-                                            required
-                                        >
-                                            <option value="" disabled>
-                                                Selecciona materia...
-                                            </option>
-                                            <option
-                                                v-for="sub in subjects"
-                                                :key="sub.id"
-                                                :value="sub.id"
-                                            >
-                                                {{ sub.code }} - {{ sub.name }}
-                                            </option>
-                                        </select>
+                                            :options="subjectOptions"
+                                            placeholder="Selecciona materia..."
+                                            search-placeholder="Buscar materia..."
+                                            class="mt-1"
+                                        />
                                         <div
                                             v-if="form.errors.subject_id"
                                             class="mt-1 text-xs text-red-500"
