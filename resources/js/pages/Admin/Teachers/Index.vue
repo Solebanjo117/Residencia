@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { ref } from 'vue';
 import {
     UserPlus,
     Edit2,
-    Trash2,
     ShieldBan,
     CheckCircle2,
     FolderPlus,
+    RefreshCw,
 } from 'lucide-vue-next';
+import { ref } from 'vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 const props = defineProps<{
     teachers: {
@@ -17,6 +17,12 @@ const props = defineProps<{
         links: any[];
     };
     departments: any[];
+    folderCatalog: Array<{
+        key: string;
+        label: string;
+        depth: number;
+        parent_key: string | null;
+    }>;
 }>();
 
 const isModalOpen = ref(false);
@@ -27,12 +33,16 @@ const form = useForm({
     email: '',
     password: '',
     department_ids: [] as number[],
+    folder_permission_keys: [] as string[],
     is_active: true,
 });
+
+const allFolderPermissionKeys = () => props.folderCatalog.map((folder) => folder.key);
 
 const openCreateModal = () => {
     editingTeacher.value = null;
     form.reset();
+    form.folder_permission_keys = allFolderPermissionKeys();
     isModalOpen.value = true;
 };
 
@@ -43,6 +53,9 @@ const openEditModal = (teacher: any) => {
     form.password = ''; // Leave blank unless changing
     form.is_active = teacher.is_active;
     form.department_ids = teacher.departments.map((d: any) => d.id);
+    form.folder_permission_keys = teacher.folder_permission_keys?.length
+        ? [...teacher.folder_permission_keys]
+        : allFolderPermissionKeys();
     isModalOpen.value = true;
 };
 
@@ -67,16 +80,37 @@ const toggleActive = (teacher: any) => {
     router.put(
         `/admin/teachers/${teacher.id}`,
         {
-            ...teacher,
+            name: teacher.name,
+            email: teacher.email,
+            password: '',
             is_active: !teacher.is_active,
             department_ids: teacher.departments.map((d: any) => d.id),
+            folder_permission_keys: teacher.folder_permission_keys?.length
+                ? teacher.folder_permission_keys
+                : allFolderPermissionKeys(),
         },
         { preserveScroll: true },
     );
 };
 
-const generateFolders = (teacher: any) => {
-    router.post(`/admin/teachers/${teacher.id}/generate-folders`, {}, { preserveScroll: true });
+const generateFolders = (teacher: any, force = false) => {
+    if (force) {
+        const confirmed = confirm('Esto regenerara la estructura completa e ignorara temporalmente los checkboxes de carpetas para este docente. Deseas continuar?');
+
+        if (!confirmed) {
+            return;
+        }
+    }
+
+    router.post(`/admin/teachers/${teacher.id}/generate-folders`, { force }, { preserveScroll: true });
+};
+
+const selectAllFolders = () => {
+    form.folder_permission_keys = allFolderPermissionKeys();
+};
+
+const clearAllFolders = () => {
+    form.folder_permission_keys = [];
 };
 </script>
 
@@ -205,9 +239,15 @@ const generateFolders = (teacher: any) => {
                                     </button>
                                     <button type="button" @click="generateFolders(teacher)"
                                         class="text-emerald-600 hover:text-emerald-900"
-                                        title="Generar carpetas en todos los semestres"
+                                        title="Regenerar carpetas segun checkboxes"
                                     >
                                         <FolderPlus class="h-4 w-4" />
+                                    </button>
+                                    <button type="button" @click="generateFolders(teacher, true)"
+                                        class="text-cyan-600 hover:text-cyan-900"
+                                        title="Forzar estructura completa (ignora checkboxes)"
+                                    >
+                                        <RefreshCw class="h-4 w-4" />
                                     </button>
                                     <button type="button" @click="toggleActive(teacher)"
                                         :class="
@@ -253,9 +293,10 @@ const generateFolders = (teacher: any) => {
                         :href="link.url"
                         class="px-3 py-1 rounded text-sm"
                         :class="link.active ? 'bg-blue-600 text-white font-semibold' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'"
-                        v-html="link.label"
                         preserve-state
-                    />
+                    >
+                        <span v-html="link.label" />
+                    </Link>
                     <span v-else class="px-3 py-1 text-sm text-gray-400" v-html="link.label" />
                 </template>
             </div>
@@ -396,6 +437,62 @@ const generateFolders = (teacher: any) => {
                                             class="mt-1 text-xs text-red-500"
                                         >
                                             {{ form.errors.department_ids }}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="mb-2 flex items-center justify-between gap-2">
+                                            <label class="block text-sm font-medium text-gray-700">
+                                                Carpetas habilitadas para generar
+                                            </label>
+                                            <div class="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                    @click="selectAllFolders"
+                                                >
+                                                    Marcar todo
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                    @click="clearAllFolders"
+                                                >
+                                                    Limpiar
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <p class="mb-2 text-xs text-gray-500">
+                                            Estas carpetas se aplican al abrir semestres, crear cargas y regenerar carpetas para este docente.
+                                        </p>
+
+                                        <div class="max-h-48 space-y-2 overflow-y-auto rounded-md border border-gray-200 p-2">
+                                            <label
+                                                v-for="folder in folderCatalog"
+                                                :key="folder.key"
+                                                class="flex items-start"
+                                                :style="{ paddingLeft: `${folder.depth * 14}px` }"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    :value="folder.key"
+                                                    v-model="form.folder_permission_keys"
+                                                    class="mt-0.5 rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                                                />
+                                                <span class="ml-2 text-sm text-gray-600">{{ folder.label }}</span>
+                                            </label>
+                                        </div>
+
+                                        <div class="mt-1 text-xs text-gray-500">
+                                            Seleccionadas: {{ form.folder_permission_keys.length }} / {{ folderCatalog.length }}
+                                        </div>
+
+                                        <div
+                                            v-if="form.errors.folder_permission_keys"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
+                                            {{ form.errors.folder_permission_keys }}
                                         </div>
                                     </div>
 

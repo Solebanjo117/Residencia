@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'is_active',
+        'folder_permission_keys',
     ];
 
     /**
@@ -49,6 +50,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'folder_permission_keys' => 'array',
         ];
     }
 
