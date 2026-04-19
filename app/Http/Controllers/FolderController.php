@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EvidenceFile;
 use App\Models\FolderNode;
+use App\Models\User;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -38,6 +39,8 @@ class FolderController extends Controller
 
         $contents = $folder->load(['children', 'files.uploadedBy', 'files.submission']);
         $user = $request->user();
+        $folder->load(['semester', 'parent']);
+        $ancestors = $this->buildFolderAncestors($folder, $user);
 
         $visibleChildren = $contents->children
             ->filter(fn (FolderNode $child) => $user->can('view', $child))
@@ -56,14 +59,14 @@ class FolderController extends Controller
         // Let's return the tree structure as well, perhaps optimized.
         $roots = $this->storageService->getAccessibleRoots($user);
 
-        $folder->load('semester');
-
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
             'currentFolder' => [
                 'id' => $folder->id,
                 'name' => $folder->name,
+                'parent_id' => $folder->parent_id,
                 'can_upload' => $user->can('upload', $folder),
+                'ancestors' => $ancestors,
             ],
             'semesterName' => $folder->semester?->name,
             'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
@@ -99,5 +102,24 @@ class FolderController extends Controller
                 }),
             ],
         ]);
+    }
+
+    private function buildFolderAncestors(FolderNode $folder, User $user): array
+    {
+        $ancestors = [];
+        $current = $folder->parent;
+
+        while ($current) {
+            $ancestors[] = [
+                'id' => $current->id,
+                'name' => $current->name,
+                'can_view' => $user->can('view', $current),
+            ];
+
+            $current->loadMissing('parent');
+            $current = $current->parent;
+        }
+
+        return array_reverse($ancestors);
     }
 }
