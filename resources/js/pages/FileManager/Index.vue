@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import FolderTree from '@/components/FileManager/FolderTree.vue';
 import {
     Folder,
     FileText,
@@ -12,12 +10,26 @@ import {
     RefreshCw,
     X,
 } from 'lucide-vue-next';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import FolderTree from '@/components/FileManager/FolderTree.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { ref, computed } from 'vue';
 
 const props = defineProps<{
     folderTree: any[];
-    currentFolder: any | null;
+    currentFolder:
+        | {
+              id: number;
+              name: string;
+              parent_id?: number | null;
+              can_upload: boolean;
+              ancestors?: Array<{
+                  id: number;
+                  name: string;
+                  can_view: boolean;
+              }>;
+          }
+        | null;
     semesterName?: string | null;
     allowedExtensions?: string[];
     contents: {
@@ -25,6 +37,169 @@ const props = defineProps<{
         files: any[];
     };
 }>();
+
+const expandedFoldersStorageKey = 'fileManager.expandedFolders';
+const leftPanelWidthStorageKey = 'fileManager.leftPanelWidth';
+const leftPanelMinWidth = 18;
+const leftPanelMaxWidth = 50;
+
+const containerRef = ref<HTMLElement | null>(null);
+const expandedFolders = ref<Record<number, boolean>>({});
+const leftPanelWidth = ref(25);
+const isResizing = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(25);
+
+const loadExpandedFolders = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const rawValue = window.sessionStorage.getItem(expandedFoldersStorageKey);
+    if (!rawValue) {
+        return;
+    }
+
+    try {
+        const parsed = JSON.parse(rawValue);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            expandedFolders.value = parsed as Record<number, boolean>;
+        }
+    } catch {
+        window.sessionStorage.removeItem(expandedFoldersStorageKey);
+    }
+};
+
+const persistExpandedFolders = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.sessionStorage.setItem(expandedFoldersStorageKey, JSON.stringify(expandedFolders.value));
+};
+
+const setFolderExpanded = (folderId: number, isExpanded: boolean) => {
+    const nextState = { ...expandedFolders.value };
+
+    if (isExpanded) {
+        nextState[folderId] = true;
+    } else {
+        delete nextState[folderId];
+    }
+
+    expandedFolders.value = nextState;
+    persistExpandedFolders();
+};
+
+const toggleFolderExpanded = (folderId: number) => {
+    setFolderExpanded(folderId, !expandedFolders.value[folderId]);
+};
+
+const expandAncestorsFromCurrentFolder = () => {
+    if (!props.currentFolder?.ancestors?.length) {
+        return;
+    }
+
+    const nextState = { ...expandedFolders.value };
+
+    for (const ancestor of props.currentFolder.ancestors) {
+        nextState[ancestor.id] = true;
+    }
+
+    expandedFolders.value = nextState;
+    persistExpandedFolders();
+};
+
+const loadLeftPanelWidth = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const rawValue = window.localStorage.getItem(leftPanelWidthStorageKey);
+    if (!rawValue) {
+        return;
+    }
+
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+        return;
+    }
+
+    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, parsed));
+};
+
+const persistLeftPanelWidth = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.localStorage.setItem(leftPanelWidthStorageKey, String(leftPanelWidth.value));
+};
+
+const onResizeMove = (event: MouseEvent) => {
+    if (!isResizing.value || !containerRef.value) {
+        return;
+    }
+
+    const bounds = containerRef.value.getBoundingClientRect();
+    if (bounds.width <= 0) {
+        return;
+    }
+
+    const deltaX = event.clientX - resizeStartX.value;
+    const startingWidthPx = (resizeStartWidth.value / 100) * bounds.width;
+    const nextWidthPercent = ((startingWidthPx + deltaX) / bounds.width) * 100;
+
+    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, nextWidthPercent));
+};
+
+const stopResizing = () => {
+    if (isResizing.value) {
+        isResizing.value = false;
+        persistLeftPanelWidth();
+    }
+
+    if (typeof document !== 'undefined') {
+        document.body.classList.remove('cursor-col-resize', 'select-none');
+    }
+
+    window.removeEventListener('mousemove', onResizeMove);
+    window.removeEventListener('mouseup', stopResizing);
+};
+
+const startResizing = (event: MouseEvent) => {
+    if (!containerRef.value) {
+        return;
+    }
+
+    isResizing.value = true;
+    resizeStartX.value = event.clientX;
+    resizeStartWidth.value = leftPanelWidth.value;
+
+    if (typeof document !== 'undefined') {
+        document.body.classList.add('cursor-col-resize', 'select-none');
+    }
+
+    window.addEventListener('mousemove', onResizeMove);
+    window.addEventListener('mouseup', stopResizing);
+};
+
+onMounted(() => {
+    loadExpandedFolders();
+    loadLeftPanelWidth();
+    expandAncestorsFromCurrentFolder();
+});
+
+onBeforeUnmount(() => {
+    stopResizing();
+});
+
+watch(
+    () => props.currentFolder?.id,
+    () => {
+        expandAncestorsFromCurrentFolder();
+    },
+);
 
 const uploadAccept = computed(() => {
     const extensions = props.allowedExtensions?.length
@@ -41,6 +216,10 @@ const breadcrumbs: BreadcrumbItem[] = [
         title: 'Gestor de Archivos',
         href: '/files/manager',
     },
+    ...((props.currentFolder?.ancestors ?? []).map((ancestor) => ({
+        title: ancestor.name,
+        href: ancestor.can_view ? `/files/folders/${ancestor.id}` : undefined,
+    })) as BreadcrumbItem[]),
     ...(props.currentFolder
         ? [
               {
@@ -184,21 +363,33 @@ const closePreview = () => {
     <Head title="Gestor de Archivos" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-[calc(100vh-4rem)] overflow-hidden">
+        <div ref="containerRef" class="flex h-[calc(100vh-4rem)] overflow-hidden">
             <!-- Left Panel: Folder Tree -->
             <div
-                class="w-1/4 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
+                class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
+                :style="{ width: `${leftPanelWidth}%` }"
             >
                 <h3 class="mb-4 px-2 font-semibold text-gray-700">Carpetas</h3>
                 <FolderTree
                     v-for="root in folderTree"
                     :key="root.id"
                     :node="root"
+                    :expanded-state="expandedFolders"
+                    :active-folder-id="currentFolder?.id ?? null"
+                    @toggle-folder="toggleFolderExpanded"
                 />
             </div>
 
+            <div
+                class="group relative w-1 shrink-0 cursor-col-resize bg-gray-200 transition-colors hover:bg-blue-300"
+                :class="{ 'bg-blue-400': isResizing }"
+                @mousedown.prevent="startResizing"
+            >
+                <div class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"></div>
+            </div>
+
             <!-- Right Panel: Content -->
-            <div class="flex w-3/4 flex-col overflow-hidden bg-white">
+            <div class="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
                 <!-- Toolbar / Header -->
                 <div
                     class="flex items-center justify-between border-b border-gray-200 p-4"

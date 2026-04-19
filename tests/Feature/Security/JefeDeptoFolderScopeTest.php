@@ -101,3 +101,21 @@ it('allows jefe de departamento to open any teacher folder in file manager', fun
         ->get(route('folders.show', $ctx['forbiddenFolder']->id))
         ->assertOk();
 });
+
+it('returns ancestor chain for current folder breadcrumbs', function () {
+    $ctx = createJefeDeptoScopeContext();
+
+    $this
+        ->actingAs($ctx['jefeDepto'])
+        ->get(route('folders.show', $ctx['forbiddenFolder']->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/Index')
+            ->where('currentFolder.id', $ctx['forbiddenFolder']->id)
+            ->where('currentFolder.parent_id', $ctx['semesterFolder']->id)
+            ->has('currentFolder.ancestors', 1)
+            ->where('currentFolder.ancestors.0.id', $ctx['semesterFolder']->id)
+            ->where('currentFolder.ancestors.0.name', $ctx['semesterFolder']->name)
+            ->where('currentFolder.ancestors.0.can_view', true)
+        );
+});
