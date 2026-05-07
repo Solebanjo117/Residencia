@@ -19,18 +19,27 @@ class TeachingLoadController extends Controller
     {
         $roleDocente = Role::where('name', Role::DOCENTE)->first();
 
-        // Optional filtering by semester
-        $semesterId = $request->query('semester_id');
+        $requestedSemesterId = $request->query('semester_id');
+        $activeSemesterId = Semester::active()?->id;
+        $semesterId = $requestedSemesterId;
+
+        if ($semesterId === null && $activeSemesterId) {
+            $semesterId = (string) $activeSemesterId;
+        }
+
         $query = TeachingLoad::with(['teacher', 'semester', 'subject'])
             ->orderBy('created_at', 'desc');
 
-        if ($semesterId) {
+        if ($semesterId !== null && $semesterId !== '') {
             $query->where('semester_id', $semesterId);
         }
 
         $teachingLoads = $query->paginate(15)->withQueryString();
 
-        $semesters = Semester::orderBy('start_date', 'desc')->get();
+        $semesters = Semester::query()
+            ->orderByRaw("CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END")
+            ->orderBy('start_date', 'desc')
+            ->get();
         $teachers = User::where('role_id', $roleDocente->id)->orderBy('name')->get();
         $subjects = Subject::orderBy('name')->get();
 

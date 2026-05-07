@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'role_id',
         'is_active',
+        'folder_permission_keys',
     ];
 
     /**
@@ -50,6 +51,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'folder_permission_keys' => 'array',
         ];
     }
 
@@ -81,6 +83,11 @@ class User extends Authenticatable
     public function isJefeDepto(): bool
     {
         return $this->hasRole(Role::JEFE_DEPTO);
+    }
+
+    public function isAdministrativeAuthority(): bool
+    {
+        return $this->isJefeOficina() || $this->isJefeDepto();
     }
 
     public function teachingLoads()

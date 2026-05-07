@@ -3,18 +3,12 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
+use App\Models\AdvisorySchedule;
 use App\Models\Semester;
 use App\Models\TeachingLoad;
-use App\Models\AdvisorySession;
-use App\Models\AdvisoryFile;
-use App\Services\AdvisoryService;
-use Carbon\Carbon;
-use Illuminate\Support\Str;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class AdvisorySessionController extends Controller
 {
@@ -23,120 +17,135 @@ class AdvisorySessionController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        $currentSemester = Semester::activeOrLatest();
+        $currentSemester = $this->resolveCurrentSemester();
 
-        // Fetch teaching loads to allow the user to select which group the session was for.
         $loads = TeachingLoad::with('subject')
             ->where('teacher_user_id', $user->id)
             ->where('semester_id', $currentSemester?->id)
             ->get();
 
-        // Fetch the logged sessions for this semester using Eloquent relationships
-        $sessions = AdvisorySession::with(['teachingLoad.subject', 'files'])
-            ->where('created_by_user_id', $user->id)
+        $schedules = AdvisorySchedule::with(['teachingLoad.subject'])
+            ->where('teacher_user_id', $user->id)
             ->where('semester_id', $currentSemester?->id)
-            ->orderBy('session_date', 'desc')
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
             ->get()
-            ->map(function ($session) {
-                return [
-                    'id' => $session->id,
-                    'session_date' => $session->session_date,
-                    'topic' => $session->topic,
-                    'duration_minutes' => $session->duration_minutes,
-                    'notes' => $session->notes,
-                    'group_name' => $session->teachingLoad?->group_code,
-                    'subject_name' => $session->teachingLoad?->subject?->name,
-                    'files' => $session->files,
-                ];
-            });
+            ->map(fn (AdvisorySchedule $schedule) => $this->serializeSchedule($schedule));
 
         return Inertia::render('Docente/MyAdvisories', [
-            'sessions' => $sessions,
+            'sessions' => $schedules,
             'teaching_loads' => $loads,
-            'semester' => $currentSemester
+            'semester' => $currentSemester,
         ]);
     }
 
-    public function store(Request $request, AdvisoryService $advisoryService)
+    public function store(Request $request)
     {
-        $request->validate([
-            'teaching_load_id' => 'required|exists:teaching_loads,id',
-            'session_date' => 'required|date',
-            'topic' => 'required|string|max:255',
-            'duration_minutes' => 'nullable|integer|min:1',
-            'notes' => 'nullable|string|max:500',
-            'files.*' => 'nullable|file|mimes:pdf,jpg,png,docx|max:5120'
-        ]);
+        $validated = $this->validateScheduleRequest($request);
 
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        $load = TeachingLoad::findOrFail($request->teaching_load_id);
+        $load = $this->resolveTeachingLoad($validated['teaching_load_id'] ?? null, $user);
+        $semester = $this->resolveCurrentSemester();
 
-        // Ensure the load belongs to the user
+        AdvisorySchedule::create([
+            'teacher_user_id' => $user->id,
+            'teaching_load_id' => $load?->id,
+            'semester_id' => $load?->semester_id ?? $semester->id,
+            'day_of_week' => $validated['day_of_week'],
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+            'location' => $validated['location'] ?? null,
+        ]);
+
+        return redirect()->back()->with('success', 'Horario de asesoria registrado.');
+    }
+
+    public function update(Request $request, AdvisorySchedule $session)
+    {
+        $validated = $this->validateScheduleRequest($request);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        if ($session->teacher_user_id !== $user->id) {
+            abort(403);
+        }
+
+        $load = $this->resolveTeachingLoad($validated['teaching_load_id'] ?? null, $user);
+
+        $session->update([
+            'teaching_load_id' => $load?->id,
+            'semester_id' => $load?->semester_id ?? $session->semester_id,
+            'day_of_week' => $validated['day_of_week'],
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+            'location' => $validated['location'] ?? null,
+        ]);
+
+        return redirect()->back()->with('success', 'Horario de asesoria actualizado.');
+    }
+
+    public function destroy(AdvisorySchedule $id)
+    {
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        if ($id->teacher_user_id !== $user->id) {
+            abort(403);
+        }
+
+        $id->delete();
+
+        return redirect()->back()->with('success', 'Horario eliminado correctamente.');
+    }
+
+    private function validateScheduleRequest(Request $request): array
+    {
+        return $request->validate([
+            'teaching_load_id' => 'nullable|exists:teaching_loads,id',
+            'day_of_week' => 'required|integer|min:1|max:5',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i|after:start_time',
+            'location' => 'nullable|string|max:100',
+        ]);
+    }
+
+    private function resolveTeachingLoad(mixed $teachingLoadId, $user): ?TeachingLoad
+    {
+        if (! $teachingLoadId) {
+            return null;
+        }
+
+        $load = TeachingLoad::findOrFail($teachingLoadId);
+
         if ($load->teacher_user_id !== $user->id) {
             abort(403);
         }
 
-        DB::transaction(function () use ($request, $user, $load, $advisoryService) {
-            // Use AdvisoryService to create the session (includes audit logging)
-            $session = $advisoryService->recordSession(
-                $load,
-                $user,
-                Carbon::parse($request->session_date),
-                $request->topic,
-                $request->duration_minutes,
-                $request->notes
-            );
-
-            if ($request->hasFile('files')) {
-                foreach ($request->file('files') as $file) {
-                    $fileName = $file->getClientOriginalName();
-                    // Store the physical file
-                    $path = $file->storeAs(
-                        "advisories/sem_{$load->semester_id}/docente_{$user->id}",
-                        Str::random(10) . '_' . $fileName,
-                        'public'
-                    );
-
-                    AdvisoryFile::create([
-                        'advisory_session_id' => $session->id,
-                        'file_name' => $fileName,
-                        'stored_relative_path' => $path,
-                        'mime_type' => $file->getMimeType(),
-                        'size_bytes' => $file->getSize(),
-                        'uploaded_by_user_id' => $user->id,
-                        'uploaded_at' => now()
-                    ]);
-                }
-            }
-        });
-
-        return redirect()->back()->with('success', 'Sesion de asesoria registrada.');
+        return $load;
     }
 
-    public function destroy($id)
+    private function resolveCurrentSemester(): Semester
     {
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
+        return Semester::activeOrLatest() ?? Semester::query()->firstOrFail();
+    }
 
-        $session = AdvisorySession::with('files')->findOrFail($id);
-
-        if ($session->created_by_user_id !== $user->id) {
-            abort(403);
-        }
-
-        // Wrap file deletion + DB deletion in a transaction so both succeed or fail together
-        DB::transaction(function () use ($session) {
-            // Delete the physical files from storage
-            foreach ($session->files as $f) {
-                Storage::disk('public')->delete($f->stored_relative_path);
-            }
-
-            // Delete the session (cascade should handle advisory_files rows)
-            $session->delete();
-        });
-
-        return redirect()->back()->with('success', 'Registro eliminado correctamente.');
+    private function serializeSchedule(AdvisorySchedule $schedule): array
+    {
+        return [
+            'id' => $schedule->id,
+            'teacher_user_id' => $schedule->teacher_user_id,
+            'teaching_load_id' => $schedule->teaching_load_id,
+            'semester_id' => $schedule->semester_id,
+            'day_of_week' => $schedule->day_of_week,
+            'day_name' => $schedule->day_name,
+            'start_time' => substr((string) $schedule->start_time, 0, 5),
+            'end_time' => substr((string) $schedule->end_time, 0, 5),
+            'location' => $schedule->location,
+            'subject_name' => $schedule->teachingLoad?->subject?->name,
+            'group_name' => $schedule->teachingLoad?->group_code,
+        ];
     }
 }

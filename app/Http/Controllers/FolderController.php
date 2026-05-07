@@ -4,24 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\EvidenceFile;
 use App\Models\FolderNode;
+use App\Models\User;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class FolderController extends Controller
 {
-    protected $storageService;
-
-    public function __construct(StorageService $storageService)
-    {
-        $this->storageService = $storageService;
-    }
+    public function __construct(private StorageService $storageService) {}
 
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        // Fetch root folders accessible to the user
         $roots = $this->storageService->getAccessibleRoots($user);
 
         return Inertia::render('FileManager/Index', [
@@ -38,6 +32,8 @@ class FolderController extends Controller
 
         $contents = $folder->load(['children', 'files.uploadedBy', 'files.submission']);
         $user = $request->user();
+        $folder->load(['semester', 'parent']);
+        $ancestors = $this->buildFolderAncestors($folder, $user);
 
         $visibleChildren = $contents->children
             ->filter(fn (FolderNode $child) => $user->can('view', $child))
@@ -47,23 +43,16 @@ class FolderController extends Controller
             ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
             ->values();
 
-        // Re-fetch tree structure if needed, or pass it via props (already loaded in index if SPA navigation works well, 
-        // but Inertia reloads props on visit unless partial reload).
-        // For simplicity, let's just return the current folder's content. The tree can be fetched via API or passed again.
-        // Or we can assume the frontend maintains the tree state if it's not a full page reload.
-        // But for robust initial load, we might need the tree.
-        
-        // Let's return the tree structure as well, perhaps optimized.
         $roots = $this->storageService->getAccessibleRoots($user);
-
-        $folder->load('semester');
 
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
             'currentFolder' => [
                 'id' => $folder->id,
                 'name' => $folder->name,
+                'parent_id' => $folder->parent_id,
                 'can_upload' => $user->can('upload', $folder),
+                'ancestors' => $ancestors,
             ],
             'semesterName' => $folder->semester?->name,
             'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
@@ -99,5 +88,24 @@ class FolderController extends Controller
                 }),
             ],
         ]);
+    }
+
+    private function buildFolderAncestors(FolderNode $folder, User $user): array
+    {
+        $ancestors = [];
+        $current = $folder->parent;
+
+        while ($current) {
+            $ancestors[] = [
+                'id' => $current->id,
+                'name' => $current->name,
+                'can_view' => $user->can('view', $current),
+            ];
+
+            $current->loadMissing('parent');
+            $current = $current->parent;
+        }
+
+        return array_reverse($ancestors);
     }
 }

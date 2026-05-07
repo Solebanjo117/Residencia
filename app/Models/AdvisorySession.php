@@ -9,6 +9,8 @@ class AdvisorySession extends Model
 {
     use HasFactory;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'teaching_load_id',
         'semester_id',

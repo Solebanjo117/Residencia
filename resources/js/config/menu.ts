@@ -12,6 +12,8 @@ import {
     Settings,
     Building2,
     Clock,
+    PlusCircle,
+    ClipboardList,
 } from 'lucide-vue-next';
 import { RoleName } from '@/types/enums';
 import type { NavItem } from '@/types';
@@ -77,9 +79,22 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: FileText,
                 },
                 {
-                    title: 'Directorio Docentes',
+                    title: 'Docentes',
                     href: '/admin/teachers',
                     icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Materias',
+                    href: '/admin/subjects',
+                    icon: PlusCircle,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Agregar',
                 },
                 {
                     title: 'Departamentos',
@@ -117,9 +132,22 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: Settings,
                 },
                 {
-                    title: 'Directorio Docentes',
+                    title: 'Docentes',
                     href: '/admin/teachers',
                     icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Materias',
+                    href: '/admin/subjects',
+                    icon: PlusCircle,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Agregar',
                 },
                 {
                     title: 'Departamentos',

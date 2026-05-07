@@ -37,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
         Route::get('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'index'])->name('asesorias');
         Route::post('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'store'])->name('asesorias.store');
+        Route::match(['put', 'post'], 'asesorias/{session}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'update'])->name('asesorias.update');
         Route::delete('asesorias/{id}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'destroy'])->name('asesorias.destroy');
     });
 
@@ -60,6 +61,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class)->except(['create', 'show', 'edit']);
         Route::resource('teachers', \App\Http\Controllers\Admin\TeacherController::class);
         Route::post('teachers/{teacher}/generate-folders', [\App\Http\Controllers\Admin\TeacherController::class, 'generateFolders'])->name('teachers.generate-folders');
+        Route::resource('subjects', \App\Http\Controllers\Admin\SubjectController::class)->except(['create', 'show', 'edit']);
+        Route::resource('evidence-items', \App\Http\Controllers\Admin\EvidenceItemController::class)->except(['create', 'show', 'edit']);
         Route::resource('semesters', \App\Http\Controllers\Admin\SemesterController::class);
         Route::resource('teaching-loads', \App\Http\Controllers\Admin\TeachingLoadController::class);
         
@@ -85,6 +88,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');
+    Route::post('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'store'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.horarios.store');
+    Route::put('asesorias-horarios/{schedule}', [\App\Http\Controllers\AdvisoryScheduleController::class, 'update'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.horarios.update');
+    Route::delete('asesorias-horarios/{schedule}', [\App\Http\Controllers\AdvisoryScheduleController::class, 'destroy'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.horarios.destroy');
 
     // File Manager Routes
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
