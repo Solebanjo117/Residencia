@@ -6,7 +6,7 @@ import { computed } from 'vue';
 const props = defineProps<{
     node: any; // FolderNode type
     level?: number;
-    expandedState: Record<number, boolean>;
+    expandedState: Record<string, boolean>;
     activeFolderId?: number | null;
 }>();
 
@@ -38,7 +38,9 @@ const toggle = () => {
 
 <template>
     <div class="pl-2">
-        <div class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100">
+        <div
+            class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
+        >
             <button
                 type="button"
                 class="flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200"

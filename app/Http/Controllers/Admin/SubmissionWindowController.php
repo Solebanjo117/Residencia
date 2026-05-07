@@ -3,26 +3,36 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SubmissionWindow;
-use App\Models\Semester;
 use App\Models\EvidenceItem;
+use App\Models\Semester;
+use App\Models\SubmissionWindow;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class SubmissionWindowController extends Controller
 {
     public function index(Request $request)
     {
         $semesterId = $request->query('semester_id');
-        
+        $statusFilter = $request->query('status');
+
         $query = SubmissionWindow::with(['semester', 'evidenceItem', 'createdBy'])
             ->orderBy('opens_at', 'desc');
 
         if ($semesterId) {
             $query->where('semester_id', $semesterId);
         }
+
+        match ($statusFilter) {
+            'ACTIVE' => $query->where('status', 'ACTIVE'),
+            'INACTIVE' => $query->where('status', 'INACTIVE'),
+            'UPCOMING' => $query->where('status', 'ACTIVE')->where('opens_at', '>', now()),
+            'OPEN' => $query->where('status', 'ACTIVE')->where('opens_at', '<=', now())->where('closes_at', '>=', now()),
+            'CLOSED' => $query->where('status', 'ACTIVE')->where('closes_at', '<', now()),
+            default => null,
+        };
 
         $windows = $query->paginate(15)->withQueryString();
 
@@ -35,6 +45,7 @@ class SubmissionWindowController extends Controller
             'semesters' => $semesters,
             'evidenceItems' => $evidenceItems,
             'selectedSemester' => $semesterId,
+            'selectedStatus' => $statusFilter,
         ]);
     }
 
@@ -54,7 +65,7 @@ class SubmissionWindowController extends Controller
 
         SubmissionWindow::create($validated);
 
-        return redirect()->back()->with('success', 'Submission window created successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega creada correctamente.');
     }
 
     public function update(Request $request, SubmissionWindow $window)
@@ -71,14 +82,14 @@ class SubmissionWindowController extends Controller
 
         $window->update($validated);
 
-        return redirect()->back()->with('success', 'Submission window updated successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega actualizada correctamente.');
     }
 
     public function destroy(SubmissionWindow $window)
     {
         $window->delete();
 
-        return redirect()->back()->with('success', 'Submission window deleted successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega eliminada correctamente.');
     }
 
     private function ensureNoActiveWindowOverlap(array $data, ?int $ignoreWindowId = null): void

@@ -10,19 +10,13 @@ class EvidenceSubmissionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isJefeOficina() || $user->isJefeDepto();
+        return $user->isAdministrativeAuthority();
     }
 
     public function view(User $user, EvidenceSubmission $submission): bool
     {
-        if ($user->id === $submission->teacher_user_id || $user->isJefeOficina()) {
+        if ($user->id === $submission->teacher_user_id || $user->isAdministrativeAuthority()) {
             return true;
-        }
-
-        // JEFE_DEPTO can only view submissions from teachers in their departments
-        if ($user->isJefeDepto()) {
-            $deptIds = $user->departments()->pluck('departments.id');
-            return $submission->teacher->departments()->whereIn('departments.id', $deptIds)->exists();
         }
 
         return false;
@@ -51,40 +45,24 @@ class EvidenceSubmissionPolicy
 
     public function review(User $user, EvidenceSubmission $submission): bool
     {
-        return $user->isJefeOficina() && $submission->status === SubmissionStatus::SUBMITTED;
+        return $user->isAdministrativeAuthority() && $submission->status === SubmissionStatus::SUBMITTED;
     }
 
     public function finalApprove(User $user, EvidenceSubmission $submission): bool
     {
-        return $user->isJefeDepto()
+        return $user->isAdministrativeAuthority()
             && $submission->status === SubmissionStatus::APPROVED
             && $submission->office_reviewed_at !== null
-            && $submission->final_approved_at === null
-            && $this->isDepartmentScoped($user, $submission);
+            && $submission->final_approved_at === null;
     }
-    
+
     public function unlock(User $user, EvidenceSubmission $submission): bool
     {
-        return $user->isJefeOficina();
+        return $user->isAdministrativeAuthority();
     }
 
     public function markAsNA(User $user, EvidenceSubmission $submission): bool
     {
-        if ($user->isJefeOficina()) {
-            return true;
-        }
-
-        return $user->isJefeDepto() && $this->isDepartmentScoped($user, $submission);
-    }
-
-    private function isDepartmentScoped(User $user, EvidenceSubmission $submission): bool
-    {
-        $deptIds = $user->departments()->pluck('departments.id');
-
-        if ($deptIds->isEmpty()) {
-            return false;
-        }
-
-        return $submission->teacher->departments()->whereIn('departments.id', $deptIds)->exists();
+        return $user->isAdministrativeAuthority();
     }
 }

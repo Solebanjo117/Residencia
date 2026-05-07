@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Enums\ReviewDecision;
 use App\Enums\SemesterStatus;
 use App\Enums\SubmissionStatus;
+use App\Http\Controllers\Controller;
+use App\Models\EvidenceSubmission;
 use App\Models\Semester;
 use App\Models\TeachingLoad;
-use App\Models\EvidenceSubmission;
 use App\Models\User;
 use App\Services\EvidenceService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
 
 class ReviewController extends Controller
 {
@@ -26,28 +26,22 @@ class ReviewController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
-        $departments = $user->departments()->pluck('departments.id');
 
         $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
 
-        if (!$activeSemester) {
+        if (! $activeSemester) {
             return Inertia::render('Oficina/PendingReviews', [
                 'teachers' => [],
-                'semester' => null
+                'semester' => null,
             ]);
         }
 
-        $teachingLoads = TeachingLoad::with(['teacher', 'subject', 'submissions' => function($q) use ($activeSemester) {
+        $teachingLoads = TeachingLoad::with(['teacher', 'subject', 'submissions' => function ($q) use ($activeSemester) {
             $q->where('semester_id', $activeSemester->id)
-              ->where('status', SubmissionStatus::SUBMITTED);
+                ->where('status', SubmissionStatus::SUBMITTED);
         }])
-        ->where('semester_id', $activeSemester->id)
-        ->when($departments->count() > 0, function($q) use ($departments) {
-            $q->whereHas('teacher.departments', function($sq) use ($departments) {
-                $sq->whereIn('departments.id', $departments);
-            });
-        })
-        ->get();
+            ->where('semester_id', $activeSemester->id)
+            ->get();
 
         // Group by user
         $teachersMap = [];
@@ -60,13 +54,13 @@ class ReviewController extends Controller
                 continue;
             }
 
-            if (!isset($teachersMap[$teacherId])) {
+            if (! isset($teachersMap[$teacherId])) {
                 $teachersMap[$teacherId] = [
                     'id' => $teacherId,
                     'name' => $load->teacher->name,
                     'email' => $load->teacher->email,
                     'pending_groups' => [],
-                    'total_pending' => 0
+                    'total_pending' => 0,
                 ];
             }
 
@@ -76,13 +70,13 @@ class ReviewController extends Controller
                 'load_id' => $load->id,
                 'subject' => $load->subject->name,
                 'group' => $load->group_name,
-                'pending_count' => $load->submissions->count()
+                'pending_count' => $load->submissions->count(),
             ];
         }
 
         return Inertia::render('Oficina/PendingReviews', [
             'teachers' => array_values($teachersMap),
-            'semester' => $activeSemester
+            'semester' => $activeSemester,
         ]);
     }
 
@@ -92,18 +86,18 @@ class ReviewController extends Controller
         $reviewer = Auth::user();
         $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
 
-        if (!$activeSemester) {
+        if (! $activeSemester) {
             return redirect()->route('oficina.revisiones');
         }
 
         $teacherLoads = TeachingLoad::with([
-                'subject',
-                'submissions.evidenceItem',
-                'submissions.files',
-                'submissions.reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
-                'submissions.officeReviewer',
-                'submissions.finalApprover',
-            ])
+            'subject',
+            'submissions.evidenceItem',
+            'submissions.files',
+            'submissions.reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
+            'submissions.officeReviewer',
+            'submissions.finalApprover',
+        ])
             ->where('teacher_user_id', $teacher_id)
             ->where('semester_id', $activeSemester->id)
             ->when($reviewer->departments()->exists(), function ($query) use ($reviewer) {
@@ -120,7 +114,7 @@ class ReviewController extends Controller
         return Inertia::render('Oficina/ReviewDetail', [
             'teacher' => $teacher,
             'teaching_loads' => $teacherLoads,
-            'semester' => $activeSemester
+            'semester' => $activeSemester,
         ]);
     }
 
@@ -130,7 +124,7 @@ class ReviewController extends Controller
 
         $request->validate([
             'status' => 'required|in:APPROVED,REJECTED,NA,NE',
-            'comments' => 'nullable|string|max:500'
+            'comments' => 'nullable|string|max:500',
         ]);
 
         $submission = EvidenceSubmission::findOrFail($submission_id);
@@ -152,6 +146,8 @@ class ReviewController extends Controller
             // For APPROVED/REJECTED, use the review workflow which creates
             // a review record, changes status, logs audit, and notifies teacher.
             if (in_array($newStatus, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED])) {
+                $this->authorize('review', $submission);
+
                 $decision = $newStatus === SubmissionStatus::APPROVED
                     ? ReviewDecision::APPROVE
                     : ReviewDecision::REJECT;
@@ -168,6 +164,8 @@ class ReviewController extends Controller
                     );
                 }
             } else {
+                $this->authorize('markAsNA', $submission);
+
                 // For NA/NE status changes, use changeStatus directly
                 $this->evidenceService->changeStatus(
                     $submission,

@@ -21,20 +21,20 @@ function createApplicabilityContext(): array
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $department = Department::create([
-        'name' => 'Dept APP ' . Str::upper(Str::random(4)),
+        'name' => 'Dept APP '.Str::upper(Str::random(4)),
     ]);
     $teacher->departments()->attach($department->id);
 
     $semester = Semester::create([
-        'name' => 'SEM-APP-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-APP-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-APP-' . Str::upper(Str::random(6)),
-        'name' => 'Materia APP ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-APP-'.Str::upper(Str::random(6)),
+        'name' => 'Materia APP '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -48,7 +48,7 @@ function createApplicabilityContext(): array
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-APP-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-APP-'.Str::upper(Str::random(8)),
         'description' => 'Item applicability test',
         'requires_subject' => true,
         'active' => true,
@@ -91,4 +91,24 @@ it('allows office to mark a load evidence as no aplica and reactivate it later',
         ->assertRedirect('/asesorias');
 
     expect($submission->fresh()->status)->toBe(SubmissionStatus::DRAFT);
+});
+
+it('forbids docente from marking a load evidence as no aplica', function () {
+    $ctx = createApplicabilityContext();
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('asesorias.cells.status'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'status' => 'NA',
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    $this->assertDatabaseMissing('evidence_submissions', [
+        'teaching_load_id' => $ctx['load']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'status' => 'NA',
+    ]);
 });
