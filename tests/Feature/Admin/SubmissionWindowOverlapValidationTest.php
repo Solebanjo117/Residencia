@@ -14,20 +14,20 @@ function createSubmissionWindowContext(): array
     $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-WIN-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-WIN-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonths(3)->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $category = EvidenceCategory::create([
-        'name' => 'CAT-WIN-' . Str::upper(Str::random(6)),
+        'name' => 'CAT-WIN-'.Str::upper(Str::random(6)),
         'description' => 'Categoria para pruebas de ventanas',
     ]);
 
     $item = EvidenceItem::create([
         'category_id' => $category->id,
-        'name' => 'ITEM-WIN-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-WIN-'.Str::upper(Str::random(8)),
         'description' => 'Item para pruebas de solapamiento',
         'requires_subject' => true,
         'active' => true,
@@ -134,4 +134,39 @@ it('blocks updating an active submission window into an overlapping range', func
 
     expect($baseWindow->fresh()->opens_at->toDateTimeString())->toBe($baseOpen->toDateTimeString());
     expect($windowToUpdate->fresh()->opens_at->toDateTimeString())->toBe($secondOpen->toDateTimeString());
+});
+
+it('filters submission windows by operational status', function () {
+    $ctx = createSubmissionWindowContext();
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addDay(),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'opens_at' => now()->addDays(10),
+        'closes_at' => now()->addDays(12),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'INACTIVE',
+    ]);
+
+    $this
+        ->actingAs($ctx['jefeOficina'])
+        ->get(route('admin.windows.index', [
+            'semester_id' => $ctx['semester']->id,
+            'status' => 'OPEN',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('selectedStatus', 'OPEN')
+            ->has('windows.data', 1)
+            ->where('windows.data.0.status', 'ACTIVE')
+        );
 });

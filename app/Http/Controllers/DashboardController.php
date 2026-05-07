@@ -56,12 +56,8 @@ class DashboardController extends Controller
             return $this->docenteOverview($user, $semester, $flowService);
         }
 
-        if ($user->isJefeOficina()) {
+        if ($user->isAdministrativeAuthority()) {
             return $this->jefeOficinaOverview($user, $semester);
-        }
-
-        if ($user->isJefeDepto()) {
-            return $this->jefeDeptoOverview($user, $semester, $flowService);
         }
 
         return [
@@ -124,7 +120,7 @@ class DashboardController extends Controller
             ],
             [
                 'key' => 'my_office_approved',
-                'label' => 'Aprobadas por oficina',
+                'label' => 'Aprobadas',
                 'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
                 'description' => 'Evidencias pendientes de visto bueno final.',
                 'tone' => 'green',
@@ -140,7 +136,7 @@ class DashboardController extends Controller
                 'key' => 'mandatory_progress',
                 'label' => 'Obligatorias cubiertas',
                 'value' => $applicableMandatory->isNotEmpty()
-                    ? $mandatorySubmitted . ' / ' . $applicableMandatory->count()
+                    ? $mandatorySubmitted.' / '.$applicableMandatory->count()
                     : '0 / 0',
                 'description' => 'Avance sobre los requerimientos obligatorios aplicables.',
                 'tone' => 'slate',
@@ -169,7 +165,7 @@ class DashboardController extends Controller
             ],
             [
                 'key' => 'office_approved',
-                'label' => 'Aprobadas por oficina',
+                'label' => 'Aprobadas',
                 'value' => (clone $base)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
                 'description' => 'Entregas pendientes de visto bueno final.',
                 'tone' => 'green',
@@ -260,7 +256,7 @@ class DashboardController extends Controller
                 'key' => 'final_pending',
                 'label' => 'Pendientes de visto bueno',
                 'value' => (clone $submissionBase)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
-                'description' => 'Entregas aprobadas por oficina que esperan tu liberacion.',
+                'description' => 'Entregas aprobadas que esperan liberacion final.',
                 'tone' => 'amber',
             ],
             [
@@ -302,25 +298,6 @@ class DashboardController extends Controller
             ->where('status', 'ACTIVE')
             ->where('closes_at', '>', now())
             ->orderBy('closes_at', 'asc');
-
-        if ($user->isJefeDepto()) {
-            $departmentIds = $user->departments()->pluck('departments.id');
-            $itemIds = collect();
-
-            foreach ($departmentIds as $departmentId) {
-                $itemIds = $itemIds->merge(
-                    $flowService->requirementsForDepartment($semester->id, (int) $departmentId)->pluck('evidence_item_id')
-                );
-            }
-
-            $itemIds = $itemIds->unique()->values();
-
-            if ($itemIds->isEmpty()) {
-                return [];
-            }
-
-            $query->whereIn('evidence_item_id', $itemIds);
-        }
 
         return $query
             ->take(5)
@@ -364,7 +341,7 @@ class DashboardController extends Controller
             ];
         }
 
-        if ($user->isJefeOficina()) {
+        if ($user->isAdministrativeAuthority()) {
             return [
                 [
                     'title' => 'Pendientes de Revision',
@@ -381,11 +358,6 @@ class DashboardController extends Controller
                     'description' => 'Revisa bitacora institucional de acciones.',
                     'href' => '/admin/audits',
                 ],
-            ];
-        }
-
-        if ($user->isJefeDepto()) {
-            return [
                 [
                     'title' => 'Ventanas de Entrega',
                     'description' => 'Configura calendarios de recepcion.',

@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
-use App\Enums\NotificationType;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceStatusHistory;
 use App\Models\EvidenceSubmission;
@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 class EvidenceService
 {
     protected $auditService;
+
     protected $notificationService;
 
     /**
@@ -24,14 +25,14 @@ class EvidenceService
      */
     private const ALLOWED_TRANSITIONS = [
         // Teacher can submit, office can classify as NA/NE when applicable.
-        'DRAFT'     => ['SUBMITTED', 'NA', 'NE'],
+        'DRAFT' => ['SUBMITTED', 'NA', 'NE'],
         'SUBMITTED' => ['APPROVED', 'REJECTED', 'NA', 'NE'],
         // Approved is terminal unless a dedicated reopening flow is implemented.
-        'APPROVED'  => [],
+        'APPROVED' => [],
         // Rejected evidence must be corrected and re-submitted; office may still mark NA/NE.
-        'REJECTED'  => ['SUBMITTED', 'NA', 'NE'],
-        'NA'        => ['DRAFT'],
-        'NE'        => ['DRAFT'],
+        'REJECTED' => ['SUBMITTED', 'NA', 'NE'],
+        'NA' => ['DRAFT'],
+        'NE' => ['DRAFT'],
     ];
 
     public function __construct(AuditService $auditService, NotificationService $notificationService)
@@ -58,7 +59,7 @@ class EvidenceService
 
         // Validate the state transition
         $allowedTargets = self::ALLOWED_TRANSITIONS[$oldStatus->value] ?? [];
-        if (!in_array($newStatus->value, $allowedTargets)) {
+        if (! in_array($newStatus->value, $allowedTargets)) {
             throw new \InvalidArgumentException(
                 "Transición de estado no permitida: {$oldStatus->value} -> {$newStatus->value}"
             );
@@ -91,7 +92,7 @@ class EvidenceService
 
             $this->auditService->log($user, 'CHANGE_STATUS', 'EvidenceSubmission', $submission->id, [
                 'from' => $oldStatus->value,
-                'to' => $newStatus->value
+                'to' => $newStatus->value,
             ]);
         });
 
@@ -133,7 +134,7 @@ class EvidenceService
             };
 
             // Update status
-            $this->changeStatus($submission, $newStatus, $reviewer, "Review decision: " . $decision->value);
+            $this->changeStatus($submission, $newStatus, $reviewer, 'Review decision: '.$decision->value);
 
             if ($newStatus === SubmissionStatus::APPROVED) {
                 $submission->update([
@@ -145,15 +146,15 @@ class EvidenceService
             }
 
             // Notify teacher
-            $type = ($decision === ReviewDecision::APPROVE) 
-                ? NotificationType::SUBMISSION_APPROVED 
+            $type = ($decision === ReviewDecision::APPROVE)
+                ? NotificationType::SUBMISSION_APPROVED
                 : NotificationType::SUBMISSION_REJECTED;
-            
+
             $this->notificationService->notifyImmediate(
                 $submission->teacher,
                 $type,
-                "Evidence Reviewed: " . $submission->evidenceItem->name,
-                "Your submission has been " . strtolower($decision->value) . ". Comments: " . $comments,
+                'Evidence Reviewed: '.$submission->evidenceItem->name,
+                'Your submission has been '.strtolower($decision->value).'. Comments: '.$comments,
                 $submission
             );
 
@@ -175,8 +176,8 @@ class EvidenceService
 
     public function finalApprove(EvidenceSubmission $submission, User $reviewer, ?string $comments = null)
     {
-        if (!$submission->isOfficeApproved()) {
-            throw new \InvalidArgumentException('La evidencia todavia no cuenta con aprobacion de oficina.');
+        if (! $submission->isOfficeApproved()) {
+            throw new \InvalidArgumentException('La evidencia todavia no cuenta con aprobacion administrativa.');
         }
 
         if ($submission->isFinalApproved()) {
@@ -210,7 +211,7 @@ class EvidenceService
                 $submission->teacher,
                 NotificationType::SUBMISSION_APPROVED,
                 'Evidencia liberada por jefatura',
-                'Tu evidencia recibio el visto bueno final del jefe de departamento.' . ($comments ? ' Comentarios: ' . $comments : ''),
+                'Tu evidencia recibio el visto bueno final administrativo.'.($comments ? ' Comentarios: '.$comments : ''),
                 $submission
             );
 
@@ -241,9 +242,9 @@ class EvidenceService
                 'expires_at' => $expiresAt,
                 'reason' => $reason,
             ]);
-            
+
             $this->auditService->log($unlocker, 'UNLOCK_RESUBMISSION', 'EvidenceSubmission', $submission->id, ['reason' => $reason]);
-            
+
             return $submission;
         });
 

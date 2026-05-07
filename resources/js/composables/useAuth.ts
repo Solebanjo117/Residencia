@@ -16,6 +16,11 @@ export function useAuth() {
     const isJefeDepto = computed(
         () => user.value?.role?.name === RoleName.JEFE_DEPTO,
     );
+    const isAdminAuthority = computed(
+        () =>
+            user.value?.role?.name === RoleName.JEFE_OFICINA ||
+            user.value?.role?.name === RoleName.JEFE_DEPTO,
+    );
 
     const hasRole = (roleName: RoleName) => user.value?.role?.name === roleName;
 
@@ -24,6 +29,7 @@ export function useAuth() {
         isDocente,
         isJefeOficina,
         isJefeDepto,
+        isAdminAuthority,
         hasRole,
     };
 }

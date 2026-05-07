@@ -84,6 +84,11 @@ class User extends Authenticatable
         return $this->hasRole(Role::JEFE_DEPTO);
     }
 
+    public function isAdministrativeAuthority(): bool
+    {
+        return $this->isJefeOficina() || $this->isJefeDepto();
+    }
+
     public function teachingLoads()
     {
         return $this->hasMany(TeachingLoad::class, 'teacher_user_id');

@@ -24,7 +24,7 @@ return new class extends Migration
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users');
-            $table->enum('type', ['NEW_ASSIGNMENT','WINDOW_OPEN','WINDOW_CLOSING','SUBMISSION_APPROVED','SUBMISSION_REJECTED','GENERAL']);
+            $table->enum('type', ['NEW_ASSIGNMENT', 'WINDOW_OPEN', 'WINDOW_CLOSING', 'SUBMISSION_APPROVED', 'SUBMISSION_REJECTED', 'GENERAL']);
             $table->string('title', 160);
             $table->string('message', 500);
             $table->string('related_entity_type', 60)->nullable();
@@ -39,14 +39,14 @@ return new class extends Migration
             $table->foreignId('semester_id')->constrained('semesters');
             $table->foreignId('evidence_item_id')->constrained('evidence_items');
             $table->dateTime('notify_at');
-            $table->enum('notification_type', ['WINDOW_OPEN','WINDOW_CLOSING']);
+            $table->enum('notification_type', ['WINDOW_OPEN', 'WINDOW_CLOSING']);
             $table->boolean('is_sent')->default(false);
             $table->dateTime('created_at')->useCurrent();
         });
 
         Schema::create('advisory_sessions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('teaching_load_id')->constrained('teaching_loads');
+            $table->foreignId('teaching_load_id')->nullable()->constrained('teaching_loads');
             $table->foreignId('semester_id')->constrained('semesters');
             $table->date('session_date');
             $table->string('topic', 255);

@@ -17,15 +17,15 @@ function createOfficeReviewSubmission(): EvidenceSubmission
     $teacher = User::factory()->create(['role_id' => $docenteRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-REV-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-REV-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-REV-' . Str::upper(Str::random(6)),
-        'name' => 'Materia REV ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-REV-'.Str::upper(Str::random(6)),
+        'name' => 'Materia REV '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -39,7 +39,7 @@ function createOfficeReviewSubmission(): EvidenceSubmission
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-REV-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-REV-'.Str::upper(Str::random(8)),
         'description' => 'Item review status auth test',
         'requires_subject' => true,
         'active' => true,
@@ -71,19 +71,27 @@ it('forbids docente from updating submission status in office review endpoint', 
         ->assertForbidden();
 });
 
-it('forbids jefe depto from updating submission status in office review endpoint', function () {
+it('allows jefe depto to update submission status in office review endpoint', function () {
     $submission = createOfficeReviewSubmission();
 
     $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
 
     $this
+        ->from('/oficina/revisiones')
         ->actingAs($jefeDepto)
         ->post(route('oficina.revisiones.status', $submission->id), [
             'status' => 'APPROVED',
-            'comments' => 'No autorizado',
+            'comments' => 'Revision valida',
         ])
-        ->assertForbidden();
+        ->assertRedirect('/oficina/revisiones');
+
+    expect($submission->fresh()->status)->toBe(SubmissionStatus::APPROVED);
+    $this->assertDatabaseHas('evidence_reviews', [
+        'submission_id' => $submission->id,
+        'reviewed_by_user_id' => $jefeDepto->id,
+        'decision' => 'APPROVE',
+    ]);
 });
 
 it('allows jefe oficina to update submission status in office review endpoint', function () {
@@ -107,4 +115,16 @@ it('allows jefe oficina to update submission status in office review endpoint', 
         'reviewed_by_user_id' => $jefeOficina->id,
         'decision' => 'APPROVE',
     ]);
+});
+
+it('allows jefe depto to access office review queue', function () {
+    createOfficeReviewSubmission();
+
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+
+    $this
+        ->actingAs($jefeDepto)
+        ->get(route('oficina.revisiones'))
+        ->assertOk();
 });

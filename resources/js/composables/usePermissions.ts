@@ -1,9 +1,9 @@
-import { useAuth } from './useAuth';
-import { SubmissionStatus, RoleName } from '@/types/enums';
+import { SubmissionStatus } from '@/types/enums';
 import type { EvidenceSubmission } from '@/types/models';
+import { useAuth } from './useAuth';
 
 export function usePermissions() {
-    const { user, isDocente, isJefeOficina, isJefeDepto } = useAuth();
+    const { isDocente, isAdminAuthority } = useAuth();
 
     const canUploadEvidence = (submission?: EvidenceSubmission) => {
         if (!isDocente.value) return false;
@@ -17,18 +17,20 @@ export function usePermissions() {
 
     const canReviewEvidence = (submission: EvidenceSubmission) => {
         return (
-            isJefeOficina.value &&
+            isAdminAuthority.value &&
             submission.status === SubmissionStatus.SUBMITTED
         );
     };
 
     const canUnlockEvidence = (submission: EvidenceSubmission) => {
-        return isJefeOficina.value;
+        void submission;
+
+        return isAdminAuthority.value;
     };
 
-    const canMarkNA = () => isJefeOficina.value;
+    const canMarkNA = () => isAdminAuthority.value;
 
-    const canConfigureWindows = () => isJefeDepto.value;
+    const canConfigureWindows = () => isAdminAuthority.value;
 
     return {
         canUploadEvidence,

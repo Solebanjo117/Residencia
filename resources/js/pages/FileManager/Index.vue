@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
+    ChevronDown,
+    ChevronRight,
     Folder,
     FileText,
     Eye,
@@ -15,21 +17,28 @@ import FolderTree from '@/components/FileManager/FolderTree.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 
+type FolderNode = {
+    id: number;
+    name: string;
+    semester?: {
+        status?: string | null;
+    } | null;
+    children?: FolderNode[];
+};
+
 const props = defineProps<{
-    folderTree: any[];
-    currentFolder:
-        | {
-              id: number;
-              name: string;
-              parent_id?: number | null;
-              can_upload: boolean;
-              ancestors?: Array<{
-                  id: number;
-                  name: string;
-                  can_view: boolean;
-              }>;
-          }
-        | null;
+    folderTree: FolderNode[];
+    currentFolder: {
+        id: number;
+        name: string;
+        parent_id?: number | null;
+        can_upload: boolean;
+        ancestors?: Array<{
+            id: number;
+            name: string;
+            can_view: boolean;
+        }>;
+    } | null;
     semesterName?: string | null;
     allowedExtensions?: string[];
     contents: {
@@ -39,12 +48,13 @@ const props = defineProps<{
 }>();
 
 const expandedFoldersStorageKey = 'fileManager.expandedFolders';
+const inactiveSemestersGroupId = 'inactive-semesters';
 const leftPanelWidthStorageKey = 'fileManager.leftPanelWidth';
 const leftPanelMinWidth = 18;
 const leftPanelMaxWidth = 50;
 
 const containerRef = ref<HTMLElement | null>(null);
-const expandedFolders = ref<Record<number, boolean>>({});
+const expandedFolders = ref<Record<string, boolean>>({});
 const leftPanelWidth = ref(25);
 const isResizing = ref(false);
 const resizeStartX = ref(0);
@@ -63,7 +73,7 @@ const loadExpandedFolders = () => {
     try {
         const parsed = JSON.parse(rawValue);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            expandedFolders.value = parsed as Record<number, boolean>;
+            expandedFolders.value = parsed as Record<string, boolean>;
         }
     } catch {
         window.sessionStorage.removeItem(expandedFoldersStorageKey);
@@ -75,24 +85,65 @@ const persistExpandedFolders = () => {
         return;
     }
 
-    window.sessionStorage.setItem(expandedFoldersStorageKey, JSON.stringify(expandedFolders.value));
+    window.sessionStorage.setItem(
+        expandedFoldersStorageKey,
+        JSON.stringify(expandedFolders.value),
+    );
 };
 
-const setFolderExpanded = (folderId: number, isExpanded: boolean) => {
+const setFolderExpanded = (folderId: number | string, isExpanded: boolean) => {
     const nextState = { ...expandedFolders.value };
 
     if (isExpanded) {
-        nextState[folderId] = true;
+        nextState[String(folderId)] = true;
     } else {
-        delete nextState[folderId];
+        delete nextState[String(folderId)];
     }
 
     expandedFolders.value = nextState;
     persistExpandedFolders();
 };
 
-const toggleFolderExpanded = (folderId: number) => {
-    setFolderExpanded(folderId, !expandedFolders.value[folderId]);
+const toggleFolderExpanded = (folderId: number | string) => {
+    setFolderExpanded(folderId, !expandedFolders.value[String(folderId)]);
+};
+
+const isInactiveSemesterRoot = (node: FolderNode) =>
+    Boolean(node.semester?.status && node.semester.status !== 'OPEN');
+
+const activeFolderRoots = computed(() =>
+    props.folderTree.filter((root) => !isInactiveSemesterRoot(root)),
+);
+
+const inactiveFolderRoots = computed(() =>
+    props.folderTree.filter((root) => isInactiveSemesterRoot(root)),
+);
+
+const inactiveSemestersOpen = computed(() =>
+    Boolean(expandedFolders.value[inactiveSemestersGroupId]),
+);
+
+const branchContainsFolder = (nodes: FolderNode[], folderId: number): boolean =>
+    nodes.some((node) => {
+        if (node.id === folderId) {
+            return true;
+        }
+
+        return branchContainsFolder(node.children ?? [], folderId);
+    });
+
+const expandInactiveGroupFromCurrentFolder = () => {
+    if (!props.currentFolder?.id) {
+        return;
+    }
+
+    if (
+        !branchContainsFolder(inactiveFolderRoots.value, props.currentFolder.id)
+    ) {
+        return;
+    }
+
+    setFolderExpanded(inactiveSemestersGroupId, true);
 };
 
 const expandAncestorsFromCurrentFolder = () => {
@@ -125,7 +176,10 @@ const loadLeftPanelWidth = () => {
         return;
     }
 
-    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, parsed));
+    leftPanelWidth.value = Math.max(
+        leftPanelMinWidth,
+        Math.min(leftPanelMaxWidth, parsed),
+    );
 };
 
 const persistLeftPanelWidth = () => {
@@ -133,7 +187,10 @@ const persistLeftPanelWidth = () => {
         return;
     }
 
-    window.localStorage.setItem(leftPanelWidthStorageKey, String(leftPanelWidth.value));
+    window.localStorage.setItem(
+        leftPanelWidthStorageKey,
+        String(leftPanelWidth.value),
+    );
 };
 
 const onResizeMove = (event: MouseEvent) => {
@@ -150,7 +207,10 @@ const onResizeMove = (event: MouseEvent) => {
     const startingWidthPx = (resizeStartWidth.value / 100) * bounds.width;
     const nextWidthPercent = ((startingWidthPx + deltaX) / bounds.width) * 100;
 
-    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, nextWidthPercent));
+    leftPanelWidth.value = Math.max(
+        leftPanelMinWidth,
+        Math.min(leftPanelMaxWidth, nextWidthPercent),
+    );
 };
 
 const stopResizing = () => {
@@ -188,6 +248,7 @@ onMounted(() => {
     loadExpandedFolders();
     loadLeftPanelWidth();
     expandAncestorsFromCurrentFolder();
+    expandInactiveGroupFromCurrentFolder();
 });
 
 onBeforeUnmount(() => {
@@ -198,6 +259,7 @@ watch(
     () => props.currentFolder?.id,
     () => {
         expandAncestorsFromCurrentFolder();
+        expandInactiveGroupFromCurrentFolder();
     },
 );
 
@@ -209,7 +271,9 @@ const uploadAccept = computed(() => {
     return extensions.map((extension) => `.${extension}`).join(',');
 });
 
-const canUploadCurrentFolder = computed(() => Boolean(props.currentFolder?.can_upload));
+const canUploadCurrentFolder = computed(() =>
+    Boolean(props.currentFolder?.can_upload),
+);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -260,7 +324,7 @@ const getStatusColor = (status: string | null) => {
 const statusLabel = (status: string | null) => {
     switch (status) {
         case 'OFFICE_APPROVED':
-            return 'OFICINA';
+            return 'APROBADO';
         case 'FINAL_APPROVED':
             return 'FINAL';
         default:
@@ -305,7 +369,9 @@ const handleFileSelected = (event: Event) => {
                 target.value = '';
                 uploadForm.reset();
                 uploadSuccess.value = 'Archivo subido correctamente.';
-                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+                setTimeout(() => {
+                    uploadSuccess.value = '';
+                }, 3000);
             },
             onError: (errors: any) => {
                 target.value = '';
@@ -338,13 +404,16 @@ const handleReplaceSelected = (event: Event) => {
                 fileToReplace.value = null;
                 replaceForm.reset();
                 uploadSuccess.value = 'Archivo reemplazado correctamente.';
-                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+                setTimeout(() => {
+                    uploadSuccess.value = '';
+                }, 3000);
             },
             onError: (errors: any) => {
                 target.value = '';
                 fileToReplace.value = null;
                 replaceForm.reset();
-                uploadError.value = errors.file || 'Error al reemplazar archivo.';
+                uploadError.value =
+                    errors.file || 'Error al reemplazar archivo.';
             },
         });
     }
@@ -363,7 +432,10 @@ const closePreview = () => {
     <Head title="Gestor de Archivos" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div ref="containerRef" class="flex h-[calc(100vh-4rem)] overflow-hidden">
+        <div
+            ref="containerRef"
+            class="flex h-[calc(100vh-4rem)] overflow-hidden"
+        >
             <!-- Left Panel: Folder Tree -->
             <div
                 class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
@@ -371,13 +443,57 @@ const closePreview = () => {
             >
                 <h3 class="mb-4 px-2 font-semibold text-gray-700">Carpetas</h3>
                 <FolderTree
-                    v-for="root in folderTree"
+                    v-for="root in activeFolderRoots"
                     :key="root.id"
                     :node="root"
                     :expanded-state="expandedFolders"
                     :active-folder-id="currentFolder?.id ?? null"
                     @toggle-folder="toggleFolderExpanded"
                 />
+                <div
+                    v-if="inactiveFolderRoots.length > 0"
+                    class="mt-5 border-t border-gray-200 pt-4"
+                >
+                    <button
+                        type="button"
+                        class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-gray-100"
+                        @click="toggleFolderExpanded(inactiveSemestersGroupId)"
+                    >
+                        <span class="flex h-5 w-5 items-center justify-center">
+                            <component
+                                :is="
+                                    inactiveSemestersOpen
+                                        ? ChevronDown
+                                        : ChevronRight
+                                "
+                                class="h-4 w-4 text-gray-500"
+                            />
+                        </span>
+                        <Folder class="h-4 w-4 text-gray-400" />
+                        <span class="flex-1 text-sm font-semibold text-gray-600"
+                            >No activo</span
+                        >
+                        <span
+                            class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
+                        >
+                            {{ inactiveFolderRoots.length }}
+                        </span>
+                    </button>
+
+                    <div
+                        v-if="inactiveSemestersOpen"
+                        class="ml-4 border-l border-gray-200"
+                    >
+                        <FolderTree
+                            v-for="root in inactiveFolderRoots"
+                            :key="root.id"
+                            :node="root"
+                            :expanded-state="expandedFolders"
+                            :active-folder-id="currentFolder?.id ?? null"
+                            @toggle-folder="toggleFolderExpanded"
+                        />
+                    </div>
+                </div>
             </div>
 
             <div
@@ -385,7 +501,9 @@ const closePreview = () => {
                 :class="{ 'bg-blue-400': isResizing }"
                 @mousedown.prevent="startResizing"
             >
-                <div class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"></div>
+                <div
+                    class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"
+                ></div>
             </div>
 
             <!-- Right Panel: Content -->
@@ -396,17 +514,45 @@ const closePreview = () => {
                 >
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">
-                            {{ currentFolder ? currentFolder.name : 'Selecciona una carpeta' }}
+                            {{
+                                currentFolder
+                                    ? currentFolder.name
+                                    : 'Selecciona una carpeta'
+                            }}
                         </h2>
                         <span v-if="semesterName" class="text-xs text-gray-500">
                             Semestre: <b>{{ semesterName }}</b>
                         </span>
                     </div>
-                    <div v-if="uploadForm.processing" class="flex items-center gap-2 text-sm text-blue-600">
-                        <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    <div
+                        v-if="uploadForm.processing"
+                        class="flex items-center gap-2 text-sm text-blue-600"
+                    >
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                            <circle
+                                class="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                stroke-width="4"
+                                fill="none"
+                            />
+                            <path
+                                class="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
+                        </svg>
                         Subiendo...
                     </div>
-                    <button type="button" v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing"
+                    <button
+                        type="button"
+                        v-if="
+                            currentFolder &&
+                            canUploadCurrentFolder &&
+                            !uploadForm.processing
+                        "
                         @click="triggerUpload"
                         class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
                     >
@@ -431,10 +577,16 @@ const closePreview = () => {
                 </div>
 
                 <!-- Alerts -->
-                <div v-if="uploadError" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                <div
+                    v-if="uploadError"
+                    class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
+                >
                     {{ uploadError }}
                 </div>
-                <div v-if="uploadSuccess" class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                <div
+                    v-if="uploadSuccess"
+                    class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700"
+                >
                     {{ uploadSuccess }}
                 </div>
 
@@ -445,7 +597,10 @@ const closePreview = () => {
                         class="flex h-full flex-col items-center justify-center text-gray-400"
                     >
                         <Folder class="mb-4 h-16 w-16 text-gray-300" />
-                        <p>Selecciona una carpeta del árbol para ver su contenido</p>
+                        <p>
+                            Selecciona una carpeta del árbol para ver su
+                            contenido
+                        </p>
                     </div>
 
                     <div v-else>
@@ -545,7 +700,9 @@ const closePreview = () => {
                                             <td
                                                 class="px-6 py-4 whitespace-nowrap"
                                             >
-                                                <div class="flex flex-wrap items-center gap-2">
+                                                <div
+                                                    class="flex flex-wrap items-center gap-2"
+                                                >
                                                     <span
                                                         v-if="file.status"
                                                         :class="[
@@ -555,7 +712,11 @@ const closePreview = () => {
                                                             ),
                                                         ]"
                                                     >
-                                                        {{ statusLabel(file.status) }}
+                                                        {{
+                                                            statusLabel(
+                                                                file.status,
+                                                            )
+                                                        }}
                                                     </span>
                                                     <span
                                                         v-if="!file.status"
@@ -563,7 +724,10 @@ const closePreview = () => {
                                                     >
                                                         Sin estado
                                                     </span>
-                                                    <span v-if="file.is_late" class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
+                                                    <span
+                                                        v-if="file.is_late"
+                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"
+                                                    >
                                                         EXT
                                                     </span>
                                                 </div>
@@ -590,23 +754,42 @@ const closePreview = () => {
                                                     class="flex justify-end gap-2"
                                                 >
                                                     <Link
-                                                        v-if="file.is_docx && file.docx_editor_url"
-                                                        :href="file.docx_editor_url"
+                                                        v-if="
+                                                            file.is_docx &&
+                                                            file.docx_editor_url
+                                                        "
+                                                        :href="
+                                                            file.docx_editor_url
+                                                        "
                                                         class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                                                        :title="file.can_edit_docx ? 'Abrir editor DOCX' : 'Ver documento DOCX'"
+                                                        :title="
+                                                            file.can_edit_docx
+                                                                ? 'Abrir editor DOCX'
+                                                                : 'Ver documento DOCX'
+                                                        "
                                                     >
-                                                        {{ file.can_edit_docx ? 'Editar DOCX' : 'Ver DOCX' }}
+                                                        {{
+                                                            file.can_edit_docx
+                                                                ? 'Editar DOCX'
+                                                                : 'Ver DOCX'
+                                                        }}
                                                     </Link>
                                                     <button
-                                                        v-else-if="file.can_preview"
+                                                        v-else-if="
+                                                            file.can_preview
+                                                        "
                                                         type="button"
                                                         class="p-1 text-slate-600 hover:text-slate-900"
                                                         title="Ver en la pagina"
-                                                        @click="openPreview(file)"
+                                                        @click="
+                                                            openPreview(file)
+                                                        "
                                                     >
                                                         <Eye class="h-4 w-4" />
                                                     </button>
-                                                    <button type="button" v-if="file.can_replace"
+                                                    <button
+                                                        type="button"
+                                                        v-if="file.can_replace"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
                                                         title="Reemplazar"
                                                         @click="
@@ -630,7 +813,9 @@ const closePreview = () => {
                                                             class="h-4 w-4"
                                                         />
                                                     </a>
-                                                    <button type="button" v-if="file.can_delete"
+                                                    <button
+                                                        type="button"
+                                                        v-if="file.can_delete"
                                                         class="p-1 text-red-600 hover:text-red-900"
                                                         title="Eliminar"
                                                         @click="
@@ -658,19 +843,34 @@ const closePreview = () => {
                             "
                             class="py-12 text-center"
                         >
-                            <p class="text-gray-500">Esta carpeta está vacía.</p>
+                            <p class="text-gray-500">
+                                Esta carpeta está vacía.
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div v-if="previewFile" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-            <div class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div
+            v-if="previewFile"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+        >
+            <div
+                class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-slate-200 px-5 py-4"
+                >
                     <div class="min-w-0">
-                        <h3 class="truncate text-base font-semibold text-slate-900">{{ previewFile.name }}</h3>
-                        <p class="text-xs text-slate-500">{{ previewFile.mime_type || 'Archivo' }}</p>
+                        <h3
+                            class="truncate text-base font-semibold text-slate-900"
+                        >
+                            {{ previewFile.name }}
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            {{ previewFile.mime_type || 'Archivo' }}
+                        </p>
                     </div>
                     <div class="flex items-center gap-2">
                         <a
@@ -706,7 +906,10 @@ const closePreview = () => {
                         class="h-full w-full border-0"
                         title="Vista previa del archivo"
                     />
-                    <div v-else class="flex h-full items-center justify-center bg-white p-6">
+                    <div
+                        v-else
+                        class="flex h-full items-center justify-center bg-white p-6"
+                    >
                         <img
                             v-if="previewFile.mime_type?.startsWith('image/')"
                             :src="previewFile.preview_url"

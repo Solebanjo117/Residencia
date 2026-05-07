@@ -9,6 +9,8 @@ class AdvisorySession extends Model
 {
     use HasFactory;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'teaching_load_id',
         'semester_id',
@@ -16,7 +18,7 @@ class AdvisorySession extends Model
         'topic',
         'duration_minutes',
         'notes',
-        'created_by_user_id'
+        'created_by_user_id',
     ];
 
     protected $casts = [
