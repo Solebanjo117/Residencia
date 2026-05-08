@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::create('advisory_schedules', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('teaching_load_id')->constrained('teaching_loads');
+            $table->foreignId('teacher_user_id')->constrained('users');
+            $table->foreignId('teaching_load_id')->nullable()->constrained('teaching_loads');
             $table->foreignId('semester_id')->constrained('semesters');
             $table->unsignedTinyInteger('day_of_week'); // 1=Lunes, 2=Martes, ..., 5=Viernes
             $table->time('start_time');

@@ -14,7 +14,7 @@ class ReportController extends Controller
     {
         $semester = $this->resolveSemester($request);
 
-        if (!$semester) {
+        if (! $semester) {
             return Inertia::render('Oficina/Reports', [
                 'rows' => [],
                 'summary' => [
@@ -97,7 +97,7 @@ class ReportController extends Controller
             ->leftJoinSub($submissions, 'subs', function ($join) {
                 $join->on('subs.teacher_user_id', '=', 'users.id');
             })
-            ->selectRaw("users.id as teacher_id,
+            ->selectRaw('users.id as teacher_id,
                 users.name as teacher_name,
                 users.email as teacher_email,
                 loads.loads_count,
@@ -109,7 +109,7 @@ class ReportController extends Controller
                 COALESCE(subs.rejected_count, 0) as rejected_count,
                 COALESCE(subs.na_count, 0) as na_count,
                 COALESCE(subs.late_count, 0) as late_count,
-                COALESCE(subs.delayed_count, 0) as delayed_count")
+                COALESCE(subs.delayed_count, 0) as delayed_count')
             ->orderBy('users.name');
 
         if ($search !== '') {
@@ -182,7 +182,7 @@ class ReportController extends Controller
 
     private function exportCsv(array $rows, string $semesterName)
     {
-        $filename = 'reporte-docentes-' . now()->format('Ymd_His') . '.csv';
+        $filename = 'reporte-docentes-'.now()->format('Ymd_His').'.csv';
 
         return response()->streamDownload(function () use ($rows, $semesterName) {
             $handle = fopen('php://output', 'wb');
@@ -194,7 +194,7 @@ class ReportController extends Controller
                 'Entregas Totales',
                 'Borrador',
                 'En Revision',
-                'Aprobadas Oficina',
+                'Aprobadas',
                 'Liberadas',
                 'Rechazadas',
                 'No Aplica',

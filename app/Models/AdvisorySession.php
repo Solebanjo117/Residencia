@@ -18,7 +18,7 @@ class AdvisorySession extends Model
         'topic',
         'duration_minutes',
         'notes',
-        'created_by_user_id'
+        'created_by_user_id',
     ];
 
     protected $casts = [

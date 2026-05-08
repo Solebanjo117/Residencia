@@ -1,4 +1,4 @@
-import {
+import type {
     SubmissionStatus,
     ReviewDecision,
     NotificationType,
@@ -266,7 +266,7 @@ export interface NotificationSchedule {
 
 export interface AdvisorySession {
     id: number;
-    teaching_load_id: number;
+    teaching_load_id: number | null;
     semester_id: number;
     session_date: string;
     topic: string;
@@ -279,6 +279,20 @@ export interface AdvisorySession {
     semester?: Semester;
     creator?: User;
     files?: AdvisoryFile[];
+}
+
+export interface AdvisorySchedule {
+    id: number;
+    teacher_user_id: number;
+    teaching_load_id: number | null;
+    semester_id: number;
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    location: string | null;
+    teacher?: User;
+    teaching_load?: TeachingLoad;
+    semester?: Semester;
 }
 
 export interface AdvisoryFile {
