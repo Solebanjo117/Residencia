@@ -13,7 +13,7 @@ test('jefe de departamento can access admin windows and office review routes', a
 
     await page.goto('/oficina/revisiones');
     await expect(
-        page.getByRole('heading', { name: 'AprobaciÃ³n de Evidencias' }),
+        page.getByRole('heading', { name: 'Aprobación de Evidencias' }),
     ).toBeVisible();
 
     await page.goto('/asesorias');
