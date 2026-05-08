@@ -78,6 +78,9 @@ class SeguimientoSeeder extends Seeder
             ['code' => 'AEB-1082', 'name' => 'SOFTWARE DE APLICACION EJECUTIVO'],
             ['code' => 'ACA-0909', 'name' => 'TALLER DE INVESTIGACION I'],
             ['code' => 'ACA-0910', 'name' => 'TALLER DE INVESTIGACION II'],
+            ['code' => 'ONL-1001', 'name' => 'ADMINISTRACION DIGITAL EN LINEA'],
+            ['code' => 'ONL-1002', 'name' => 'GESTION DE PROYECTOS EN LINEA'],
+            ['code' => 'ONL-1003', 'name' => 'DESARROLLO WEB EN LINEA'],
         ];
 
         return collect($subjects)
@@ -177,11 +180,37 @@ class SeguimientoSeeder extends Seeder
                     [
                         'group_code' => 'IGEM-2009-'.(201 + $subjectIndex),
                         'hours_per_week' => 4 + ($subjectIndex % 5),
+                        'modality' => TeachingLoad::MODALITY_PRESENCIAL,
                     ]
                 );
 
                 $subjectIndex++;
             }
+        }
+
+        $onlineSubjects = collect($subjects)
+            ->filter(fn (Subject $subject) => str_starts_with($subject->code, 'ONL-'))
+            ->values();
+
+        if ($onlineSubjects->isEmpty()) {
+            return;
+        }
+
+        foreach ($onlineSubjects as $index => $subject) {
+            $docente = $docentes[$index % $docentes->count()];
+
+            TeachingLoad::firstOrCreate(
+                [
+                    'teacher_user_id' => $docente->id,
+                    'semester_id' => $semester->id,
+                    'subject_id' => $subject->id,
+                ],
+                [
+                    'group_code' => 'ONLINE-'.($index + 1),
+                    'hours_per_week' => 4,
+                    'modality' => TeachingLoad::MODALITY_EN_LINEA,
+                ]
+            );
         }
     }
 
@@ -209,6 +238,20 @@ class SeguimientoSeeder extends Seeder
                 [
                     'opens_at' => now()->subDay(),
                     'closes_at' => $closesAt,
+                    'created_by_user_id' => $creator->id,
+                    'status' => 'ACTIVE',
+                ]
+            );
+
+            SubmissionWindow::updateOrCreate(
+                [
+                    'semester_id' => $semester->id,
+                    'evidence_item_id' => $item->id,
+                    'modality' => TeachingLoad::MODALITY_EN_LINEA,
+                ],
+                [
+                    'opens_at' => now()->subDay(),
+                    'closes_at' => now()->addMonths(8),
                     'created_by_user_id' => $creator->id,
                     'status' => 'ACTIVE',
                 ]

@@ -73,6 +73,7 @@ const form = useForm({
     subject_id: '',
     group_code: '',
     hours_per_week: '' as string | number,
+    modality: 'PRESENCIAL',
 });
 
 const openCreateModal = () => {
@@ -89,6 +90,7 @@ const openEditModal = (load: any) => {
     form.subject_id = String(load.subject_id);
     form.group_code = load.group_code;
     form.hours_per_week = load.hours_per_week;
+    form.modality = load.modality || 'PRESENCIAL';
     isModalOpen.value = true;
 };
 
@@ -179,6 +181,9 @@ const destroyLoad = (id: number) => {
                                 Grupo
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                Modalidad
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                                 Horas
                             </th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -221,6 +226,14 @@ const destroyLoad = (id: number) => {
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
+                                <span
+                                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                    :class="load.modality === 'EN_LINEA' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'"
+                                >
+                                    {{ load.modality === 'EN_LINEA' ? 'Materia en linea' : 'Presencial' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-600">
                                     {{ load.hours_per_week || '-' }} hrs/sem
                                 </div>
@@ -243,7 +256,7 @@ const destroyLoad = (id: number) => {
                             </td>
                         </tr>
                         <tr v-if="teachingLoads.data.length === 0">
-                            <td colspan="6" class="bg-gray-50 px-6 py-12 text-center text-gray-500">
+                            <td colspan="7" class="bg-gray-50 px-6 py-12 text-center text-gray-500">
                                 No se encontraron cargas academicas para este filtro.
                             </td>
                         </tr>
@@ -358,6 +371,24 @@ const destroyLoad = (id: number) => {
                                             <div v-if="form.errors.hours_per_week" class="mt-1 text-xs text-red-500">
                                                 {{ form.errors.hours_per_week }}
                                             </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Modalidad</label>
+                                        <select
+                                            v-model="form.modality"
+                                            class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                            required
+                                        >
+                                            <option value="PRESENCIAL">Presencial</option>
+                                            <option value="EN_LINEA">Materia en linea</option>
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            Las materias en linea pueden usar ventanas de entrega especiales mas amplias.
+                                        </p>
+                                        <div v-if="form.errors.modality" class="mt-1 text-xs text-red-500">
+                                            {{ form.errors.modality }}
                                         </div>
                                     </div>
                                 </div>

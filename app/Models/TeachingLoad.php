@@ -9,6 +9,10 @@ class TeachingLoad extends Model
 {
     use HasFactory;
 
+    public const MODALITY_PRESENCIAL = 'PRESENCIAL';
+
+    public const MODALITY_EN_LINEA = 'EN_LINEA';
+
     const UPDATED_AT = null;
 
     protected $fillable = [
@@ -17,6 +21,7 @@ class TeachingLoad extends Model
         'subject_id',
         'group_code',
         'hours_per_week',
+        'modality',
     ];
 
     // Expose 'group_name' as an alias for 'group_code' so all frontend/controllers

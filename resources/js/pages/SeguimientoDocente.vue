@@ -120,7 +120,8 @@ const filteredRows = computed(() => {
         return (
             row.maestro.toLowerCase().includes(q) ||
             row.materia.toLowerCase().includes(q) ||
-            row.clave_tecnm.toLowerCase().includes(q)
+            row.clave_tecnm.toLowerCase().includes(q) ||
+            row.modality_label?.toLowerCase().includes(q)
         );
     });
 });
@@ -253,6 +254,7 @@ function exportCSV() {
     const headers = [
         'MAESTRO',
         'MATERIA',
+        'MODALIDAD',
         'CARRERA',
         'CLAVE_TECNM',
         ...orderedColumns.value.map((column) => column.label.toUpperCase()),
@@ -266,6 +268,7 @@ function exportCSV() {
             const values = [
                 row.maestro,
                 row.materia,
+                row.modality_label,
                 row.carrera,
                 row.clave_tecnm,
                 ...orderedColumns.value.map((column) => exportStatus(row.cells[column.key])),
@@ -285,6 +288,7 @@ function exportXLSX() {
         const result = {
             MAESTRO: row.maestro,
             MATERIA: row.materia,
+            MODALIDAD: row.modality_label,
             CARRERA: row.carrera,
             CLAVE_TECNM: row.clave_tecnm,
         };
@@ -418,6 +422,7 @@ function formatBytes(bytes) {
                                 <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600">
                                     <th class="sticky-col-1 min-w-[160px] bg-slate-50 px-3 py-3">Maestro</th>
                                     <th class="sticky-col-2 min-w-[150px] bg-slate-50 px-3 py-3">Materia</th>
+                                    <th class="px-3 py-3">Modalidad</th>
                                     <th class="px-3 py-3">Carrera</th>
                                     <th class="px-3 py-3">Clave TECNM</th>
                                     <th v-for="col in orderedColumns" :key="col.key" class="min-w-[88px] max-w-[96px] px-2 py-3 text-center">
@@ -435,6 +440,14 @@ function formatBytes(bytes) {
                                 <tr v-for="row in filteredRows" :key="row.id" class="hover:bg-slate-50/60">
                                     <td class="sticky-col-1 bg-white px-3 py-2 text-sm font-semibold text-slate-900">{{ row.maestro }}</td>
                                     <td class="sticky-col-2 bg-white px-3 py-2 text-sm text-slate-800">{{ row.materia }}</td>
+                                    <td class="px-3 py-2 text-center">
+                                        <span
+                                            class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                            :class="row.modality === 'EN_LINEA' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'"
+                                        >
+                                            {{ row.modality === 'EN_LINEA' ? 'En linea' : 'Presencial' }}
+                                        </span>
+                                    </td>
                                     <td class="px-3 py-2 text-sm text-slate-700">{{ row.carrera }}</td>
                                     <td class="px-3 py-2 text-sm font-mono text-slate-700">{{ row.clave_tecnm }}</td>
 
@@ -470,7 +483,7 @@ function formatBytes(bytes) {
                                     </td>
                                 </tr>
                                 <tr v-if="filteredRows.length === 0">
-                                    <td :colspan="4 + orderedColumns.length + 2" class="px-4 py-10 text-center text-sm text-slate-500">
+                                    <td :colspan="5 + orderedColumns.length + 2" class="px-4 py-10 text-center text-sm text-slate-500">
                                         No hay resultados con esos filtros.
                                     </td>
                                 </tr>

@@ -9,9 +9,16 @@ class SubmissionWindow extends Model
 {
     use HasFactory;
 
+    public const MODALITY_GENERAL = null;
+
+    public const MODALITY_PRESENCIAL = 'PRESENCIAL';
+
+    public const MODALITY_EN_LINEA = 'EN_LINEA';
+
     protected $fillable = [
         'semester_id',
         'evidence_item_id',
+        'modality',
         'opens_at',
         'closes_at',
         'created_by_user_id',

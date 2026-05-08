@@ -11,6 +11,7 @@ const props = defineProps<{
     };
     semesters: any[];
     evidenceItems: any[];
+    modalities: Array<{ value: string; label: string }>;
     selectedSemester: string | null;
 }>();
 
@@ -27,6 +28,7 @@ watch(filterSemester, (newValue) => {
 const form = useForm({
     semester_id: filterSemester.value,
     evidence_item_id: '',
+    modality: '',
     opens_at: '',
     closes_at: '',
     status: 'ACTIVE',
@@ -51,6 +53,7 @@ const openEditModal = (win: any) => {
     editingWindow.value = win;
     form.semester_id = win.semester_id;
     form.evidence_item_id = win.evidence_item_id;
+    form.modality = win.modality || '';
     form.opens_at = formatForInput(win.opens_at);
     form.closes_at = formatForInput(win.closes_at);
     form.status = win.status;
@@ -152,6 +155,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     <thead class="bg-gray-50">
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documento</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modalidad</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Apertura</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cierre</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
@@ -163,6 +167,14 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                             <td class="px-6 py-4">
                                 <div class="text-sm font-semibold text-gray-900">{{ win.evidence_item.name }}</div>
                                 <div class="text-xs text-gray-500">Semestre: {{ win.semester.name }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span
+                                    class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold"
+                                    :class="win.modality === 'EN_LINEA' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'"
+                                >
+                                    {{ win.modality === 'EN_LINEA' ? 'Materia en linea' : (win.modality === 'PRESENCIAL' ? 'Presencial' : 'General') }}
+                                </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-600">{{ formatDate(win.opens_at) }}</div>
@@ -189,7 +201,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                             </td>
                         </tr>
                         <tr v-if="windows.data.length === 0">
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-500 bg-gray-50">
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-500 bg-gray-50">
                                 No se han configurado ventanas de entrega para este semestre.
                             </td>
                         </tr>
@@ -260,6 +272,19 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                                             </option>
                                         </select>
                                         <div v-if="form.errors.evidence_item_id" class="text-red-500 text-xs mt-1">{{ form.errors.evidence_item_id }}</div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700">Modalidad</label>
+                                        <select v-model="form.modality" class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 focus:border-blue-500 sm:text-sm">
+                                            <option v-for="modality in modalities" :key="modality.value" :value="modality.value">
+                                                {{ modality.label }}
+                                            </option>
+                                        </select>
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            Usa "Materia en linea" para abrir una ventana extendida solo para cargas en linea. Si no existe, se usara la ventana general.
+                                        </p>
+                                        <div v-if="form.errors.modality" class="text-red-500 text-xs mt-1">{{ form.errors.modality }}</div>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-4">

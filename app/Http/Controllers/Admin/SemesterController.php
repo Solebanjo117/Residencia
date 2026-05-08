@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Semester;
 use App\Models\AcademicPeriod;
 use App\Models\EvidenceRequirement;
+use App\Models\Semester;
 use App\Models\TeachingLoad;
 use App\Services\FolderStructureService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class SemesterController extends Controller
 {
@@ -22,7 +22,7 @@ class SemesterController extends Controller
         $semesters = Semester::with('academicPeriod')
             ->orderBy('start_date', 'desc')
             ->paginate(15);
-            
+
         $academicPeriods = AcademicPeriod::orderBy('start_date', 'desc')->get();
 
         return Inertia::render('Admin/Semesters/Index', [
@@ -110,7 +110,7 @@ class SemesterController extends Controller
 
     private function bootstrapSemesterFromLatestReference(Semester $semester): void
     {
-        if (!$semester->requirements()->exists()) {
+        if (! $semester->requirements()->exists()) {
             $referenceForRequirements = Semester::query()
                 ->where('id', '!=', $semester->id)
                 ->whereHas('requirements')
@@ -134,7 +134,7 @@ class SemesterController extends Controller
             }
         }
 
-        if (!$semester->teachingLoads()->exists()) {
+        if (! $semester->teachingLoads()->exists()) {
             $referenceForLoads = Semester::query()
                 ->where('id', '!=', $semester->id)
                 ->whereHas('teachingLoads')
@@ -153,6 +153,7 @@ class SemesterController extends Controller
                             'subject_id' => $load->subject_id,
                             'group_code' => $load->group_code,
                             'hours_per_week' => $load->hours_per_week,
+                            'modality' => $load->modality,
                         ]);
                     });
             }

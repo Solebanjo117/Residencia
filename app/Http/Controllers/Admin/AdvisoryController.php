@@ -75,7 +75,7 @@ class AdvisoryController extends Controller
             ->where('semester_id', $semester->id)
             ->where('status', 'ACTIVE')
             ->get()
-            ->keyBy('evidence_item_id');
+            ->groupBy('evidence_item_id');
         $departmentReviews = TeachingLoadReview::with('reviewer')
             ->whereIn('teaching_load_id', $teachingLoads->pluck('id'))
             ->orderByDesc('reviewed_at')
@@ -96,6 +96,8 @@ class AdvisoryController extends Controller
                 'materia' => $load->subject->name,
                 'carrera' => $load->group_name,
                 'clave_tecnm' => $load->subject->code,
+                'modality' => $load->modality,
+                'modality_label' => $load->modality === TeachingLoad::MODALITY_EN_LINEA ? 'Materia en linea' : 'Presencial',
                 'semestre' => $semester->name,
                 'cells' => [],
                 'department_review' => [
@@ -119,8 +121,9 @@ class AdvisoryController extends Controller
                 $item = $requirement->evidenceItem;
                 $submission = $loadSubmissions->get($item->id);
                 $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
+                $window = $this->resolveWindowForLoad($windows->get($item->id) ?? collect(), $load);
                 $availability = $flowService->resolveAvailability(
-                    $windows->get($item->id),
+                    $window,
                     $stageUnlocked,
                     $submission?->activeResubmissionUnlock !== null,
                     $submission,
@@ -324,6 +327,13 @@ class AdvisoryController extends Controller
         $departmentIds = $user->departments()->pluck('departments.id');
 
         return $load->teacher->departments()->whereIn('departments.id', $departmentIds)->exists();
+    }
+
+    private function resolveWindowForLoad(Collection $windows, TeachingLoad $load): ?SubmissionWindow
+    {
+        return $windows->firstWhere('modality', $load->modality)
+            ?? $windows->firstWhere('modality', null)
+            ?? $windows->first();
     }
 
     private function resolveRowStatus(Collection $cells): string

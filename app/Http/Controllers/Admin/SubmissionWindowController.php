@@ -3,20 +3,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SubmissionWindow;
-use App\Models\Semester;
 use App\Models\EvidenceItem;
+use App\Models\Semester;
+use App\Models\SubmissionWindow;
+use App\Models\TeachingLoad;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class SubmissionWindowController extends Controller
 {
     public function index(Request $request)
     {
         $semesterId = $request->query('semester_id');
-        
+
         $query = SubmissionWindow::with(['semester', 'evidenceItem', 'createdBy'])
             ->orderBy('opens_at', 'desc');
 
@@ -34,6 +36,7 @@ class SubmissionWindowController extends Controller
             'windows' => $windows,
             'semesters' => $semesters,
             'evidenceItems' => $evidenceItems,
+            'modalities' => $this->modalityOptions(),
             'selectedSemester' => $semesterId,
         ]);
     }
@@ -43,10 +46,12 @@ class SubmissionWindowController extends Controller
         $validated = $request->validate([
             'semester_id' => 'required|exists:semesters,id',
             'evidence_item_id' => 'required|exists:evidence_items,id',
+            'modality' => ['nullable', 'string', Rule::in([TeachingLoad::MODALITY_PRESENCIAL, TeachingLoad::MODALITY_EN_LINEA])],
             'opens_at' => 'required|date',
             'closes_at' => 'required|date|after:opens_at',
             'status' => 'required|in:ACTIVE,INACTIVE',
         ]);
+        $validated['modality'] = $validated['modality'] ?: null;
 
         $this->ensureNoActiveWindowOverlap($validated);
 
@@ -62,10 +67,12 @@ class SubmissionWindowController extends Controller
         $validated = $request->validate([
             'semester_id' => 'required|exists:semesters,id',
             'evidence_item_id' => 'required|exists:evidence_items,id',
+            'modality' => ['nullable', 'string', Rule::in([TeachingLoad::MODALITY_PRESENCIAL, TeachingLoad::MODALITY_EN_LINEA])],
             'opens_at' => 'required|date',
             'closes_at' => 'required|date|after:opens_at',
             'status' => 'required|in:ACTIVE,INACTIVE',
         ]);
+        $validated['modality'] = $validated['modality'] ?: null;
 
         $this->ensureNoActiveWindowOverlap($validated, $window->id);
 
@@ -90,6 +97,7 @@ class SubmissionWindowController extends Controller
         $query = SubmissionWindow::query()
             ->where('semester_id', $data['semester_id'])
             ->where('evidence_item_id', $data['evidence_item_id'])
+            ->where('modality', $data['modality'] ?? null)
             ->where('status', 'ACTIVE')
             ->where('opens_at', '<=', $data['closes_at'])
             ->where('closes_at', '>=', $data['opens_at']);
@@ -103,5 +111,14 @@ class SubmissionWindowController extends Controller
                 'opens_at' => 'Ya existe una ventana activa que se solapa para el mismo semestre y evidencia.',
             ]);
         }
+    }
+
+    private function modalityOptions(): array
+    {
+        return [
+            ['value' => '', 'label' => 'General'],
+            ['value' => TeachingLoad::MODALITY_PRESENCIAL, 'label' => 'Presencial'],
+            ['value' => TeachingLoad::MODALITY_EN_LINEA, 'label' => 'Materia en linea'],
+        ];
     }
 }
