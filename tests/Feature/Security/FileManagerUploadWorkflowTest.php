@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia as Assert;
 
 function createFileManagerContext(bool $windowOpen = true, bool $createWindow = true): array
 {
@@ -402,6 +403,66 @@ it('allows jefe depto to preview a pdf file inside the page', function () {
         ->get(route('files.preview', $file->id))
         ->assertOk()
         ->assertHeader('content-type', 'application/pdf');
+});
+
+it('shows sd2 advance files inside the matching sd4 advance folder so they can be reused and edited', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+
+    $parent = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => '4.1-CAPACITACION',
+        'relative_path' => $ctx['folder']->relative_path . '/4.1-CAPACITACION',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['folder']->id,
+    ]);
+
+    $sd2Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SD2-AVANCE-50%',
+        'relative_path' => $parent->relative_path . '/SD2-AVANCE-50%',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+
+    $sd4Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SD4-AVANCE-100%',
+        'relative_path' => $parent->relative_path . '/SD4-AVANCE-100%',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+
+    $storedPath = $sd2Folder->relative_path . '/avance.docx';
+    Storage::disk('local')->put($storedPath, 'docx-content');
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $sd2Folder->id,
+        'file_name' => 'avance.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 120,
+        'file_hash' => hash('sha256', 'docx-content'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $sd4Folder->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/Index')
+            ->where('contents.files.0.id', $file->id)
+            ->where('contents.files.0.linked_from', 'SD2-AVANCE-50%')
+            ->where('contents.files.0.docx_editor_url', route('files.docx.show', $file->id))
+            ->where('contents.files.0.can_edit_docx', true)
+        );
 });
 
 it('forbids docente from previewing a file outside their own folder', function () {

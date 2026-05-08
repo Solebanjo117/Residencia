@@ -14,7 +14,7 @@ withDefaults(
 </script>
 
 <template>
-    <Head title="Residencia" />
+    <Head title="Seguimiento Docente" />
 
     <main class="min-h-screen bg-slate-50 text-slate-950">
         <section class="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 lg:px-8">
@@ -24,7 +24,7 @@ withDefaults(
                         <AppLogoIcon class="h-14 w-14 object-contain" />
                     </div>
                     <div>
-                        <p class="text-base font-bold tracking-wide">Residencia</p>
+                        <p class="text-base font-bold tracking-wide">Seguimiento Docente</p>
                         <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Tecnológico de Piedras Negras
                         </p>
@@ -88,7 +88,7 @@ withDefaults(
             </div>
 
             <footer class="pb-4 text-center text-xs font-medium text-slate-500">
-                Residencia · Tecnológico de Piedras Negras
+                Seguimiento Docente · Tecnológico de Piedras Negras
             </footer>
         </section>
     </main>

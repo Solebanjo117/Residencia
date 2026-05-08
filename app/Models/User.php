@@ -24,6 +24,7 @@ class User extends Authenticatable
         'email_verified_at',
         'password',
         'role_id',
+        'linked_teacher_user_id',
         'is_active',
         'folder_permission_keys',
     ];
@@ -98,5 +99,15 @@ class User extends Authenticatable
     public function socialAccounts()
     {
         return $this->hasMany(SocialAccount::class);
+    }
+
+    public function linkedTeacher()
+    {
+        return $this->belongsTo(User::class, 'linked_teacher_user_id');
+    }
+
+    public function linkedAccounts()
+    {
+        return $this->hasMany(User::class, 'linked_teacher_user_id');
     }
 }

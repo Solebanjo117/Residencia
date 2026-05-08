@@ -10,7 +10,7 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
     </div>
     <div class="ml-1 grid flex-1 text-left text-sm leading-tight">
         <span class="mb-0.5 truncate leading-tight font-semibold">
-            Residencia
+            Seguimiento Docente
         </span>
         <span class="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Tecnológico de Piedras Negras

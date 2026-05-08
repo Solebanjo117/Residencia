@@ -79,6 +79,12 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: FileText,
                 },
                 {
+                    title: 'Usuarios',
+                    href: '/admin/users',
+                    icon: Users,
+                    section: 'Agregar',
+                },
+                {
                     title: 'Docentes',
                     href: '/admin/teachers',
                     icon: Users,
@@ -130,6 +136,12 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     title: 'Matriz de Evidencias',
                     href: '/admin/requirements',
                     icon: Settings,
+                },
+                {
+                    title: 'Usuarios',
+                    href: '/admin/users',
+                    icon: Users,
+                    section: 'Agregar',
                 },
                 {
                     title: 'Docentes',

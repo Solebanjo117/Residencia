@@ -6,11 +6,12 @@ use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\EvidenceRequirement;
-use App\Models\EvidenceSubmission;
 use App\Models\EvidenceReview;
+use App\Models\EvidenceSubmission;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
+use App\Models\TeachingLoadReview;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class AdvisoryController extends Controller
             ? Semester::where('name', $semesterQuery)->first()
             : Semester::activeOrLatest();
 
-        if (!$semester || !$department) {
+        if (! $semester || ! $department) {
             return Inertia::render('SeguimientoDocente', [
                 'rows' => [],
                 'semesters' => Semester::pluck('name')->toArray(),
@@ -75,12 +76,19 @@ class AdvisoryController extends Controller
             ->where('status', 'ACTIVE')
             ->get()
             ->keyBy('evidence_item_id');
+        $departmentReviews = TeachingLoadReview::with('reviewer')
+            ->whereIn('teaching_load_id', $teachingLoads->pluck('id'))
+            ->orderByDesc('reviewed_at')
+            ->get()
+            ->groupBy('teaching_load_id');
         $isHistoricalSemester = $semester->status !== \App\Enums\SemesterStatus::OPEN;
 
         $rows = [];
 
         foreach ($teachingLoads as $load) {
             $loadSubmissions = ($submissions->get($load->id) ?? collect())->keyBy('evidence_item_id');
+            $loadReviewTrail = $departmentReviews->get($load->id) ?? collect();
+            $latestLoadReview = $loadReviewTrail->first();
 
             $rowData = [
                 'id' => $load->id,
@@ -90,6 +98,21 @@ class AdvisoryController extends Controller
                 'clave_tecnm' => $load->subject->code,
                 'semestre' => $semester->name,
                 'cells' => [],
+                'department_review' => [
+                    'status' => $latestLoadReview?->decision ?? 'PENDING',
+                    'comments' => $latestLoadReview?->comments,
+                    'reviewed_at' => $latestLoadReview?->reviewed_at?->toDateTimeString(),
+                    'reviewer_name' => $latestLoadReview?->reviewer?->name,
+                    'can_review' => $user->isJefeDepto()
+                        && $semester->status === \App\Enums\SemesterStatus::OPEN
+                        && $this->canManageLoad($user, $load),
+                    'trail' => $loadReviewTrail->map(fn (TeachingLoadReview $review) => [
+                        'decision' => $review->decision,
+                        'comments' => $review->comments,
+                        'reviewed_at' => $review->reviewed_at?->toDateTimeString(),
+                        'reviewer_name' => $review->reviewer?->name,
+                    ])->values()->toArray(),
+                ],
             ];
 
             foreach ($requirements as $requirement) {
@@ -107,7 +130,7 @@ class AdvisoryController extends Controller
                 $uiStatus = $flowService->uiStatus($submission, $availability);
                 $lastReview = $submission?->reviews?->first();
 
-                $rowData['cells']['item_' . $item->id] = [
+                $rowData['cells']['item_'.$item->id] = [
                     'status' => $uiStatus,
                     'db_status' => $submission?->status?->value,
                     'submission_id' => $submission?->id,
@@ -147,9 +170,9 @@ class AdvisoryController extends Controller
                         && $submission?->status === SubmissionStatus::SUBMITTED,
                     'can_final_approve' => $user->isJefeDepto()
                         && $submission?->isOfficeApproved()
-                        && !$submission?->isFinalApproved(),
+                        && ! $submission?->isFinalApproved(),
                     'can_mark_na' => ($user->isJefeOficina() || $user->isJefeDepto())
-                        && !$submission?->isFinalApproved(),
+                        && ! $submission?->isFinalApproved(),
                     'can_reactivate' => ($user->isJefeOficina() || $user->isJefeDepto())
                         && $submission?->status === SubmissionStatus::NA,
                 ];
@@ -163,7 +186,7 @@ class AdvisoryController extends Controller
             'rows' => $rows,
             'semesters' => Semester::pluck('name')->toArray(),
             'columns' => $evidenceItems->map(fn ($item) => [
-                'key' => 'item_' . $item->id,
+                'key' => 'item_'.$item->id,
                 'label' => $item->name,
                 'item_id' => $item->id,
                 'stage_order' => $flowService->stageOrder($item->name),
@@ -258,13 +281,43 @@ class AdvisoryController extends Controller
         );
     }
 
+    public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad)
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        abort_unless($user->isJefeDepto(), 403);
+
+        $teachingLoad->load('teacher.departments', 'semester');
+        abort_unless($this->canManageLoad($user, $teachingLoad), 403);
+        abort_unless($teachingLoad->semester?->status === \App\Enums\SemesterStatus::OPEN, 403);
+
+        $validated = $request->validate([
+            'decision' => 'required|in:APPROVE,REJECT',
+            'comments' => 'required_if:decision,REJECT|nullable|string|max:700',
+        ]);
+
+        TeachingLoadReview::create([
+            'teaching_load_id' => $teachingLoad->id,
+            'reviewed_by_user_id' => $user->id,
+            'decision' => $validated['decision'],
+            'comments' => $validated['comments'] ?? null,
+            'reviewed_at' => now(),
+        ]);
+
+        return back()->with('success', $validated['decision'] === 'APPROVE'
+            ? 'Carga aprobada por jefe de departamento.'
+            : 'Carga rechazada por jefe de departamento.'
+        );
+    }
+
     private function canManageLoad($user, TeachingLoad $load): bool
     {
         if ($user->isJefeOficina()) {
             return true;
         }
 
-        if (!$user->isJefeDepto()) {
+        if (! $user->isJefeDepto()) {
             return false;
         }
 

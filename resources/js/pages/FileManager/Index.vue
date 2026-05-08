@@ -468,7 +468,15 @@ const closePreview = () => {
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <FileText class="mr-3 h-5 w-5 text-gray-400" />
-                                                    <span class="text-sm font-medium text-gray-900">{{ file.name }}</span>
+                                                    <div class="min-w-0">
+                                                        <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
+                                                        <span
+                                                            v-if="file.linked_from"
+                                                            class="mt-1 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700"
+                                                        >
+                                                            Reutilizado de {{ file.linked_from }}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">

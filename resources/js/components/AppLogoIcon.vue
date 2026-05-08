@@ -14,7 +14,7 @@ defineProps<Props>();
 
 <template>
     <img
-        src="/images/logo-tecnologico-piedras-negras.svg"
+        src="/images/logo-tecnologico-piedras-negras.png"
         alt="Instituto Tecnológico de Piedras Negras"
         :class="className"
         v-bind="$attrs"

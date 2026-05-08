@@ -2,69 +2,101 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
+use App\Models\AcademicPeriod;
 use App\Models\Department;
-use App\Models\Semester;
-use App\Models\Subject;
-use App\Models\TeachingLoad;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
-use App\Models\StorageRoot;
 use App\Models\Role;
+use App\Models\Semester;
+use App\Models\StorageRoot;
+use App\Models\Subject;
+use App\Models\SubmissionWindow;
+use App\Models\TeachingLoad;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class SeguimientoSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Department
-        $dept = Department::firstOrCreate(['name' => 'Sistemas y Computación']);
+        $department = Department::firstOrCreate(['name' => 'Sistemas y Computacion']);
 
-        // Assign existing users to department
-        $users = User::all();
-        foreach ($users as $user) {
-            if (!$user->departments()->where('department_id', $dept->id)->exists()) {
-                $user->departments()->attach($dept->id);
-            }
-        }
+        $this->attachUsersToDepartment($department);
 
-        // 2. Semester
-        $semester = Semester::firstOrCreate(
-            ['name' => 'ENE-JUN 2026'],
+        $academicPeriod = AcademicPeriod::updateOrCreate(
+            ['code' => $this->currentPeriodCode()],
             [
-                'start_date' => '2026-01-12',
-                'end_date' => '2026-06-30',
-                'status' => 'OPEN',
+                'name' => $this->currentPeriodName(),
+                'start_date' => $this->currentPeriodStartDate(),
+                'end_date' => $this->currentPeriodEndDate(),
+                'status' => 'ACTIVE',
             ]
         );
 
-        // 3. Subjects (matching the reference spreadsheet)
+        Semester::query()
+            ->where('status', 'OPEN')
+            ->where('name', '!=', $this->currentPeriodName())
+            ->update(['status' => 'CLOSED']);
+
+        $semester = Semester::updateOrCreate(
+            ['name' => $this->currentPeriodName()],
+            [
+                'start_date' => $this->currentPeriodStartDate(),
+                'end_date' => $this->currentPeriodEndDate(),
+                'status' => 'OPEN',
+                'academic_period_id' => $academicPeriod->id,
+            ]
+        );
+
+        $subjects = $this->seedSubjects();
+        $items = $this->seedEvidenceItems();
+        $this->seedRequirements($semester, $department, $items);
+        $this->seedTeachingLoads($semester, $subjects);
+        $this->seedSubmissionWindows($semester, $items);
+        $this->seedStorageRoot();
+    }
+
+    private function attachUsersToDepartment(Department $department): void
+    {
+        User::query()->each(function (User $user) use ($department) {
+            $user->departments()->syncWithoutDetaching([$department->id]);
+        });
+    }
+
+    private function seedSubjects(): array
+    {
         $subjects = [
-            ['code' => 'AED-1015', 'name' => 'DISEÑO ORGANIZACIONAL'],
-            ['code' => 'GED-0922', 'name' => 'SISTEMAS DE INFORMACIÓN DE MERCADOTECNIA'],
+            ['code' => 'AED-1015', 'name' => 'DISENO ORGANIZACIONAL'],
+            ['code' => 'GED-0922', 'name' => 'SISTEMAS DE INFORMACION DE MERCADOTECNIA'],
             ['code' => 'AEF-1031', 'name' => 'FUNDAMENTOS DE BASE DE DATOS'],
             ['code' => 'LOH-0902', 'name' => 'BASE DE DATOS'],
-            ['code' => 'AEC-1053', 'name' => 'PROBABILIDAD Y ESTADÍSTICA'],
-            ['code' => 'SCD-1016', 'name' => 'LENGUAJES Y AUTÓMATAS II'],
-            ['code' => 'AEB-1055', 'name' => 'PROGRAMACIÓN WEB'],
+            ['code' => 'AEC-1053', 'name' => 'PROBABILIDAD Y ESTADISTICA'],
+            ['code' => 'SCD-1016', 'name' => 'LENGUAJES Y AUTOMATAS II'],
+            ['code' => 'AEB-1055', 'name' => 'PROGRAMACION WEB'],
             ['code' => 'SCD-1021', 'name' => 'REDES DE COMPUTADORA'],
-            ['code' => 'AEB-1082', 'name' => 'SOFTWARE DE APLICACIÓN EJECUTIVO'],
-            ['code' => 'ACA-0909', 'name' => 'TALLER DE INVESTIGACIÓN I'],
-            ['code' => 'ACA-0910', 'name' => 'TALLER DE INVESTIGACIÓN II'],
+            ['code' => 'AEB-1082', 'name' => 'SOFTWARE DE APLICACION EJECUTIVO'],
+            ['code' => 'ACA-0909', 'name' => 'TALLER DE INVESTIGACION I'],
+            ['code' => 'ACA-0910', 'name' => 'TALLER DE INVESTIGACION II'],
         ];
 
-        foreach ($subjects as $s) {
-            Subject::firstOrCreate(['code' => $s['code']], ['name' => $s['name']]);
-        }
+        return collect($subjects)
+            ->map(fn (array $subject) => Subject::updateOrCreate(
+                ['code' => $subject['code']],
+                ['name' => $subject['name']]
+            ))
+            ->all();
+    }
 
-        // 4. Evidence Items (the 16 columns from the reference)
+    private function seedEvidenceItems(): array
+    {
         $category = EvidenceCategory::firstOrCreate(
             ['name' => 'I_CARGA_ACADEMICA'],
-            ['description' => 'Evidencias relacionadas a la carga académica']
+            ['description' => 'Evidencias relacionadas a la carga academica']
         );
 
         $evidenceColumns = [
+            'HORARIO',
             'INSTRUM',
             'EV.DIAGN',
             'SEG 01',
@@ -76,34 +108,35 @@ class SeguimientoSeeder extends Seeder
             'SEG 04 FINAL',
             'CALIF. PARCIALES FINAL',
             'REPORTES EVIDENCIAS ASIGNATURAS',
-            'HORARIO',
             'PROY IND',
             'REP FINAL',
             'ASESORIAS',
             'ACTAS FINALES',
         ];
 
-        $itemIds = [];
-        foreach ($evidenceColumns as $colName) {
-            $item = EvidenceItem::firstOrCreate(
-                ['name' => $colName],
+        return collect($evidenceColumns)
+            ->map(fn (string $name) => EvidenceItem::updateOrCreate(
                 [
                     'category_id' => $category->id,
-                    'description' => 'Evidencia: ' . $colName,
+                    'name' => $name,
+                ],
+                [
+                    'description' => 'Evidencia: '.$name,
                     'requires_subject' => true,
                     'active' => true,
                 ]
-            );
-            $itemIds[] = $item->id;
-        }
+            ))
+            ->all();
+    }
 
-        // 5. Evidence Requirements (link items to semester + department)
-        foreach ($itemIds as $itemId) {
+    private function seedRequirements(Semester $semester, Department $department, array $items): void
+    {
+        foreach ($items as $item) {
             EvidenceRequirement::firstOrCreate(
                 [
                     'semester_id' => $semester->id,
-                    'department_id' => $dept->id,
-                    'evidence_item_id' => $itemId,
+                    'department_id' => $department->id,
+                    'evidence_item_id' => $item->id,
                 ],
                 [
                     'is_mandatory' => true,
@@ -111,48 +144,114 @@ class SeguimientoSeeder extends Seeder
                 ]
             );
         }
+    }
 
-        // 6. Teaching Loads (docentes with subjects)
+    private function seedTeachingLoads(Semester $semester, array $subjects): void
+    {
         $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
-        if (!$docenteRoleId) {
-            $this->command?->warn('No se encontró el rol DOCENTE.');
+        if (! $docenteRoleId || empty($subjects)) {
             return;
         }
 
-        $docentes = User::where('role_id', $docenteRoleId)->get();
+        $docentes = User::where('role_id', $docenteRoleId)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get();
 
-        if ($docentes->count() > 0) {
-            $allSubjects = Subject::all();
-            $subjectIndex = 0;
-
-            foreach ($docentes as $docente) {
-                // Assign 2-3 subjects per docente
-                $count = min(3, $allSubjects->count() - $subjectIndex);
-                for ($i = 0; $i < $count; $i++) {
-                    $subject = $allSubjects[$subjectIndex % $allSubjects->count()];
-                    TeachingLoad::firstOrCreate(
-                        [
-                            'teacher_user_id' => $docente->id,
-                            'semester_id' => $semester->id,
-                            'subject_id' => $subject->id,
-                        ],
-                        [
-                            'group_code' => 'IGEM-2009-' . ($subjectIndex + 201),
-                            'hours_per_week' => rand(4, 8),
-                        ]
-                    );
-                    $subjectIndex++;
-                }
-            }
+        if ($docentes->isEmpty()) {
+            return;
         }
 
-        // 7. Storage Root
-        StorageRoot::firstOrCreate(
+        $subjectIndex = 0;
+
+        foreach ($docentes as $docente) {
+            for ($i = 0; $i < min(3, count($subjects)); $i++) {
+                $subject = $subjects[$subjectIndex % count($subjects)];
+
+                TeachingLoad::firstOrCreate(
+                    [
+                        'teacher_user_id' => $docente->id,
+                        'semester_id' => $semester->id,
+                        'subject_id' => $subject->id,
+                    ],
+                    [
+                        'group_code' => 'IGEM-2009-'.(201 + $subjectIndex),
+                        'hours_per_week' => 4 + ($subjectIndex % 5),
+                    ]
+                );
+
+                $subjectIndex++;
+            }
+        }
+    }
+
+    private function seedSubmissionWindows(Semester $semester, array $items): void
+    {
+        $creator = User::whereHas('role', fn ($query) => $query->where('name', Role::JEFE_OFICINA))
+            ->orWhereHas('role', fn ($query) => $query->where('name', Role::JEFE_DEPTO))
+            ->first();
+
+        if (! $creator) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            $closesAt = now()->addMonths(6);
+            if ($semester->end_date->endOfDay()->greaterThan($closesAt)) {
+                $closesAt = $semester->end_date->endOfDay();
+            }
+
+            SubmissionWindow::updateOrCreate(
+                [
+                    'semester_id' => $semester->id,
+                    'evidence_item_id' => $item->id,
+                ],
+                [
+                    'opens_at' => now()->subDay(),
+                    'closes_at' => $closesAt,
+                    'created_by_user_id' => $creator->id,
+                    'status' => 'ACTIVE',
+                ]
+            );
+        }
+    }
+
+    private function seedStorageRoot(): void
+    {
+        StorageRoot::updateOrCreate(
             ['name' => 'local_evidence'],
             [
                 'base_path' => 'evidence',
                 'is_active' => true,
             ]
         );
+    }
+
+    private function currentPeriodName(): string
+    {
+        $year = now()->year;
+
+        return now()->month <= 6 ? "ENE-JUN {$year}" : "AGO-DIC {$year}";
+    }
+
+    private function currentPeriodCode(): string
+    {
+        $year = now()->year;
+
+        return now()->month <= 6 ? "EJ{$year}" : "AD{$year}";
+    }
+
+    private function currentPeriodStartDate(): string
+    {
+        $year = now()->year;
+
+        return now()->month <= 6 ? "{$year}-01-01" : "{$year}-08-01";
+    }
+
+    private function currentPeriodEndDate(): string
+    {
+        $year = now()->year;
+
+        return now()->month <= 6 ? "{$year}-06-30" : "{$year}-12-31";
     }
 }

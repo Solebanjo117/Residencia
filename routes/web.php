@@ -59,6 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rutas de Administración (accesible para JEFE_OFICINA y JEFE_DEPTO)
     Route::prefix('admin')->name('admin.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])->group(function () {
         Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class)->except(['create', 'show', 'edit']);
+        Route::resource('users', \App\Http\Controllers\Admin\UserController::class)->except(['create', 'show', 'edit']);
         Route::resource('teachers', \App\Http\Controllers\Admin\TeacherController::class);
         Route::post('teachers/{teacher}/generate-folders', [\App\Http\Controllers\Admin\TeacherController::class, 'generateFolders'])->name('teachers.generate-folders');
         Route::resource('subjects', \App\Http\Controllers\Admin\SubjectController::class)->except(['create', 'show', 'edit']);
@@ -85,6 +86,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.cells.status');
+    Route::post('asesorias/cargas/{teachingLoad}/revision-jefe', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewTeachingLoad'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.loads.department-review');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');

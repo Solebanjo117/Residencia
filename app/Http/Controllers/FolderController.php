@@ -43,6 +43,12 @@ class FolderController extends Controller
             ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
             ->values();
 
+        $linkedAdvanceFiles = $this->linkedAdvanceFilesFor($folder, $user);
+        $allVisibleFiles = collect($visibleFiles)
+            ->map(fn (EvidenceFile $file) => [$file, null])
+            ->merge($linkedAdvanceFiles)
+            ->values();
+
         $roots = $this->storageService->getAccessibleRoots($user);
 
         return Inertia::render('FileManager/Index', [
@@ -58,7 +64,9 @@ class FolderController extends Controller
             'allowedExtensions' => config('evidence.upload.allowed_extensions', ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp']),
             'contents' => [
                 'folders' => $visibleChildren,
-                'files' => $visibleFiles->map(function ($file) use ($user) {
+                'files' => $allVisibleFiles->map(function (array $entry) use ($user) {
+                    /** @var EvidenceFile $file */
+                    [$file, $linkedFrom] = $entry;
                     $submission = $file->submission;
                     $isDocx = $file->isDocx();
                     $canPreview = in_array($file->mime_type, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true);
@@ -76,6 +84,7 @@ class FolderController extends Controller
                                 : ($submission->status->value === 'APPROVED' ? 'OFFICE_APPROVED' : $submission->status->value))
                             : null,
                         'is_late' => (bool) $submission?->submitted_late,
+                        'linked_from' => $linkedFrom,
                         'is_docx' => $isDocx,
                         'can_preview' => $canPreview,
                         'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
@@ -107,5 +116,43 @@ class FolderController extends Controller
         }
 
         return array_reverse($ancestors);
+    }
+
+    private function linkedAdvanceFilesFor(FolderNode $folder, User $user)
+    {
+        $sourceFolder = $this->sourceAdvanceFolderFor($folder);
+
+        if (!$sourceFolder || !$user->can('view', $sourceFolder)) {
+            return collect();
+        }
+
+        return $sourceFolder
+            ->files()
+            ->with(['uploadedBy', 'submission'])
+            ->get()
+            ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
+            ->map(fn (EvidenceFile $file) => [$file, 'SD2-AVANCE-50%'])
+            ->values();
+    }
+
+    private function sourceAdvanceFolderFor(FolderNode $folder): ?FolderNode
+    {
+        $currentName = mb_strtoupper($folder->name);
+
+        if (!str_contains($currentName, 'SD4') || !str_contains($currentName, '100')) {
+            return null;
+        }
+
+        $sourceNames = [
+            str_replace('SD4', 'SD2', $folder->name),
+            str_replace('SD4-AVANCE-100%', 'SD2-AVANCE-50%', $folder->name),
+            'SD2-AVANCE-50%',
+        ];
+
+        return FolderNode::query()
+            ->where('storage_root_id', $folder->storage_root_id)
+            ->where('parent_id', $folder->parent_id)
+            ->whereIn('name', array_values(array_unique($sourceNames)))
+            ->first();
     }
 }

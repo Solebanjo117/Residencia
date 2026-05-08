@@ -16,7 +16,7 @@ class TeachingLoad extends Model
         'semester_id',
         'subject_id',
         'group_code',
-        'hours_per_week'
+        'hours_per_week',
     ];
 
     // Expose 'group_name' as an alias for 'group_code' so all frontend/controllers
@@ -46,6 +46,11 @@ class TeachingLoad extends Model
     public function submissions()
     {
         return $this->hasMany(EvidenceSubmission::class);
+    }
+
+    public function departmentReviews()
+    {
+        return $this->hasMany(TeachingLoadReview::class);
     }
 
     public function advisorySessions()

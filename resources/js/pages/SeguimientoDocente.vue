@@ -56,6 +56,18 @@ function statusTooltip(cell) {
     return base[cell.status] || '';
 }
 
+function departmentReviewPillClasses(status) {
+    if (status === 'APPROVE') return 'bg-emerald-100 text-emerald-800 ring-emerald-300';
+    if (status === 'REJECT') return 'bg-rose-100 text-rose-800 ring-rose-300';
+    return 'bg-cyan-100 text-cyan-800 ring-cyan-300';
+}
+
+function departmentReviewLabel(status) {
+    if (status === 'APPROVE') return 'Aprobado';
+    if (status === 'REJECT') return 'Rechazado';
+    return 'Revisar';
+}
+
 function availabilityToneClasses(code) {
     if (code === 'OPEN') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (code === 'LATE' || code === 'UNLOCKED') return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -84,6 +96,15 @@ const search = ref('');
 const exportMenuOpen = ref(false);
 const semester = ref(props.currentSemester);
 
+const orderedColumns = computed(() => {
+    return [...props.columns].sort((a, b) => {
+        const stageDiff = Number(a.stage_order ?? 99) - Number(b.stage_order ?? 99);
+        if (stageDiff !== 0) return stageDiff;
+
+        return String(a.label ?? '').localeCompare(String(b.label ?? ''));
+    });
+});
+
 watch(semester, (newVal) => {
     if (newVal !== props.currentSemester) {
         router.get('/asesorias', { semester: newVal }, { preserveState: true });
@@ -108,6 +129,8 @@ const cellModalOpen = ref(false);
 const cellModalData = ref(null);
 const cellModalRow = ref(null);
 const cellModalCol = ref(null);
+const departmentReviewModalOpen = ref(false);
+const departmentReviewRow = ref(null);
 
 function openCellDetail(row, col) {
     const cell = row.cells[col.key];
@@ -129,6 +152,18 @@ function closeCellDetail() {
     cellModalCol.value = null;
 }
 
+function openDepartmentReview(row) {
+    departmentReviewRow.value = row;
+    departmentReviewModalOpen.value = true;
+    departmentReviewForm.reset();
+}
+
+function closeDepartmentReview() {
+    departmentReviewModalOpen.value = false;
+    departmentReviewRow.value = null;
+    departmentReviewForm.reset();
+}
+
 const reviewForm = useForm({
     decision: 'APPROVE',
     comments: '',
@@ -142,6 +177,11 @@ const cellStatusForm = useForm({
     teaching_load_id: null,
     evidence_item_id: null,
     status: 'NA',
+    comments: '',
+});
+
+const departmentReviewForm = useForm({
+    decision: 'APPROVE',
     comments: '',
 });
 
@@ -184,6 +224,22 @@ function updateCellStatus(status) {
     });
 }
 
+function submitDepartmentReview(decision) {
+    const row = departmentReviewRow.value;
+    if (!row?.id) return;
+
+    if (decision === 'REJECT' && !departmentReviewForm.comments.trim()) {
+        alert('Debes escribir un motivo para rechazar.');
+        return;
+    }
+
+    departmentReviewForm.decision = decision;
+    departmentReviewForm.post(`/asesorias/cargas/${row.id}/revision-jefe`, {
+        preserveScroll: true,
+        onSuccess: closeDepartmentReview,
+    });
+}
+
 function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -199,7 +255,8 @@ function exportCSV() {
         'MATERIA',
         'CARRERA',
         'CLAVE_TECNM',
-        ...props.columns.map((column) => column.label.toUpperCase()),
+        ...orderedColumns.value.map((column) => column.label.toUpperCase()),
+        'REV_JEFE_DEPTO',
         'ESTADO_FINAL',
     ];
 
@@ -211,7 +268,8 @@ function exportCSV() {
                 row.materia,
                 row.carrera,
                 row.clave_tecnm,
-                ...props.columns.map((column) => exportStatus(row.cells[column.key])),
+                ...orderedColumns.value.map((column) => exportStatus(row.cells[column.key])),
+                departmentReviewLabel(row.department_review?.status),
                 statusLabel(row.estado_final),
             ].map((value) => `"${String(value).replaceAll('"', '""')}"`);
 
@@ -231,10 +289,11 @@ function exportXLSX() {
             CLAVE_TECNM: row.clave_tecnm,
         };
 
-        props.columns.forEach((column) => {
+        orderedColumns.value.forEach((column) => {
             result[column.label.toUpperCase()] = exportStatus(row.cells[column.key]);
         });
 
+        result.REV_JEFE_DEPTO = departmentReviewLabel(row.department_review?.status);
         result.ESTADO_FINAL = statusLabel(row.estado_final);
 
         return result;
@@ -301,6 +360,7 @@ function formatBytes(bytes) {
                     <p class="mt-1 text-sm text-slate-600">
                         <span class="inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-green-500"></span><b>AO</b> = Aprobado por oficina</span>
                         <span class="ml-3 inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span><b>VF</b> = Visto bueno final</span>
+                        <span class="ml-3 inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-cyan-500"></span><b>REV</b> = Revision jefe Depto</span>
                         <span class="ml-3 inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-amber-400"></span><b>PA</b> = Pendiente</span>
                         <span class="ml-3 inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-blue-400"></span><b>BL</b> = Bloqueado</span>
                         <span class="ml-3 inline-flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-full bg-rose-400"></span><b>R</b> = Rechazado</span>
@@ -360,9 +420,13 @@ function formatBytes(bytes) {
                                     <th class="sticky-col-2 min-w-[150px] bg-slate-50 px-3 py-3">Materia</th>
                                     <th class="px-3 py-3">Carrera</th>
                                     <th class="px-3 py-3">Clave TECNM</th>
-                                    <th v-for="col in columns" :key="col.key" class="min-w-[88px] max-w-[96px] px-2 py-3 text-center">
+                                    <th v-for="col in orderedColumns" :key="col.key" class="min-w-[88px] max-w-[96px] px-2 py-3 text-center">
                                         <span class="block leading-tight">{{ col.label }}</span>
                                         <span class="mt-1 block text-[10px] normal-case text-slate-400">{{ col.stage_label }}</span>
+                                    </th>
+                                    <th class="min-w-[118px] px-3 py-3 text-center">
+                                        <span class="block leading-tight">Rev Jefe Depto</span>
+                                        <span class="mt-1 block text-[10px] normal-case text-slate-400">Revision final</span>
                                     </th>
                                     <th class="px-3 py-3 text-center">Status Final</th>
                                 </tr>
@@ -374,7 +438,7 @@ function formatBytes(bytes) {
                                     <td class="px-3 py-2 text-sm text-slate-700">{{ row.carrera }}</td>
                                     <td class="px-3 py-2 text-sm font-mono text-slate-700">{{ row.clave_tecnm }}</td>
 
-                                    <td v-for="col in columns" :key="col.key" class="px-2 py-2 text-center">
+                                    <td v-for="col in orderedColumns" :key="col.key" class="px-2 py-2 text-center">
                                         <button
                                             type="button"
                                             class="inline-flex items-center justify-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 transition-colors hover:opacity-85"
@@ -388,13 +452,25 @@ function formatBytes(bytes) {
                                     </td>
 
                                     <td class="px-3 py-2 text-center">
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 transition-colors hover:opacity-85"
+                                            :class="departmentReviewPillClasses(row.department_review?.status)"
+                                            :title="row.department_review?.comments || 'Revision del jefe de departamento'"
+                                            @click="openDepartmentReview(row)"
+                                        >
+                                            {{ departmentReviewLabel(row.department_review?.status) }}
+                                        </button>
+                                    </td>
+
+                                    <td class="px-3 py-2 text-center">
                                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1" :class="statusPillClasses(row.estado_final)">
                                             {{ statusLabel(row.estado_final) }}
                                         </span>
                                     </td>
                                 </tr>
                                 <tr v-if="filteredRows.length === 0">
-                                    <td :colspan="4 + columns.length + 1" class="px-4 py-10 text-center text-sm text-slate-500">
+                                    <td :colspan="4 + orderedColumns.length + 2" class="px-4 py-10 text-center text-sm text-slate-500">
                                         No hay resultados con esos filtros.
                                     </td>
                                 </tr>
@@ -529,7 +605,7 @@ function formatBytes(bytes) {
                     </div>
 
                     <div v-if="canFinalApprove && cellModalData.can_final_approve" class="rounded-lg border border-slate-100 p-3">
-                        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">Visto bueno final</h3>
+                        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">Revision jefe Depto</h3>
                         <textarea
                             v-model="finalApprovalForm.comments"
                             rows="2"
@@ -538,7 +614,7 @@ function formatBytes(bytes) {
                         ></textarea>
                         <div class="mt-3 flex items-center gap-2">
                             <button type="button" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" :disabled="finalApprovalForm.processing" @click="submitFinalApproval">
-                                Liberar evidencia
+                                Aprobar como jefe Depto
                             </button>
                         </div>
                     </div>
@@ -550,6 +626,68 @@ function formatBytes(bytes) {
 
                 <div class="flex justify-end border-t border-slate-100 px-5 py-4">
                     <button type="button" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="closeCellDetail">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="departmentReviewModalOpen && departmentReviewRow" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeDepartmentReview">
+            <div class="w-full max-w-xl rounded-xl bg-white shadow-xl">
+                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">Revision jefe Depto</h2>
+                        <p class="text-sm text-slate-600">{{ departmentReviewRow.maestro }} - {{ departmentReviewRow.materia }}</p>
+                    </div>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ring-1" :class="departmentReviewPillClasses(departmentReviewRow.department_review?.status)">
+                        {{ departmentReviewLabel(departmentReviewRow.department_review?.status) }}
+                    </span>
+                </div>
+
+                <div class="space-y-4 px-5 py-4">
+                    <div v-if="departmentReviewRow.department_review?.trail?.length" class="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                        <div class="mb-2 text-xs font-semibold uppercase text-slate-500">Historial de revision</div>
+                        <ul class="space-y-2">
+                            <li v-for="review in departmentReviewRow.department_review.trail" :key="`${review.decision}-${review.reviewed_at}`" class="rounded-lg border border-white bg-white px-3 py-2 text-sm">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="font-semibold" :class="review.decision === 'APPROVE' ? 'text-emerald-700' : 'text-rose-700'">
+                                        {{ departmentReviewLabel(review.decision) }}
+                                    </span>
+                                    <span class="text-xs text-slate-500">{{ review.reviewed_at }}</span>
+                                </div>
+                                <div class="mt-1 text-xs text-slate-500">{{ review.reviewer_name || 'Sin nombre' }}</div>
+                                <div v-if="review.comments" class="mt-1 text-sm text-slate-700">{{ review.comments }}</div>
+                            </li>
+                        </ul>
+                    </div>
+                    <div v-else class="rounded-lg border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800">
+                        Esta carga aun no tiene revision del jefe de departamento.
+                    </div>
+
+                    <div v-if="departmentReviewRow.department_review?.can_review" class="rounded-lg border border-slate-100 p-3">
+                        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">Registrar decision</h3>
+                        <textarea
+                            v-model="departmentReviewForm.comments"
+                            rows="3"
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                            placeholder="Comentario o motivo. Obligatorio si rechazas..."
+                        ></textarea>
+                        <div class="mt-3 flex items-center gap-2">
+                            <button type="button" class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50" :disabled="departmentReviewForm.processing" @click="submitDepartmentReview('APPROVE')">
+                                Aprobar
+                            </button>
+                            <button type="button" class="flex-1 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50" :disabled="departmentReviewForm.processing" @click="submitDepartmentReview('REJECT')">
+                                Rechazar
+                            </button>
+                        </div>
+                    </div>
+                    <div v-else class="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-600">
+                        Solo el jefe de departamento puede registrar esta aprobacion o rechazo.
+                    </div>
+                </div>
+
+                <div class="flex justify-end border-t border-slate-100 px-5 py-4">
+                    <button type="button" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" @click="closeDepartmentReview">
                         Cerrar
                     </button>
                 </div>

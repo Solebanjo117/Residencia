@@ -1,11 +1,11 @@
 <?php
 
-use App\Enums\SubmissionStatus;
 use App\Enums\ReviewDecision;
+use App\Enums\SubmissionStatus;
+use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
-use App\Models\Department;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
@@ -18,7 +18,7 @@ function createReviewableSubmission(): EvidenceSubmission
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
     $department = Department::create([
-        'name' => 'Dept REV ' . fake()->unique()->lexify('????'),
+        'name' => 'Dept REV '.fake()->unique()->lexify('????'),
     ]);
     $teacher->departments()->attach($department->id);
 
@@ -145,5 +145,71 @@ it('allows jefe depto to register final approval after office approval', functio
         'reviewed_by_user_id' => $jefeDepto->id,
         'decision' => 'APPROVE',
         'stage' => 'FINAL',
+    ]);
+});
+
+it('forbids non jefe depto users from registering final approval', function () {
+    $submission = createReviewableSubmission();
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    /** @var EvidenceService $service */
+    $service = app(EvidenceService::class);
+    $service->review($submission, $jefeOficina, ReviewDecision::APPROVE, 'Aprobado por oficina');
+
+    $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $docente = User::factory()->create(['role_id' => $docenteRoleId]);
+
+    $this
+        ->actingAs($jefeOficina)
+        ->post(route('asesorias.final-approval', $submission->id), [
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    $this
+        ->actingAs($docente)
+        ->post(route('asesorias.final-approval', $submission->id), [
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    expect($submission->fresh()->final_approved_at)->toBeNull();
+});
+
+it('allows only jefe depto to approve or reject the teaching load department review', function () {
+    $submission = createReviewableSubmission();
+    $load = $submission->teachingLoad;
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    $this
+        ->actingAs($jefeOficina)
+        ->post(route('asesorias.loads.department-review', $load->id), [
+            'decision' => 'APPROVE',
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+    $jefeDepto->departments()->attach($submission->teacher->departments->pluck('id'));
+
+    $this
+        ->from('/asesorias')
+        ->actingAs($jefeDepto)
+        ->post(route('asesorias.loads.department-review', $load->id), [
+            'decision' => 'REJECT',
+            'comments' => 'Faltan correcciones generales',
+        ])
+        ->assertRedirect('/asesorias');
+
+    $this->assertDatabaseHas('teaching_load_reviews', [
+        'teaching_load_id' => $load->id,
+        'reviewed_by_user_id' => $jefeDepto->id,
+        'decision' => 'REJECT',
+        'comments' => 'Faltan correcciones generales',
     ]);
 });
