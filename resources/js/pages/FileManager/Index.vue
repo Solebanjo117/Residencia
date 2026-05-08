@@ -1,44 +1,26 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import {
-    ChevronDown,
-    ChevronRight,
-    Folder,
-    FileText,
-    Eye,
-    Download,
-    Trash2,
-    Upload,
-    RefreshCw,
-    X,
-} from 'lucide-vue-next';
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { Folder, FileText, Eye, Download, Trash2, Upload, RefreshCw, X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import FolderTree from '@/components/FileManager/FolderTree.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 
-type FolderNode = {
-    id: number;
-    name: string;
-    semester?: {
-        status?: string | null;
-    } | null;
-    children?: FolderNode[];
-};
-
 const props = defineProps<{
-    folderTree: FolderNode[];
-    currentFolder: {
-        id: number;
-        name: string;
-        parent_id?: number | null;
-        can_upload: boolean;
-        ancestors?: Array<{
-            id: number;
-            name: string;
-            can_view: boolean;
-        }>;
-    } | null;
+    folderTree: any[];
+    currentFolder:
+        | {
+              id: number;
+              name: string;
+              parent_id?: number | null;
+              can_upload: boolean;
+              ancestors?: Array<{
+                  id: number;
+                  name: string;
+                  can_view: boolean;
+              }>;
+          }
+        | null;
     semesterName?: string | null;
     allowedExtensions?: string[];
     contents: {
@@ -48,7 +30,6 @@ const props = defineProps<{
 }>();
 
 const expandedFoldersStorageKey = 'fileManager.expandedFolders';
-const inactiveSemestersGroupId = 'inactive-semesters';
 const leftPanelWidthStorageKey = 'fileManager.leftPanelWidth';
 const leftPanelMinWidth = 18;
 const leftPanelMaxWidth = 50;
@@ -85,65 +66,26 @@ const persistExpandedFolders = () => {
         return;
     }
 
-    window.sessionStorage.setItem(
-        expandedFoldersStorageKey,
-        JSON.stringify(expandedFolders.value),
-    );
+    window.sessionStorage.setItem(expandedFoldersStorageKey, JSON.stringify(expandedFolders.value));
 };
 
-const setFolderExpanded = (folderId: number | string, isExpanded: boolean) => {
+const setFolderExpanded = (folderId: string | number, isExpanded: boolean) => {
+    const key = String(folderId);
     const nextState = { ...expandedFolders.value };
 
     if (isExpanded) {
-        nextState[String(folderId)] = true;
+        nextState[key] = true;
     } else {
-        delete nextState[String(folderId)];
+        delete nextState[key];
     }
 
     expandedFolders.value = nextState;
     persistExpandedFolders();
 };
 
-const toggleFolderExpanded = (folderId: number | string) => {
-    setFolderExpanded(folderId, !expandedFolders.value[String(folderId)]);
-};
-
-const isInactiveSemesterRoot = (node: FolderNode) =>
-    Boolean(node.semester?.status && node.semester.status !== 'OPEN');
-
-const activeFolderRoots = computed(() =>
-    props.folderTree.filter((root) => !isInactiveSemesterRoot(root)),
-);
-
-const inactiveFolderRoots = computed(() =>
-    props.folderTree.filter((root) => isInactiveSemesterRoot(root)),
-);
-
-const inactiveSemestersOpen = computed(() =>
-    Boolean(expandedFolders.value[inactiveSemestersGroupId]),
-);
-
-const branchContainsFolder = (nodes: FolderNode[], folderId: number): boolean =>
-    nodes.some((node) => {
-        if (node.id === folderId) {
-            return true;
-        }
-
-        return branchContainsFolder(node.children ?? [], folderId);
-    });
-
-const expandInactiveGroupFromCurrentFolder = () => {
-    if (!props.currentFolder?.id) {
-        return;
-    }
-
-    if (
-        !branchContainsFolder(inactiveFolderRoots.value, props.currentFolder.id)
-    ) {
-        return;
-    }
-
-    setFolderExpanded(inactiveSemestersGroupId, true);
+const toggleFolderExpanded = (folderId: string | number) => {
+    const key = String(folderId);
+    setFolderExpanded(folderId, !expandedFolders.value[key]);
 };
 
 const expandAncestorsFromCurrentFolder = () => {
@@ -154,7 +96,7 @@ const expandAncestorsFromCurrentFolder = () => {
     const nextState = { ...expandedFolders.value };
 
     for (const ancestor of props.currentFolder.ancestors) {
-        nextState[ancestor.id] = true;
+        nextState[String(ancestor.id)] = true;
     }
 
     expandedFolders.value = nextState;
@@ -176,10 +118,7 @@ const loadLeftPanelWidth = () => {
         return;
     }
 
-    leftPanelWidth.value = Math.max(
-        leftPanelMinWidth,
-        Math.min(leftPanelMaxWidth, parsed),
-    );
+    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, parsed));
 };
 
 const persistLeftPanelWidth = () => {
@@ -187,10 +126,7 @@ const persistLeftPanelWidth = () => {
         return;
     }
 
-    window.localStorage.setItem(
-        leftPanelWidthStorageKey,
-        String(leftPanelWidth.value),
-    );
+    window.localStorage.setItem(leftPanelWidthStorageKey, String(leftPanelWidth.value));
 };
 
 const onResizeMove = (event: MouseEvent) => {
@@ -207,10 +143,7 @@ const onResizeMove = (event: MouseEvent) => {
     const startingWidthPx = (resizeStartWidth.value / 100) * bounds.width;
     const nextWidthPercent = ((startingWidthPx + deltaX) / bounds.width) * 100;
 
-    leftPanelWidth.value = Math.max(
-        leftPanelMinWidth,
-        Math.min(leftPanelMaxWidth, nextWidthPercent),
-    );
+    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, nextWidthPercent));
 };
 
 const stopResizing = () => {
@@ -248,7 +181,6 @@ onMounted(() => {
     loadExpandedFolders();
     loadLeftPanelWidth();
     expandAncestorsFromCurrentFolder();
-    expandInactiveGroupFromCurrentFolder();
 });
 
 onBeforeUnmount(() => {
@@ -259,7 +191,6 @@ watch(
     () => props.currentFolder?.id,
     () => {
         expandAncestorsFromCurrentFolder();
-        expandInactiveGroupFromCurrentFolder();
     },
 );
 
@@ -271,9 +202,7 @@ const uploadAccept = computed(() => {
     return extensions.map((extension) => `.${extension}`).join(',');
 });
 
-const canUploadCurrentFolder = computed(() =>
-    Boolean(props.currentFolder?.can_upload),
-);
+const canUploadCurrentFolder = computed(() => Boolean(props.currentFolder?.can_upload));
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -324,7 +253,7 @@ const getStatusColor = (status: string | null) => {
 const statusLabel = (status: string | null) => {
     switch (status) {
         case 'OFFICE_APPROVED':
-            return 'APROBADO';
+            return 'OFICINA';
         case 'FINAL_APPROVED':
             return 'FINAL';
         default:
@@ -391,11 +320,7 @@ const handleReplaceSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
     uploadError.value = '';
     uploadSuccess.value = '';
-    if (
-        target.files &&
-        target.files.length > 0 &&
-        fileToReplace.value !== null
-    ) {
+    if (target.files && target.files.length > 0 && fileToReplace.value !== null) {
         replaceForm.file = target.files[0];
         replaceForm.post(`/files/${fileToReplace.value}/replace`, {
             preserveScroll: true,
@@ -412,8 +337,7 @@ const handleReplaceSelected = (event: Event) => {
                 target.value = '';
                 fileToReplace.value = null;
                 replaceForm.reset();
-                uploadError.value =
-                    errors.file || 'Error al reemplazar archivo.';
+                uploadError.value = errors.file || 'Error al reemplazar archivo.';
             },
         });
     }
@@ -432,68 +356,17 @@ const closePreview = () => {
     <Head title="Gestor de Archivos" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div
-            ref="containerRef"
-            class="flex h-[calc(100vh-4rem)] overflow-hidden"
-        >
-            <!-- Left Panel: Folder Tree -->
-            <div
-                class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
-                :style="{ width: `${leftPanelWidth}%` }"
-            >
+        <div ref="containerRef" class="flex h-[calc(100vh-4rem)] overflow-hidden">
+            <div class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4" :style="{ width: `${leftPanelWidth}%` }">
                 <h3 class="mb-4 px-2 font-semibold text-gray-700">Carpetas</h3>
                 <FolderTree
-                    v-for="root in activeFolderRoots"
+                    v-for="root in folderTree"
                     :key="root.id"
                     :node="root"
                     :expanded-state="expandedFolders"
                     :active-folder-id="currentFolder?.id ?? null"
                     @toggle-folder="toggleFolderExpanded"
                 />
-                <div
-                    v-if="inactiveFolderRoots.length > 0"
-                    class="mt-5 border-t border-gray-200 pt-4"
-                >
-                    <button
-                        type="button"
-                        class="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-gray-100"
-                        @click="toggleFolderExpanded(inactiveSemestersGroupId)"
-                    >
-                        <span class="flex h-5 w-5 items-center justify-center">
-                            <component
-                                :is="
-                                    inactiveSemestersOpen
-                                        ? ChevronDown
-                                        : ChevronRight
-                                "
-                                class="h-4 w-4 text-gray-500"
-                            />
-                        </span>
-                        <Folder class="h-4 w-4 text-gray-400" />
-                        <span class="flex-1 text-sm font-semibold text-gray-600"
-                            >No activo</span
-                        >
-                        <span
-                            class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600"
-                        >
-                            {{ inactiveFolderRoots.length }}
-                        </span>
-                    </button>
-
-                    <div
-                        v-if="inactiveSemestersOpen"
-                        class="ml-4 border-l border-gray-200"
-                    >
-                        <FolderTree
-                            v-for="root in inactiveFolderRoots"
-                            :key="root.id"
-                            :node="root"
-                            :expanded-state="expandedFolders"
-                            :active-folder-id="currentFolder?.id ?? null"
-                            @toggle-folder="toggleFolderExpanded"
-                        />
-                    </div>
-                </div>
             </div>
 
             <div
@@ -501,119 +374,67 @@ const closePreview = () => {
                 :class="{ 'bg-blue-400': isResizing }"
                 @mousedown.prevent="startResizing"
             >
-                <div
-                    class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"
-                ></div>
+                <div class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"></div>
             </div>
 
-            <!-- Right Panel: Content -->
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
-                <!-- Toolbar / Header -->
-                <div
-                    class="flex items-center justify-between border-b border-gray-200 p-4"
-                >
+                <div class="flex items-center justify-between border-b border-gray-200 p-4">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">
-                            {{
-                                currentFolder
-                                    ? currentFolder.name
-                                    : 'Selecciona una carpeta'
-                            }}
+                            {{ currentFolder ? currentFolder.name : 'Selecciona una carpeta' }}
                         </h2>
                         <span v-if="semesterName" class="text-xs text-gray-500">
                             Semestre: <b>{{ semesterName }}</b>
                         </span>
                     </div>
-                    <div
-                        v-if="uploadForm.processing"
-                        class="flex items-center gap-2 text-sm text-blue-600"
-                    >
-                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                            <circle
-                                class="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                stroke-width="4"
-                                fill="none"
-                            />
-                            <path
-                                class="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                            />
-                        </svg>
+                    <div v-if="uploadForm.processing" class="flex items-center gap-2 text-sm text-blue-600">
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         Subiendo...
                     </div>
                     <button
+                        v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing"
                         type="button"
-                        v-if="
-                            currentFolder &&
-                            canUploadCurrentFolder &&
-                            !uploadForm.processing
-                        "
                         @click="triggerUpload"
-                        class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
+                        class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:outline-none focus:ring active:bg-blue-900 disabled:opacity-25"
                     >
                         <Upload class="mr-2 h-4 w-4" />
                         Subir Archivo
                     </button>
-                    <!-- Hidden inputs for file picking -->
                     <input
+                        ref="fileInput"
                         type="file"
                         class="hidden"
-                        ref="fileInput"
                         :accept="uploadAccept"
                         @change="handleFileSelected"
                     />
                     <input
+                        ref="replaceFileInput"
                         type="file"
                         class="hidden"
-                        ref="replaceFileInput"
                         :accept="uploadAccept"
                         @change="handleReplaceSelected"
                     />
                 </div>
 
-                <!-- Alerts -->
-                <div
-                    v-if="uploadError"
-                    class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
-                >
+                <div v-if="uploadError" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
                     {{ uploadError }}
                 </div>
-                <div
-                    v-if="uploadSuccess"
-                    class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700"
-                >
+                <div v-if="uploadSuccess" class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
                     {{ uploadSuccess }}
                 </div>
 
-                <!-- Content Grid/List -->
                 <div class="flex-1 overflow-y-auto p-6">
-                    <div
-                        v-if="!currentFolder"
-                        class="flex h-full flex-col items-center justify-center text-gray-400"
-                    >
+                    <div v-if="!currentFolder" class="flex h-full flex-col items-center justify-center text-gray-400">
                         <Folder class="mb-4 h-16 w-16 text-gray-300" />
-                        <p>
-                            Selecciona una carpeta del árbol para ver su
-                            contenido
-                        </p>
+                        <p>Selecciona una carpeta del arbol para ver su contenido</p>
                     </div>
 
                     <div v-else>
-                        <!-- Subfolders -->
                         <div v-if="contents.folders.length > 0" class="mb-8">
-                            <h4
-                                class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
-                            >
+                            <h4 class="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
                                 Subcarpetas
                             </h4>
-                            <div
-                                class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-                            >
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 <Link
                                     v-for="folder in contents.folders"
                                     :key="folder.id"
@@ -621,212 +442,111 @@ const closePreview = () => {
                                     class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
                                 >
                                     <Folder class="h-8 w-8 text-yellow-500" />
-                                    <span
-                                        class="truncate font-medium text-gray-700"
-                                        >{{ folder.name }}</span
-                                    >
+                                    <span class="truncate font-medium text-gray-700">{{ folder.name }}</span>
                                 </Link>
                             </div>
                         </div>
 
-                        <!-- Files -->
                         <div v-if="contents.files.length > 0">
-                            <h4
-                                class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
-                            >
+                            <h4 class="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
                                 Archivos
                             </h4>
-                            <div
-                                class="overflow-x-auto rounded-lg border border-gray-200 bg-white"
-                            >
-                                <table
-                                    class="min-w-full divide-y divide-gray-200"
-                                >
+                            <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                                <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th
-                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Nombre
-                                            </th>
-                                            <th
-                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Estado
-                                            </th>
-                                            <th
-                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Tamaño
-                                            </th>
-                                            <th
-                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Subido por
-                                            </th>
-                                            <th
-                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Fecha
-                                            </th>
-                                            <th
-                                                class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
-                                            >
-                                                Acciones
-                                            </th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nombre</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Estado</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tamaño</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Subido por</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Fecha</th>
+                                            <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Acciones</th>
                                         </tr>
                                     </thead>
-                                    <tbody
-                                        class="divide-y divide-gray-200 bg-white"
-                                    >
-                                        <tr
-                                            v-for="file in contents.files"
-                                            :key="file.id"
-                                            class="hover:bg-gray-50"
-                                        >
-                                            <td
-                                                class="px-6 py-4 whitespace-nowrap"
-                                            >
+                                    <tbody class="divide-y divide-gray-200 bg-white">
+                                        <tr v-for="file in contents.files" :key="file.id" class="hover:bg-gray-50">
+                                            <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
-                                                    <FileText
-                                                        class="mr-3 h-5 w-5 text-gray-400"
-                                                    />
-                                                    <span
-                                                        class="text-sm font-medium text-gray-900"
-                                                        >{{ file.name }}</span
-                                                    >
+                                                    <FileText class="mr-3 h-5 w-5 text-gray-400" />
+                                                    <div class="min-w-0">
+                                                        <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
+                                                        <span
+                                                            v-if="file.linked_from"
+                                                            class="mt-1 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700"
+                                                        >
+                                                            Reutilizado de {{ file.linked_from }}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </td>
-                                            <td
-                                                class="px-6 py-4 whitespace-nowrap"
-                                            >
-                                                <div
-                                                    class="flex flex-wrap items-center gap-2"
-                                                >
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="flex flex-wrap items-center gap-2">
                                                     <span
                                                         v-if="file.status"
-                                                        :class="[
-                                                            'inline-flex rounded-full border px-2 py-1 text-xs leading-5 font-semibold',
-                                                            getStatusColor(
-                                                                file.status,
-                                                            ),
-                                                        ]"
+                                                        :class="['inline-flex rounded-full border px-2 py-1 text-xs font-semibold leading-5', getStatusColor(file.status)]"
                                                     >
-                                                        {{
-                                                            statusLabel(
-                                                                file.status,
-                                                            )
-                                                        }}
+                                                        {{ statusLabel(file.status) }}
                                                     </span>
-                                                    <span
-                                                        v-if="!file.status"
-                                                        class="text-xs text-gray-400 italic"
-                                                    >
+                                                    <span v-if="!file.status" class="text-xs italic text-gray-400">
                                                         Sin estado
                                                     </span>
-                                                    <span
-                                                        v-if="file.is_late"
-                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"
-                                                    >
+                                                    <span v-if="file.is_late" class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
                                                         EXT
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td
-                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
-                                            >
+                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
                                                 {{ formatSize(file.size) }}
                                             </td>
-                                            <td
-                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
-                                            >
+                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
                                                 {{ file.uploaded_by }}
                                             </td>
-                                            <td
-                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
-                                            >
+                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
                                                 {{ file.uploaded_at }}
                                             </td>
-                                            <td
-                                                class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
-                                            >
-                                                <div
-                                                    class="flex justify-end gap-2"
-                                                >
+                                            <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+                                                <div class="flex justify-end gap-2">
                                                     <Link
-                                                        v-if="
-                                                            file.is_docx &&
-                                                            file.docx_editor_url
-                                                        "
-                                                        :href="
-                                                            file.docx_editor_url
-                                                        "
+                                                        v-if="file.is_docx && file.docx_editor_url"
+                                                        :href="file.docx_editor_url"
                                                         class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                                                        :title="
-                                                            file.can_edit_docx
-                                                                ? 'Abrir editor DOCX'
-                                                                : 'Ver documento DOCX'
-                                                        "
+                                                        :title="file.can_edit_docx ? 'Abrir editor DOCX' : 'Ver documento DOCX'"
                                                     >
-                                                        {{
-                                                            file.can_edit_docx
-                                                                ? 'Editar DOCX'
-                                                                : 'Ver DOCX'
-                                                        }}
+                                                        {{ file.can_edit_docx ? 'Editar DOCX' : 'Ver DOCX' }}
                                                     </Link>
                                                     <button
-                                                        v-else-if="
-                                                            file.can_preview
-                                                        "
+                                                        v-else-if="file.can_preview"
                                                         type="button"
                                                         class="p-1 text-slate-600 hover:text-slate-900"
                                                         title="Ver en la pagina"
-                                                        @click="
-                                                            openPreview(file)
-                                                        "
+                                                        @click="openPreview(file)"
                                                     >
                                                         <Eye class="h-4 w-4" />
                                                     </button>
                                                     <button
-                                                        type="button"
                                                         v-if="file.can_replace"
+                                                        type="button"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
                                                         title="Reemplazar"
-                                                        @click="
-                                                            triggerReplace(
-                                                                file.id,
-                                                            )
-                                                        "
+                                                        @click="triggerReplace(file.id)"
                                                     >
-                                                        <RefreshCw
-                                                            class="h-4 w-4"
-                                                        />
+                                                        <RefreshCw class="h-4 w-4" />
                                                     </button>
                                                     <a
-                                                        :href="
-                                                            file.download_url
-                                                        "
+                                                        :href="file.download_url"
                                                         class="p-1 text-blue-600 hover:text-blue-900"
                                                         title="Descargar"
                                                     >
-                                                        <Download
-                                                            class="h-4 w-4"
-                                                        />
+                                                        <Download class="h-4 w-4" />
                                                     </a>
                                                     <button
-                                                        type="button"
                                                         v-if="file.can_delete"
+                                                        type="button"
                                                         class="p-1 text-red-600 hover:text-red-900"
                                                         title="Eliminar"
-                                                        @click="
-                                                            router.delete(
-                                                                `/files/${file.id}`,
-                                                            )
-                                                        "
+                                                        @click="router.delete(`/files/${file.id}`)"
                                                     >
-                                                        <Trash2
-                                                            class="h-4 w-4"
-                                                        />
+                                                        <Trash2 class="h-4 w-4" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -836,41 +556,20 @@ const closePreview = () => {
                             </div>
                         </div>
 
-                        <div
-                            v-if="
-                                contents.folders.length === 0 &&
-                                contents.files.length === 0
-                            "
-                            class="py-12 text-center"
-                        >
-                            <p class="text-gray-500">
-                                Esta carpeta está vacía.
-                            </p>
+                        <div v-if="contents.folders.length === 0 && contents.files.length === 0" class="py-12 text-center">
+                            <p class="text-gray-500">Esta carpeta esta vacia.</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div
-            v-if="previewFile"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
-        >
-            <div
-                class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-            >
-                <div
-                    class="flex items-center justify-between border-b border-slate-200 px-5 py-4"
-                >
+        <div v-if="previewFile" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
+            <div class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div class="min-w-0">
-                        <h3
-                            class="truncate text-base font-semibold text-slate-900"
-                        >
-                            {{ previewFile.name }}
-                        </h3>
-                        <p class="text-xs text-slate-500">
-                            {{ previewFile.mime_type || 'Archivo' }}
-                        </p>
+                        <h3 class="truncate text-base font-semibold text-slate-900">{{ previewFile.name }}</h3>
+                        <p class="text-xs text-slate-500">{{ previewFile.mime_type || 'Archivo' }}</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <a
@@ -906,10 +605,7 @@ const closePreview = () => {
                         class="h-full w-full border-0"
                         title="Vista previa del archivo"
                     />
-                    <div
-                        v-else
-                        class="flex h-full items-center justify-center bg-white p-6"
-                    >
+                    <div v-else class="flex h-full items-center justify-center bg-white p-6">
                         <img
                             v-if="previewFile.mime_type?.startsWith('image/')"
                             :src="previewFile.preview_url"

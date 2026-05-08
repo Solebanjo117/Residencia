@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Semester;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
@@ -39,16 +40,16 @@ class StorageService
 
         // Check root path
         $root = $folderNode->root;
-        if (! $root || ! $root->is_active) {
-            throw new \Exception('Storage root not active or defined.');
+        if (!$root || !$root->is_active) {
+            throw new \Exception("Storage root not active or defined.");
         }
 
         $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
-        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
+        $storedName = (string) Str::uuid() . '.' . $validatedUpload['extension'];
 
         // Store file physically using a normalized folder path to prevent traversal vectors.
         $path = $file->storeAs($normalizedFolderPath, $storedName, 'local');
-        if (! $path) {
+        if (!$path) {
             throw new \RuntimeException('No se pudo guardar el archivo en disco.');
         }
 
@@ -97,16 +98,16 @@ class StorageService
         $validatedUpload = $this->validateGeneratedUpload($fileName, $mimeType, $binaryContents);
 
         $root = $folderNode->root;
-        if (! $root || ! $root->is_active) {
+        if (!$root || !$root->is_active) {
             throw new \RuntimeException('Storage root not active or defined.');
         }
 
         $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
-        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
-        $relativePath = $normalizedFolderPath.'/'.$storedName;
+        $storedName = (string) Str::uuid() . '.' . $validatedUpload['extension'];
+        $relativePath = $normalizedFolderPath . '/' . $storedName;
         $normalizedStoredPath = $this->normalizeRelativePath($relativePath);
 
-        if (! Storage::disk('local')->put($normalizedStoredPath, $binaryContents)) {
+        if (!Storage::disk('local')->put($normalizedStoredPath, $binaryContents)) {
             throw new \RuntimeException('No se pudo guardar la nueva version del documento.');
         }
 
@@ -191,7 +192,7 @@ class StorageService
     public function assertEvidenceFilePath(EvidenceFile $file): void
     {
         $folderNode = $file->folderNode;
-        if (! $folderNode) {
+        if (!$folderNode) {
             throw new AuthorizationException('El archivo no tiene carpeta asociada.');
         }
 
@@ -201,15 +202,12 @@ class StorageService
     public function getAccessibleRoots(User $user)
     {
         if ($user->isJefeOficina() || $user->isJefeDepto()) {
-            return $this->buildTree(FolderNode::with('semester')->get());
+            return $this->groupRootsBySemesterStatus($this->buildTree(FolderNode::with('semester')->get()));
         }
 
         if ($user->isDocente()) {
-            $nodes = FolderNode::with('semester')
-                ->where('owner_user_id', $user->id)
-                ->get();
-
-            return $this->buildTree($nodes);
+            $nodes = FolderNode::with('semester')->where('owner_user_id', $user->id)->get();
+            return $this->groupRootsBySemesterStatus($this->buildTree($nodes));
         }
 
         return [];
@@ -218,11 +216,11 @@ class StorageService
     private function buildTree($nodes)
     {
         $grouped = $nodes->groupBy('parent_id');
-
+        
         // Find roots within the collection (nodes whose parent is not in the collection)
         $ids = $nodes->pluck('id');
         $roots = $nodes->filter(function ($node) use ($ids) {
-            return is_null($node->parent_id) || ! $ids->contains($node->parent_id);
+            return is_null($node->parent_id) || !$ids->contains($node->parent_id);
         });
 
         foreach ($nodes as $node) {
@@ -233,6 +231,40 @@ class StorageService
         return $roots->values();
     }
 
+    private function groupRootsBySemesterStatus($roots): array
+    {
+        $activeSemesterId = Semester::active()?->id;
+
+        $activeRoots = [];
+        $inactiveRoots = [];
+
+        foreach ($roots as $root) {
+            $target = $root->semester_id && $root->semester_id === $activeSemesterId
+                ? 'active'
+                : 'inactive';
+
+            if ($target === 'active') {
+                $activeRoots[] = $root;
+            } else {
+                $inactiveRoots[] = $root;
+            }
+        }
+
+        return [
+            $this->virtualGroupNode('active-semesters', 'Semestres activos', $activeRoots),
+            $this->virtualGroupNode('inactive-semesters', 'Semestres no activos', $inactiveRoots),
+        ];
+    }
+
+    private function virtualGroupNode(string $id, string $name, array $children): array
+    {
+        return [
+            'id' => $id,
+            'name' => $name,
+            'is_virtual' => true,
+            'children' => array_values($children),
+        ];
+    }
     private function validateUpload(UploadedFile $file): array
     {
         $originalName = (string) $file->getClientOriginalName();
@@ -254,8 +286,8 @@ class StorageService
         }
 
         $allowedExtensions = $this->allowedExtensions();
-        if (! in_array($extension, $allowedExtensions, true)) {
-            throw new \InvalidArgumentException('Formato no permitido. Formatos válidos: '.implode(', ', $allowedExtensions));
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new \InvalidArgumentException('Formato no permitido. Formatos válidos: ' . implode(', ', $allowedExtensions));
         }
 
         $sizeBytes = (int) ($file->getSize() ?? 0);
@@ -265,14 +297,14 @@ class StorageService
 
         $maxBytes = $this->maxUploadKb() * 1024;
         if ($sizeBytes > $maxBytes) {
-            throw new \InvalidArgumentException('El archivo excede el tamaño máximo permitido de '.$this->maxUploadKb().' KB.');
+            throw new \InvalidArgumentException('El archivo excede el tamaño máximo permitido de ' . $this->maxUploadKb() . ' KB.');
         }
 
         $mimeType = strtolower((string) ($file->getMimeType() ?: $file->getClientMimeType()));
         $allowedMimeTypes = $this->allowedMimeTypes();
         $expectedMimeTypes = array_map('strtolower', $allowedMimeTypes[$extension] ?? []);
 
-        if (! empty($expectedMimeTypes) && ! in_array($mimeType, $expectedMimeTypes, true)) {
+        if (!empty($expectedMimeTypes) && !in_array($mimeType, $expectedMimeTypes, true)) {
             throw new \InvalidArgumentException('El MIME detectado no corresponde con la extensión del archivo.');
         }
 
@@ -289,7 +321,7 @@ class StorageService
 
         return [
             'original_name' => $originalName,
-            'safe_file_name' => $safeBaseName.'.'.$extension,
+            'safe_file_name' => $safeBaseName . '.' . $extension,
             'extension' => $extension,
             'mime_type' => $mimeType,
             'size_bytes' => $sizeBytes,
@@ -313,8 +345,8 @@ class StorageService
         }
 
         $allowedExtensions = $this->allowedExtensions();
-        if (! in_array($extension, $allowedExtensions, true)) {
-            throw new \InvalidArgumentException('Formato no permitido. Formatos validos: '.implode(', ', $allowedExtensions));
+        if (!in_array($extension, $allowedExtensions, true)) {
+            throw new \InvalidArgumentException('Formato no permitido. Formatos validos: ' . implode(', ', $allowedExtensions));
         }
 
         $sizeBytes = strlen($binaryContents);
@@ -324,14 +356,14 @@ class StorageService
 
         $maxBytes = $this->maxUploadKb() * 1024;
         if ($sizeBytes > $maxBytes) {
-            throw new \InvalidArgumentException('El documento generado excede el tamano maximo permitido de '.$this->maxUploadKb().' KB.');
+            throw new \InvalidArgumentException('El documento generado excede el tamano maximo permitido de ' . $this->maxUploadKb() . ' KB.');
         }
 
         $allowedMimeTypes = $this->allowedMimeTypes();
         $expectedMimeTypes = array_map('strtolower', $allowedMimeTypes[$extension] ?? []);
         $normalizedMimeType = strtolower(trim($mimeType));
 
-        if (! empty($expectedMimeTypes) && ! in_array($normalizedMimeType, $expectedMimeTypes, true)) {
+        if (!empty($expectedMimeTypes) && !in_array($normalizedMimeType, $expectedMimeTypes, true)) {
             throw new \InvalidArgumentException('El MIME del documento generado no corresponde con la extension del archivo.');
         }
 
@@ -348,7 +380,7 @@ class StorageService
 
         return [
             'original_name' => $originalName,
-            'safe_file_name' => $safeBaseName.'.'.$extension,
+            'safe_file_name' => $safeBaseName . '.' . $extension,
             'extension' => $extension,
             'mime_type' => $normalizedMimeType,
             'size_bytes' => $sizeBytes,
@@ -360,7 +392,7 @@ class StorageService
         $folderPath = $this->normalizeRelativePath($folderNode->relative_path);
         $filePath = $this->normalizeRelativePath($storedRelativePath);
 
-        if (! str_starts_with($filePath, $folderPath.'/')) {
+        if (!str_starts_with($filePath, $folderPath . '/')) {
             throw new AuthorizationException('Ruta de archivo fuera del alcance de su carpeta.');
         }
     }

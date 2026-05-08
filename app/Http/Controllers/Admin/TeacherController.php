@@ -3,26 +3,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
-use App\Models\Role;
 use App\Models\Department;
+use App\Models\Role;
 use App\Models\Semester;
+use App\Models\User;
 use App\Services\FolderStructureService;
 use App\Services\TeacherService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class TeacherController extends Controller
 {
-    protected TeacherService $teacherService;
-    protected FolderStructureService $folderStructureService;
-
-    public function __construct(TeacherService $teacherService, FolderStructureService $folderStructureService)
-    {
-        $this->teacherService = $teacherService;
-        $this->folderStructureService = $folderStructureService;
-    }
+    public function __construct(
+        private TeacherService $teacherService,
+        private FolderStructureService $folderStructureService
+    ) {}
 
     public function index(Request $request)
     {
@@ -100,29 +96,30 @@ class TeacherController extends Controller
 
     public function destroy(User $teacher)
     {
-        // Typically, we don't hard delete users. For now, soft delete or disable them.
-        // Assuming we rely on is_active instead of hard delete to keep audit history intact.
         $teacher->update(['is_active' => false]);
 
         return redirect()->route('admin.teachers.index')->with('success', 'Teacher disabled successfully.');
     }
 
-    public function generateFolders(Request $request, User $teacher, FolderStructureService $folderStructureService)
+    public function generateFolders(Request $request, User $teacher)
     {
         $validated = $request->validate([
             'force' => 'nullable|boolean',
         ]);
 
         $force = (bool) ($validated['force'] ?? false);
-        $forcedPermissionKeys = $force ? $folderStructureService->allFolderPermissionKeys() : null;
+        $forcedPermissionKeys = $force ? $this->folderStructureService->allFolderPermissionKeys() : null;
 
         foreach (Semester::all() as $semester) {
-            $folderStructureService->regenerateTeacherStructure($semester, $teacher, $forcedPermissionKeys);
+            $this->folderStructureService->regenerateTeacherStructure($semester, $teacher, $forcedPermissionKeys);
         }
 
         return redirect()->route('admin.teachers.index')
-            ->with('success', $force
-                ? "Estructura completa forzada y reconstruida para {$teacher->name} en todos los semestres."
-                : "Estructura reconstruida para {$teacher->name} segun permisos configurados.");
+            ->with(
+                'success',
+                $force
+                    ? "Estructura completa forzada y reconstruida para {$teacher->name} en todos los semestres."
+                    : "Estructura reconstruida para {$teacher->name} segun permisos configurados."
+            );
     }
 }

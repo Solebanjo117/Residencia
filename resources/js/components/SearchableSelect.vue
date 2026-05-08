@@ -176,23 +176,19 @@ onBeforeUnmount(() => {
             type="button"
             :disabled="disabled"
             :aria-expanded="isOpen"
-            :aria-haspopup="'listbox'"
+            aria-haspopup="listbox"
             :class="
                 cn(
                     'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm transition-colors',
-                    'focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none',
-                    'disabled:cursor-not-allowed disabled:opacity-60',
-                    'hover:border-gray-400',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200',
+                    'hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-60',
                     triggerClass,
                 )
             "
             @click="toggleDropdown"
             @keydown="onTriggerKeydown"
         >
-            <span
-                class="truncate"
-                :class="selectedOption ? 'text-gray-900' : 'text-gray-400'"
-            >
+            <span class="truncate" :class="selectedOption ? 'text-gray-900' : 'text-gray-400'">
                 {{ selectedOption ? selectedOption.label : placeholder }}
             </span>
 
@@ -201,12 +197,7 @@ onBeforeUnmount(() => {
 
         <div
             v-if="isOpen"
-            :class="
-                cn(
-                    'absolute z-50 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg',
-                    dropdownClass,
-                )
-            "
+            :class="cn('absolute z-50 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg', dropdownClass)"
         >
             <div class="border-b border-gray-100 p-2">
                 <div class="relative">
@@ -222,21 +213,12 @@ onBeforeUnmount(() => {
                 </div>
             </div>
 
-            <ul
-                role="listbox"
-                class="max-h-64 overflow-y-auto py-1"
-            >
-                <li
-                    v-if="filteredOptions.length === 0"
-                    class="px-3 py-2 text-sm text-gray-500"
-                >
+            <ul role="listbox" class="max-h-64 overflow-y-auto py-1">
+                <li v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
                     {{ emptyText }}
                 </li>
 
-                <li
-                    v-for="option in filteredOptions"
-                    :key="String(option.value)"
-                >
+                <li v-for="option in filteredOptions" :key="String(option.value)">
                     <button
                         type="button"
                         role="option"
@@ -249,10 +231,7 @@ onBeforeUnmount(() => {
                         ]"
                         @click="selectOption(option)"
                     >
-                        <Check
-                            class="h-4 w-4 shrink-0"
-                            :class="isSelected(option) ? 'opacity-100' : 'opacity-0'"
-                        />
+                        <Check class="h-4 w-4 shrink-0" :class="isSelected(option) ? 'opacity-100' : 'opacity-0'" />
                         <span class="truncate">{{ option.label }}</span>
                     </button>
                 </li>

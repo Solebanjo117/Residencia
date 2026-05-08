@@ -21,8 +21,10 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'email_verified_at',
         'password',
         'role_id',
+        'linked_teacher_user_id',
         'is_active',
         'folder_permission_keys',
     ];
@@ -92,5 +94,20 @@ class User extends Authenticatable
     public function teachingLoads()
     {
         return $this->hasMany(TeachingLoad::class, 'teacher_user_id');
+    }
+
+    public function socialAccounts()
+    {
+        return $this->hasMany(SocialAccount::class);
+    }
+
+    public function linkedTeacher()
+    {
+        return $this->belongsTo(User::class, 'linked_teacher_user_id');
+    }
+
+    public function linkedAccounts()
+    {
+        return $this->hasMany(User::class, 'linked_teacher_user_id');
     }
 }

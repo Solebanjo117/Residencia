@@ -244,14 +244,21 @@ function printSchedule() {
 <html lang="es"><head><meta charset="utf-8"/><title>Horario de Asesorias</title>
 <style>
 @page{size:A4 landscape;margin:12mm}html,body{font-family:Arial,sans-serif;color:#111}
-h1{font-size:18px;margin:0 0 4px;text-align:center}p{font-size:12px;margin:0 0 12px;color:#444;text-align:center}
+body{padding-bottom:42mm}h1{font-size:18px;margin:0 0 4px;text-align:center}p{font-size:12px;margin:0 0 12px;color:#444;text-align:center}
 table{width:100%;border-collapse:collapse;margin-top:8px}th,td{border:1px solid #d1d5db;padding:6px 10px;font-size:11px;vertical-align:middle}
 th{background:#f3f4f6;text-transform:uppercase;letter-spacing:.03em;font-weight:700;text-align:center}
 td{text-align:left}.day-cell{text-align:center}tr:nth-child(even){background:#f9fafb}
+.signature-footer{position:fixed;left:12mm;right:12mm;bottom:12mm;display:flex;justify-content:space-between;gap:24px}
+.signature-block{width:32%;text-align:center}.signature-line{border-top:1px solid #111;padding-top:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 </style></head><body>
 <h1>Horario de Asesorias Docentes</h1>
 <p>Semestre: ${semester.value}</p>
-${clone.outerHTML}</body></html>`);
+${clone.outerHTML}
+<div class="signature-footer">
+<div class="signature-block"><div class="signature-line">Firma de Academia</div></div>
+<div class="signature-block"><div class="signature-line">Firma de Jefe de Departamento</div></div>
+</div>
+</body></html>`);
     printWindow.document.close();
     printWindow.onload = () => {
         printWindow.focus();

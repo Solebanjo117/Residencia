@@ -12,9 +12,11 @@ import {
     Settings,
     Building2,
     Clock,
+    PlusCircle,
+    ClipboardList,
 } from 'lucide-vue-next';
-import type { NavItem } from '@/types';
 import { RoleName } from '@/types/enums';
+import type { NavItem } from '@/types';
 
 export const getNavItemsByRole = (roleName?: string): NavItem[] => {
     const common: NavItem[] = [
@@ -34,7 +36,7 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             icon: MessageCircle,
         },
         {
-            title: 'Asesorias - Horarios',
+            title: 'Asesorías - Horarios',
             href: '/asesorias-horarios',
             icon: Clock,
         },
@@ -52,7 +54,7 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: BookOpen,
                 },
                 {
-                    title: 'Mis Asesorias',
+                    title: 'Mis Asesorías',
                     href: '/docente/asesorias',
                     icon: Users,
                 },
@@ -64,11 +66,10 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             ];
 
         case RoleName.JEFE_OFICINA:
-        case RoleName.JEFE_DEPTO:
             return [
                 ...common,
                 {
-                    title: 'Pendientes Revision',
+                    title: 'Pendientes Revisión',
                     href: '/oficina/revisiones',
                     icon: FileCheck,
                 },
@@ -78,12 +79,56 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: FileText,
                 },
                 {
+                    title: 'Usuarios',
+                    href: '/admin/users',
+                    icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Docentes',
+                    href: '/admin/teachers',
+                    icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Materias',
+                    href: '/admin/subjects',
+                    icon: PlusCircle,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Departamentos',
+                    href: '/admin/departments',
+                    icon: Building2,
+                },
+                {
+                    title: 'Cargas Académicas',
+                    href: '/admin/teaching-loads',
+                    icon: Briefcase,
+                },
+                {
+                    title: 'Auditoría',
+                    href: '/admin/audits',
+                    icon: FileText,
+                },
+            ];
+
+        case RoleName.JEFE_DEPTO:
+            return [
+                ...common,
+                {
                     title: 'Ventanas de Entrega',
                     href: '/admin/windows',
                     icon: CalendarClock,
                 },
                 {
-                    title: 'Configuracion Semestre',
+                    title: 'Configuración Semestre',
                     href: '/admin/semesters',
                     icon: BookOpen,
                 },
@@ -93,9 +138,28 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: Settings,
                 },
                 {
-                    title: 'Directorio Docentes',
+                    title: 'Usuarios',
+                    href: '/admin/users',
+                    icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Docentes',
                     href: '/admin/teachers',
                     icon: Users,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Materias',
+                    href: '/admin/subjects',
+                    icon: PlusCircle,
+                    section: 'Agregar',
+                },
+                {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Agregar',
                 },
                 {
                     title: 'Departamentos',
@@ -103,14 +167,9 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: Building2,
                 },
                 {
-                    title: 'Cargas Academicas',
+                    title: 'Cargas Académicas',
                     href: '/admin/teaching-loads',
                     icon: Briefcase,
-                },
-                {
-                    title: 'Auditoria',
-                    href: '/admin/audits',
-                    icon: FileText,
                 },
             ];
 

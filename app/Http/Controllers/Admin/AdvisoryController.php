@@ -11,6 +11,7 @@ use App\Models\EvidenceSubmission;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
+use App\Models\TeachingLoadReview;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use Illuminate\Http\Request;
@@ -30,9 +31,9 @@ class AdvisoryController extends Controller
 
         $semester = $semesterQuery
             ? Semester::where('name', $semesterQuery)->first()
-            : (Semester::where('status', 'OPEN')->first() ?? Semester::orderBy('start_date', 'desc')->first());
+            : Semester::activeOrLatest();
 
-        if (! $semester || (! $user->isAdministrativeAuthority() && ! $department)) {
+        if (! $semester || ! $department) {
             return Inertia::render('SeguimientoDocente', [
                 'rows' => [],
                 'semesters' => Semester::pluck('name')->toArray(),
@@ -42,17 +43,7 @@ class AdvisoryController extends Controller
             ]);
         }
 
-        $requirements = $user->isAdministrativeAuthority()
-            ? EvidenceRequirement::with('evidenceItem')
-                ->where('semester_id', $semester->id)
-                ->get()
-                ->sortBy([
-                    fn (EvidenceRequirement $requirement) => $flowService->stageOrder($requirement->evidenceItem?->name),
-                    fn (EvidenceRequirement $requirement) => $requirement->evidenceItem?->name ?? '',
-                ])
-                ->unique('evidence_item_id')
-                ->values()
-            : $flowService->requirementsForDepartment($semester->id, $department->id);
+        $requirements = $flowService->requirementsForDepartment($semester->id, $department->id);
         $evidenceItems = $requirements->map(fn (EvidenceRequirement $requirement) => $requirement->evidenceItem);
 
         $loadsQuery = TeachingLoad::with(['teacher.departments', 'subject'])
@@ -60,6 +51,10 @@ class AdvisoryController extends Controller
 
         if ($user->isDocente()) {
             $loadsQuery->where('teacher_user_id', $user->id);
+        } elseif ($user->isJefeDepto()) {
+            $teacherIds = $department->teachers()->pluck('users.id');
+
+            $loadsQuery->whereIn('teacher_user_id', $teacherIds);
         }
 
         $teachingLoads = $loadsQuery->get();
@@ -80,12 +75,20 @@ class AdvisoryController extends Controller
             ->where('semester_id', $semester->id)
             ->where('status', 'ACTIVE')
             ->get()
-            ->keyBy('evidence_item_id');
+            ->groupBy('evidence_item_id');
+        $departmentReviews = TeachingLoadReview::with('reviewer')
+            ->whereIn('teaching_load_id', $teachingLoads->pluck('id'))
+            ->orderByDesc('reviewed_at')
+            ->get()
+            ->groupBy('teaching_load_id');
+        $isHistoricalSemester = $semester->status !== \App\Enums\SemesterStatus::OPEN;
 
         $rows = [];
 
         foreach ($teachingLoads as $load) {
             $loadSubmissions = ($submissions->get($load->id) ?? collect())->keyBy('evidence_item_id');
+            $loadReviewTrail = $departmentReviews->get($load->id) ?? collect();
+            $latestLoadReview = $loadReviewTrail->first();
 
             $rowData = [
                 'id' => $load->id,
@@ -93,19 +96,38 @@ class AdvisoryController extends Controller
                 'materia' => $load->subject->name,
                 'carrera' => $load->group_name,
                 'clave_tecnm' => $load->subject->code,
+                'modality' => $load->modality,
+                'modality_label' => $load->modality === TeachingLoad::MODALITY_EN_LINEA ? 'Materia en linea' : 'Presencial',
                 'semestre' => $semester->name,
                 'cells' => [],
+                'department_review' => [
+                    'status' => $latestLoadReview?->decision ?? 'PENDING',
+                    'comments' => $latestLoadReview?->comments,
+                    'reviewed_at' => $latestLoadReview?->reviewed_at?->toDateTimeString(),
+                    'reviewer_name' => $latestLoadReview?->reviewer?->name,
+                    'can_review' => $user->isJefeDepto()
+                        && $semester->status === \App\Enums\SemesterStatus::OPEN
+                        && $this->canManageLoad($user, $load),
+                    'trail' => $loadReviewTrail->map(fn (TeachingLoadReview $review) => [
+                        'decision' => $review->decision,
+                        'comments' => $review->comments,
+                        'reviewed_at' => $review->reviewed_at?->toDateTimeString(),
+                        'reviewer_name' => $review->reviewer?->name,
+                    ])->values()->toArray(),
+                ],
             ];
 
             foreach ($requirements as $requirement) {
                 $item = $requirement->evidenceItem;
                 $submission = $loadSubmissions->get($item->id);
                 $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
+                $window = $this->resolveWindowForLoad($windows->get($item->id) ?? collect(), $load);
                 $availability = $flowService->resolveAvailability(
-                    $windows->get($item->id),
+                    $window,
                     $stageUnlocked,
                     $submission?->activeResubmissionUnlock !== null,
-                    $submission
+                    $submission,
+                    $isHistoricalSemester
                 );
 
                 $uiStatus = $flowService->uiStatus($submission, $availability);
@@ -147,14 +169,14 @@ class AdvisoryController extends Controller
                             'reviewer_name' => $review->reviewer?->name,
                         ])->values()->toArray()
                         : [],
-                    'can_office_review' => $user->isAdministrativeAuthority()
+                    'can_office_review' => $user->isJefeOficina()
                         && $submission?->status === SubmissionStatus::SUBMITTED,
-                    'can_final_approve' => $user->isAdministrativeAuthority()
+                    'can_final_approve' => $user->isJefeDepto()
                         && $submission?->isOfficeApproved()
                         && ! $submission?->isFinalApproved(),
-                    'can_mark_na' => $user->isAdministrativeAuthority()
+                    'can_mark_na' => ($user->isJefeOficina() || $user->isJefeDepto())
                         && ! $submission?->isFinalApproved(),
-                    'can_reactivate' => $user->isAdministrativeAuthority()
+                    'can_reactivate' => ($user->isJefeOficina() || $user->isJefeDepto())
                         && $submission?->status === SubmissionStatus::NA,
                 ];
             }
@@ -197,7 +219,7 @@ class AdvisoryController extends Controller
         );
 
         return back()->with('success', $decision === ReviewDecision::APPROVE
-            ? 'Evidencia aprobada correctamente.'
+            ? 'Evidencia aprobada por oficina.'
             : 'Evidencia rechazada y devuelta al docente.'
         );
     }
@@ -262,9 +284,56 @@ class AdvisoryController extends Controller
         );
     }
 
+    public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad)
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        abort_unless($user->isJefeDepto(), 403);
+
+        $teachingLoad->load('teacher.departments', 'semester');
+        abort_unless($this->canManageLoad($user, $teachingLoad), 403);
+        abort_unless($teachingLoad->semester?->status === \App\Enums\SemesterStatus::OPEN, 403);
+
+        $validated = $request->validate([
+            'decision' => 'required|in:APPROVE,REJECT',
+            'comments' => 'required_if:decision,REJECT|nullable|string|max:700',
+        ]);
+
+        TeachingLoadReview::create([
+            'teaching_load_id' => $teachingLoad->id,
+            'reviewed_by_user_id' => $user->id,
+            'decision' => $validated['decision'],
+            'comments' => $validated['comments'] ?? null,
+            'reviewed_at' => now(),
+        ]);
+
+        return back()->with('success', $validated['decision'] === 'APPROVE'
+            ? 'Carga aprobada por jefe de departamento.'
+            : 'Carga rechazada por jefe de departamento.'
+        );
+    }
+
     private function canManageLoad($user, TeachingLoad $load): bool
     {
-        return $user->isAdministrativeAuthority();
+        if ($user->isJefeOficina()) {
+            return true;
+        }
+
+        if (! $user->isJefeDepto()) {
+            return false;
+        }
+
+        $departmentIds = $user->departments()->pluck('departments.id');
+
+        return $load->teacher->departments()->whereIn('departments.id', $departmentIds)->exists();
+    }
+
+    private function resolveWindowForLoad(Collection $windows, TeachingLoad $load): ?SubmissionWindow
+    {
+        return $windows->firstWhere('modality', $load->modality)
+            ?? $windows->firstWhere('modality', null)
+            ?? $windows->first();
     }
 
     private function resolveRowStatus(Collection $cells): string

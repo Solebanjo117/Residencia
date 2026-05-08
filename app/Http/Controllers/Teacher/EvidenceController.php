@@ -29,8 +29,7 @@ class EvidenceController extends Controller
         $user = Auth::user();
         $department = $user->departments()->first();
 
-        $currentSemester = Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->first();
+        $currentSemester = Semester::activeOrLatest();
 
         if (!$currentSemester || !$department) {
             return Inertia::render('Teacher/Evidencias/Index', [

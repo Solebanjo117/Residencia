@@ -4,24 +4,26 @@ import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 const props = defineProps<{
-    node: any; // FolderNode type
+    node: any;
     level?: number;
     expandedState: Record<string, boolean>;
     activeFolderId?: number | null;
 }>();
 
 const emit = defineEmits<{
-    (event: 'toggle-folder', folderId: number): void;
+    (event: 'toggle-folder', folderId: string | number): void;
 }>();
 
 const page = usePage();
-
-const isOpen = computed(() => Boolean(props.expandedState[props.node.id]));
-const hasChildren = computed(
-    () => props.node.children && props.node.children.length > 0,
-);
-
+const nodeId = computed(() => String(props.node.id));
+const isVirtualNode = computed(() => Boolean(props.node.is_virtual));
+const hasChildren = computed(() => props.node.children && props.node.children.length > 0);
+const isOpen = computed(() => isVirtualNode.value || Boolean(props.expandedState[nodeId.value]));
 const isActive = computed(() => {
+    if (isVirtualNode.value) {
+        return false;
+    }
+
     if (props.activeFolderId != null) {
         return props.activeFolderId === props.node.id;
     }
@@ -30,7 +32,7 @@ const isActive = computed(() => {
 });
 
 const toggle = () => {
-    if (hasChildren.value) {
+    if (hasChildren.value && !isVirtualNode.value) {
         emit('toggle-folder', props.node.id);
     }
 };
@@ -38,13 +40,11 @@ const toggle = () => {
 
 <template>
     <div class="pl-2">
-        <div
-            class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
-        >
+        <div class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100">
             <button
                 type="button"
                 class="flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200"
-                :disabled="!hasChildren"
+                :disabled="!hasChildren || isVirtualNode"
                 @click.stop="toggle"
             >
                 <component
@@ -55,16 +55,22 @@ const toggle = () => {
             </button>
 
             <Link
+                v-if="!isVirtualNode"
                 :href="`/files/folders/${node.id}`"
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
                 :class="{ 'font-semibold': isActive }"
             >
-                <component
-                    :is="isOpen ? FolderOpen : Folder"
-                    class="h-4 w-4 text-yellow-500"
-                />
+                <component :is="isOpen ? FolderOpen : Folder" class="h-4 w-4 text-yellow-500" />
                 {{ node.name }}
             </Link>
+
+            <div
+                v-else
+                class="flex flex-1 items-center gap-2 text-sm font-semibold text-gray-700"
+            >
+                <component :is="isOpen ? FolderOpen : Folder" class="h-4 w-4 text-yellow-500" />
+                {{ node.name }}
+            </div>
         </div>
 
         <div v-if="isOpen && hasChildren" class="ml-4 border-l border-gray-200">

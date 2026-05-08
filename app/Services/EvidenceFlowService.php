@@ -118,7 +118,8 @@ class EvidenceFlowService
         ?SubmissionWindow $window,
         bool $stageUnlocked,
         bool $hasUnlock = false,
-        ?EvidenceSubmission $submission = null
+        ?EvidenceSubmission $submission = null,
+        bool $historical = false
     ): array {
         if ($submission?->status === SubmissionStatus::NA) {
             return [
@@ -128,6 +129,17 @@ class EvidenceFlowService
                 'is_late' => false,
                 'is_future' => false,
                 'tone' => 'slate',
+            ];
+        }
+
+        if ($historical) {
+            return [
+                'code' => 'HISTORICAL',
+                'label' => 'Bloqueado por semestre no activo',
+                'is_available' => false,
+                'is_late' => false,
+                'is_future' => false,
+                'tone' => 'blue',
             ];
         }
 

@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Role;
-use App\Models\Semester;
 use App\Models\AcademicPeriod;
-use App\Models\User;
+use App\Models\EvidenceRequirement;
+use App\Models\Semester;
+use App\Models\TeachingLoad;
 use App\Services\FolderStructureService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class SemesterController extends Controller
 {
@@ -21,7 +22,7 @@ class SemesterController extends Controller
         $semesters = Semester::with('academicPeriod')
             ->orderBy('start_date', 'desc')
             ->paginate(15);
-            
+
         $academicPeriods = AcademicPeriod::orderBy('start_date', 'desc')->get();
 
         return Inertia::render('Admin/Semesters/Index', [
@@ -40,18 +41,22 @@ class SemesterController extends Controller
             'academic_period_id' => 'nullable|exists:academic_periods,id',
         ]);
 
-        $semester = Semester::create($validated);
+        $semester = DB::transaction(function () use ($validated) {
+            if ($validated['status'] === 'OPEN') {
+                $this->closeOtherOpenSemesters();
+            }
 
-        // Create semester root folder
-        $this->folderStructureService->ensureSemesterFolder($semester);
+            $semester = Semester::create($validated);
+            $this->bootstrapSemesterFromLatestReference($semester);
 
-        // Generate full folder structure for every active teacher
-        $docenteRole = Role::where('name', Role::DOCENTE)->first();
-        if ($docenteRole) {
-            User::where('role_id', $docenteRole->id)
-                ->where('is_active', true)
-                ->each(fn($teacher) => $this->folderStructureService->generateFullStructure($semester, $teacher));
-        }
+            $this->folderStructureService->ensureSemesterFolder($semester);
+
+            if ($validated['status'] === 'OPEN') {
+                $this->folderStructureService->provisionForActiveTeachers($semester);
+            }
+
+            return $semester;
+        });
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester created successfully.');
     }
@@ -66,7 +71,19 @@ class SemesterController extends Controller
             'academic_period_id' => 'nullable|exists:academic_periods,id',
         ]);
 
-        $semester->update($validated);
+        DB::transaction(function () use ($semester, $validated) {
+            if ($validated['status'] === 'OPEN') {
+                $this->closeOtherOpenSemesters($semester->id);
+            }
+
+            $semester->update($validated);
+            $this->bootstrapSemesterFromLatestReference($semester);
+
+            if ($validated['status'] === 'OPEN') {
+                $this->folderStructureService->ensureSemesterFolder($semester);
+                $this->folderStructureService->provisionForActiveTeachers($semester);
+            }
+        });
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester updated successfully.');
     }
@@ -81,5 +98,65 @@ class SemesterController extends Controller
         $semester->delete();
 
         return redirect()->route('admin.semesters.index')->with('success', 'Semester deleted successfully.');
+    }
+
+    private function closeOtherOpenSemesters(?int $ignoreSemesterId = null): void
+    {
+        Semester::query()
+            ->where('status', 'OPEN')
+            ->when($ignoreSemesterId, fn ($query) => $query->where('id', '!=', $ignoreSemesterId))
+            ->update(['status' => 'CLOSED']);
+    }
+
+    private function bootstrapSemesterFromLatestReference(Semester $semester): void
+    {
+        if (! $semester->requirements()->exists()) {
+            $referenceForRequirements = Semester::query()
+                ->where('id', '!=', $semester->id)
+                ->whereHas('requirements')
+                ->orderByDesc('start_date')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($referenceForRequirements) {
+                $referenceForRequirements->requirements()
+                    ->orderBy('id')
+                    ->get()
+                    ->each(function (EvidenceRequirement $requirement) use ($semester) {
+                        EvidenceRequirement::create([
+                            'semester_id' => $semester->id,
+                            'department_id' => $requirement->department_id,
+                            'evidence_item_id' => $requirement->evidence_item_id,
+                            'is_mandatory' => $requirement->is_mandatory,
+                            'applies_condition' => $requirement->applies_condition,
+                        ]);
+                    });
+            }
+        }
+
+        if (! $semester->teachingLoads()->exists()) {
+            $referenceForLoads = Semester::query()
+                ->where('id', '!=', $semester->id)
+                ->whereHas('teachingLoads')
+                ->orderByDesc('start_date')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($referenceForLoads) {
+                $referenceForLoads->teachingLoads()
+                    ->orderBy('id')
+                    ->get()
+                    ->each(function (TeachingLoad $load) use ($semester) {
+                        TeachingLoad::create([
+                            'teacher_user_id' => $load->teacher_user_id,
+                            'semester_id' => $semester->id,
+                            'subject_id' => $load->subject_id,
+                            'group_code' => $load->group_code,
+                            'hours_per_week' => $load->hours_per_week,
+                            'modality' => $load->modality,
+                        ]);
+                    });
+            }
+        }
     }
 }

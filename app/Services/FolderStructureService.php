@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\EvidenceFile;
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
 use App\Models\TeachingLoad;
@@ -13,7 +14,7 @@ use Illuminate\Support\Str;
 
 class FolderStructureService
 {
-    private const DEFAULT_SUBFOLDER_STRUCTURE = [
+    private const BASE_EVIDENCE_STRUCTURE = [
         '0.HORARIO OFICIAL' => [],
         '1.INSTRUMENTACIONES' => [],
         '2.EVALUACION DIAGNOSTICA' => [],
@@ -25,9 +26,6 @@ class FolderStructureService
         ],
     ];
 
-    /**
-     * Ensures that the base folder for a Semester exists.
-     */
     public function ensureSemesterFolder(Semester $semester): FolderNode
     {
         $storageRoot = StorageRoot::where('is_active', true)->first();
@@ -39,7 +37,7 @@ class FolderStructureService
             ]);
         }
 
-        $folder = FolderNode::firstOrCreate(
+        return FolderNode::firstOrCreate(
             [
                 'semester_id' => $semester->id,
                 'parent_id' => null,
@@ -50,13 +48,8 @@ class FolderStructureService
                 'relative_path' => Str::slug($semester->name),
             ]
         );
-
-        return $folder;
     }
 
-    /**
-     * Ensures that the Docente folder exists inside the given Semester folder.
-     */
     public function ensureTeacherFolder(Semester $semester, User $teacher): FolderNode
     {
         $semesterFolder = $this->ensureSemesterFolder($semester);
@@ -75,38 +68,35 @@ class FolderStructureService
         );
     }
 
-    /**
-     * Generates the full folder structure for a teacher within a semester.
-     *
-     * Hierarchy: SEMESTRE → DOCENTE → MATERIA → evidence subfolders
-     *
-     * Each subject (materia) the teacher is assigned gets its own folder
-     * with evidence category subfolders inside.
-     */
+    public function provisionForActiveTeachers(Semester $semester): void
+    {
+        $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+
+        if (!$docenteRoleId) {
+            return;
+        }
+
+        User::query()
+            ->where('role_id', $docenteRoleId)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->chunkById(100, function ($teachers) use ($semester) {
+                foreach ($teachers as $teacher) {
+                    $this->generateFullStructure($semester, $teacher);
+                }
+            });
+    }
+
     public function generateFullStructure(Semester $semester, User $teacher, ?array $allowedPermissionKeys = null): FolderNode
     {
-        $semesterFolder = $this->ensureSemesterFolder($semester);
-        $root = StorageRoot::find($semesterFolder->storage_root_id);
+        $teacherFolder = $this->ensureTeacherFolder($semester, $teacher);
+        $root = StorageRoot::findOrFail($teacherFolder->storage_root_id);
+        $structure = $this->filteredStructureForTeacher($teacher, $allowedPermissionKeys);
 
-        $effectivePermissionKeys = $allowedPermissionKeys ?? $this->resolveTeacherFolderPermissionKeys($teacher);
-        $normalizedPermissionKeys = $this->normalizeFolderPermissionKeys($effectivePermissionKeys);
-        $allowedSet = array_fill_keys($normalizedPermissionKeys, true);
-        $subfolderStructure = $this->filterStructureByPermissionKeys(self::DEFAULT_SUBFOLDER_STRUCTURE, $allowedSet);
+        if (!empty($structure)) {
+            $this->createRecursiveFolders($structure, $teacherFolder, $root, $teacher, $semester);
+        }
 
-        $teacherFolder = FolderNode::firstOrCreate(
-            [
-                'parent_id' => $semesterFolder->id,
-                'owner_user_id' => $teacher->id,
-                'semester_id' => $semester->id,
-            ],
-            [
-                'storage_root_id' => $root->id,
-                'name' => $teacher->name,
-                'relative_path' => $semesterFolder->relative_path . '/' . Str::slug($teacher->name),
-            ]
-        );
-
-        // Get all subjects assigned to this teacher in this semester
         $loads = TeachingLoad::with('subject')
             ->where('teacher_user_id', $teacher->id)
             ->where('semester_id', $semester->id)
@@ -115,29 +105,27 @@ class FolderStructureService
         foreach ($loads as $load) {
             $subjectName = $load->subject->name;
 
-            // Create MATERIA folder under teacher
-            $materiaFolder = FolderNode::firstOrCreate([
-                'storage_root_id' => $root->id,
-                'parent_id' => $teacherFolder->id,
-                'name' => $subjectName,
-            ], [
-                'relative_path' => $teacherFolder->relative_path . '/' . Str::slug($subjectName),
-                'owner_user_id' => $teacher->id,
-                'semester_id' => $semester->id,
-            ]);
+            $subjectFolder = FolderNode::firstOrCreate(
+                [
+                    'storage_root_id' => $root->id,
+                    'parent_id' => $teacherFolder->id,
+                    'name' => $subjectName,
+                ],
+                [
+                    'relative_path' => $teacherFolder->relative_path . '/' . Str::slug($subjectName),
+                    'owner_user_id' => $teacher->id,
+                    'semester_id' => $semester->id,
+                ]
+            );
 
-            if (!empty($subfolderStructure)) {
-                $this->createRecursiveFolders($subfolderStructure, $materiaFolder, $root, $teacher, $semester);
+            if (!empty($structure)) {
+                $this->createRecursiveFolders($structure, $subjectFolder, $root, $teacher, $semester);
             }
         }
 
         return $teacherFolder;
     }
 
-    /**
-     * Rebuilds a teacher structure in a semester like the seeder strategy:
-     * delete teacher-owned nodes + attached files, then recreate.
-     */
     public function regenerateTeacherStructure(Semester $semester, User $teacher, ?array $allowedPermissionKeys = null): FolderNode
     {
         return DB::transaction(function () use ($semester, $teacher, $allowedPermissionKeys) {
@@ -162,14 +150,10 @@ class FolderStructureService
         });
     }
 
-    /**
-     * Returns a flat catalog used by admin checkboxes.
-     * Each key is a stable path-like identifier inside MATERIA.
-     */
     public function folderPermissionCatalog(): array
     {
         $catalog = [];
-        $this->flattenPermissionCatalog(self::DEFAULT_SUBFOLDER_STRUCTURE, '', 0, null, $catalog);
+        $this->flattenPermissionCatalog(self::BASE_EVIDENCE_STRUCTURE, '', 0, null, $catalog);
 
         return $catalog;
     }
@@ -182,9 +166,6 @@ class FolderStructureService
         ));
     }
 
-    /**
-     * Returns effective keys for a teacher. Null means "all enabled" for backward compatibility.
-     */
     public function resolveTeacherFolderPermissionKeys(User $teacher): array
     {
         $allKeys = $this->allFolderPermissionKeys();
@@ -197,15 +178,15 @@ class FolderStructureService
         return $this->normalizeFolderPermissionKeys($configured);
     }
 
-    /**
-     * Ensures keys are valid, unique and include required ancestors.
-     */
     public function normalizeFolderPermissionKeys(array $requestedKeys): array
     {
         $allKeys = $this->allFolderPermissionKeys();
         $allowedSet = array_fill_keys($allKeys, true);
 
-        $selected = array_values(array_unique(array_filter($requestedKeys, fn ($value) => is_string($value) && isset($allowedSet[$value]))));
+        $selected = array_values(array_unique(array_filter(
+            $requestedKeys,
+            fn ($value) => is_string($value) && isset($allowedSet[$value])
+        )));
 
         if (empty($selected)) {
             return [];
@@ -236,28 +217,33 @@ class FolderStructureService
         return $ordered;
     }
 
-    // ---------------------------------------------------------------
-    //  Private helpers
-    // ---------------------------------------------------------------
+    private function filteredStructureForTeacher(User $teacher, ?array $allowedPermissionKeys = null): array
+    {
+        $effectivePermissionKeys = $allowedPermissionKeys ?? $this->resolveTeacherFolderPermissionKeys($teacher);
+        $normalizedPermissionKeys = $this->normalizeFolderPermissionKeys($effectivePermissionKeys);
+        $allowedSet = array_fill_keys($normalizedPermissionKeys, true);
 
-    /**
-     * Recursively creates folder nodes from a nested associative array.
-     */
+        return $this->filterStructureByPermissionKeys(self::BASE_EVIDENCE_STRUCTURE, $allowedSet);
+    }
+
     private function createRecursiveFolders(array $structure, FolderNode $parent, StorageRoot $root, User $owner, Semester $semester): void
     {
         foreach ($structure as $key => $value) {
             $folderName = is_numeric($key) ? $value : $key;
             $children = is_array($value) ? $value : [];
 
-            $node = FolderNode::firstOrCreate([
-                'storage_root_id' => $root->id,
-                'name' => $folderName,
-                'parent_id' => $parent->id,
-            ], [
-                'relative_path' => $parent->relative_path . '/' . $folderName,
-                'owner_user_id' => $owner->id,
-                'semester_id' => $semester->id,
-            ]);
+            $node = FolderNode::firstOrCreate(
+                [
+                    'storage_root_id' => $root->id,
+                    'name' => $folderName,
+                    'parent_id' => $parent->id,
+                ],
+                [
+                    'relative_path' => $parent->relative_path . '/' . $folderName,
+                    'owner_user_id' => $owner->id,
+                    'semester_id' => $semester->id,
+                ]
+            );
 
             if (!empty($children)) {
                 $this->createRecursiveFolders($children, $node, $root, $owner, $semester);

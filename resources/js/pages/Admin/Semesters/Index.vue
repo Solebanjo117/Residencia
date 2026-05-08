@@ -398,6 +398,10 @@ const formatDate = (dateString: string) => {
                                         >
                                             {{ form.errors.status }}
                                         </div>
+                                        <p class="mt-2 text-xs text-slate-500">
+                                            Solo puede haber un semestre activo a la vez. Si marcas este semestre como abierto,
+                                            el sistema cerrara automaticamente cualquier otro semestre activo.
+                                        </p>
                                     </div>
                                 </div>
                             </div>

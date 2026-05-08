@@ -8,27 +8,29 @@ use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Support\Str;
 
-function createAdminForTeacherFolders(): User
+function createOfficeAdminForTeacherFolders(): User
 {
-    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $officeRole = Role::firstOrCreate(['name' => Role::JEFE_OFICINA]);
 
     return User::factory()->create([
-        'role_id' => $officeRoleId,
+        'role_id' => $officeRole->id,
+        'email_verified_at' => now(),
     ]);
 }
 
 function createTeacherWithFolderKeys(array $keys): User
 {
-    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $teacherRole = Role::firstOrCreate(['name' => Role::DOCENTE]);
 
     return User::factory()->create([
-        'role_id' => $teacherRoleId,
+        'role_id' => $teacherRole->id,
+        'email_verified_at' => now(),
         'folder_permission_keys' => $keys,
     ]);
 }
 
 it('stores normalized folder permission keys when creating a teacher', function () {
-    $admin = createAdminForTeacherFolders();
+    $admin = createOfficeAdminForTeacherFolders();
 
     $this
         ->actingAs($admin)
@@ -50,7 +52,7 @@ it('stores normalized folder permission keys when creating a teacher', function 
 });
 
 it('keeps existing folder permission keys when updating teacher without folder payload', function () {
-    $admin = createAdminForTeacherFolders();
+    $admin = createOfficeAdminForTeacherFolders();
     $teacher = createTeacherWithFolderKeys([
         '0.HORARIO OFICIAL',
         '4.PROYECTOS INDIVIDUALES',
@@ -78,7 +80,7 @@ it('keeps existing folder permission keys when updating teacher without folder p
 });
 
 it('applies folder permissions when creating a teaching load and can force full regeneration', function () {
-    $admin = createAdminForTeacherFolders();
+    $admin = createOfficeAdminForTeacherFolders();
     $teacher = createTeacherWithFolderKeys(['0.HORARIO OFICIAL']);
 
     $semester = Semester::create([
@@ -104,24 +106,21 @@ it('applies folder permissions when creating a teaching load and can force full 
         ])
         ->assertRedirect();
 
-    $materiaFolder = FolderNode::query()
+    $subjectFolder = FolderNode::query()
         ->where('name', $subject->name)
         ->where('semester_id', $semester->id)
         ->where('owner_user_id', $teacher->id)
         ->firstOrFail();
 
-    $horarioFolder = FolderNode::query()
-        ->where('parent_id', $materiaFolder->id)
+    expect(FolderNode::query()
+        ->where('parent_id', $subjectFolder->id)
         ->where('name', '0.HORARIO OFICIAL')
-        ->first();
+        ->exists())->toBeTrue();
 
-    $instrumentacionesFolder = FolderNode::query()
-        ->where('parent_id', $materiaFolder->id)
+    expect(FolderNode::query()
+        ->where('parent_id', $subjectFolder->id)
         ->where('name', '1.INSTRUMENTACIONES')
-        ->first();
-
-    expect($horarioFolder)->not->toBeNull();
-    expect($instrumentacionesFolder)->toBeNull();
+        ->exists())->toBeFalse();
 
     $this
         ->actingAs($admin)
@@ -130,25 +129,22 @@ it('applies folder permissions when creating a teaching load and can force full 
         ])
         ->assertRedirect(route('admin.teachers.index'));
 
-    $materiaFolderAfterForce = FolderNode::query()
+    $subjectFolderAfterForce = FolderNode::query()
         ->where('name', $subject->name)
         ->where('semester_id', $semester->id)
         ->where('owner_user_id', $teacher->id)
         ->firstOrFail();
 
-    $instrumentacionesAfterForce = FolderNode::query()
-        ->where('parent_id', $materiaFolderAfterForce->id)
+    expect(FolderNode::query()
+        ->where('parent_id', $subjectFolderAfterForce->id)
         ->where('name', '1.INSTRUMENTACIONES')
-        ->first();
+        ->exists())->toBeTrue();
 
-    expect($instrumentacionesAfterForce)->not->toBeNull();
-
-    $loadsCount = TeachingLoad::where('teacher_user_id', $teacher->id)->count();
-    expect($loadsCount)->toBe(1);
+    expect(TeachingLoad::where('teacher_user_id', $teacher->id)->count())->toBe(1);
 });
 
 it('rebuilds teacher structure and removes folders that are no longer permitted', function () {
-    $admin = createAdminForTeacherFolders();
+    $admin = createOfficeAdminForTeacherFolders();
     $teacher = createTeacherWithFolderKeys([
         '0.HORARIO OFICIAL',
         '1.INSTRUMENTACIONES',
@@ -177,14 +173,14 @@ it('rebuilds teacher structure and removes folders that are no longer permitted'
         ])
         ->assertRedirect();
 
-    $initialMateriaFolder = FolderNode::query()
+    $initialSubjectFolder = FolderNode::query()
         ->where('name', $subject->name)
         ->where('semester_id', $semester->id)
         ->where('owner_user_id', $teacher->id)
         ->firstOrFail();
 
     expect(FolderNode::query()
-        ->where('parent_id', $initialMateriaFolder->id)
+        ->where('parent_id', $initialSubjectFolder->id)
         ->where('name', '1.INSTRUMENTACIONES')
         ->exists())->toBeTrue();
 
@@ -206,19 +202,19 @@ it('rebuilds teacher structure and removes folders that are no longer permitted'
         ])
         ->assertRedirect(route('admin.teachers.index'));
 
-    $rebuiltMateriaFolder = FolderNode::query()
+    $rebuiltSubjectFolder = FolderNode::query()
         ->where('name', $subject->name)
         ->where('semester_id', $semester->id)
         ->where('owner_user_id', $teacher->id)
         ->firstOrFail();
 
     expect(FolderNode::query()
-        ->where('parent_id', $rebuiltMateriaFolder->id)
+        ->where('parent_id', $rebuiltSubjectFolder->id)
         ->where('name', '0.HORARIO OFICIAL')
         ->exists())->toBeTrue();
 
     expect(FolderNode::query()
-        ->where('parent_id', $rebuiltMateriaFolder->id)
+        ->where('parent_id', $rebuiltSubjectFolder->id)
         ->where('name', '1.INSTRUMENTACIONES')
         ->exists())->toBeFalse();
 });

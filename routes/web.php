@@ -1,18 +1,24 @@
 <?php
 
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DocxEditorController;
-use App\Http\Controllers\FileController;
-use App\Http\Controllers\FolderController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocxEditorController;
+use App\Http\Controllers\FolderController;
+use App\Http\Controllers\FileController;
+use App\Http\Controllers\Auth\SocialAuthController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->name('auth.social.redirect');
+    Route::get('auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('auth.social.callback');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -23,20 +29,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::group(['prefix' => 'docente', 'as' => 'docente.', 'middleware' => ['role:'.\App\Models\Role::DOCENTE]], function () {
         Route::get('dashboard', [\App\Http\Controllers\Teacher\DashboardController::class, 'index'])->name('teacher.dashboard');
-
+        
         Route::get('evidencias', [\App\Http\Controllers\Teacher\EvidenceController::class, 'index'])->name('evidencias');
         Route::post('evidencias/init', [\App\Http\Controllers\Teacher\EvidenceController::class, 'initSubmission'])->name('evidencias.init');
         Route::post('evidencias/{submission}/submit', [\App\Http\Controllers\Teacher\EvidenceController::class, 'submit'])->name('evidencias.submit');
         Route::post('evidencias/{submission}/upload', [\App\Http\Controllers\Teacher\EvidenceController::class, 'storeFile'])->name('evidencias.upload');
-
+        
         Route::get('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'index'])->name('asesorias');
         Route::post('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'store'])->name('asesorias.store');
         Route::match(['put', 'post'], 'asesorias/{session}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'update'])->name('asesorias.update');
         Route::delete('asesorias/{id}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'destroy'])->name('asesorias.destroy');
     });
 
-    // Rutas operativas administrativas
-    Route::prefix('oficina')->name('oficina.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])->group(function () {
+    // Rutas para Jefe de Oficina
+    Route::prefix('oficina')->name('oficina.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])->group(function () {
         Route::get('revisiones', [\App\Http\Controllers\Admin\ReviewController::class, 'index'])->name('revisiones');
         Route::get('revisiones/{submission}', [\App\Http\Controllers\Admin\ReviewController::class, 'show'])->name('revisiones.show');
         Route::post('revisiones/{submission}/status', [\App\Http\Controllers\Admin\ReviewController::class, 'updateStatus'])->name('revisiones.status');
@@ -53,30 +59,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rutas de Administración (accesible para JEFE_OFICINA y JEFE_DEPTO)
     Route::prefix('admin')->name('admin.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])->group(function () {
         Route::resource('departments', \App\Http\Controllers\Admin\DepartmentController::class)->except(['create', 'show', 'edit']);
+        Route::resource('users', \App\Http\Controllers\Admin\UserController::class)->except(['create', 'show', 'edit']);
         Route::resource('teachers', \App\Http\Controllers\Admin\TeacherController::class);
         Route::post('teachers/{teacher}/generate-folders', [\App\Http\Controllers\Admin\TeacherController::class, 'generateFolders'])->name('teachers.generate-folders');
+        Route::resource('subjects', \App\Http\Controllers\Admin\SubjectController::class)->except(['create', 'show', 'edit']);
+        Route::resource('evidence-items', \App\Http\Controllers\Admin\EvidenceItemController::class)->except(['create', 'show', 'edit']);
         Route::resource('semesters', \App\Http\Controllers\Admin\SemesterController::class);
         Route::resource('teaching-loads', \App\Http\Controllers\Admin\TeachingLoadController::class);
-
+        
         Route::get('requirements', [\App\Http\Controllers\Admin\RequirementController::class, 'index'])->name('requirements.index');
         Route::post('requirements', [\App\Http\Controllers\Admin\RequirementController::class, 'store'])->name('requirements.store');
-
+        
         Route::resource('windows', \App\Http\Controllers\Admin\SubmissionWindowController::class);
-
+        
         Route::get('audits', [\App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audits.index');
     });
 
     // Seguimiento Docente (vista unificada, todos los roles)
     Route::get('asesorias', [\App\Http\Controllers\Admin\AdvisoryController::class, 'index'])->name('asesorias');
     Route::post('asesorias/{submission}/review', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewEvidence'])
-        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])
         ->name('asesorias.review');
     Route::post('asesorias/{submission}/final-approval', [\App\Http\Controllers\Admin\AdvisoryController::class, 'finalApprove'])
-        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
+        ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.final-approval');
     Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.cells.status');
+    Route::post('asesorias/cargas/{teachingLoad}/revision-jefe', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewTeachingLoad'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
+        ->name('asesorias.loads.department-review');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');

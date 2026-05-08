@@ -129,8 +129,7 @@ class AdvisorySessionController extends Controller
 
     private function resolveCurrentSemester(): Semester
     {
-        return Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->firstOrFail();
+        return Semester::activeOrLatest() ?? Semester::query()->firstOrFail();
     }
 
     private function serializeSchedule(AdvisorySchedule $schedule): array

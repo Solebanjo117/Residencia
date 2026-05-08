@@ -10,12 +10,12 @@ use Illuminate\Support\Str;
 
 function createAdvisoryScheduleContext(): array
 {
-    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
-    $adminRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $teacherRole = Role::firstOrCreate(['name' => Role::DOCENTE]);
+    $adminRole = Role::firstOrCreate(['name' => Role::JEFE_OFICINA]);
 
-    $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
-    $otherTeacher = User::factory()->create(['role_id' => $teacherRoleId]);
-    $admin = User::factory()->create(['role_id' => $adminRoleId]);
+    $teacher = User::factory()->create(['role_id' => $teacherRole->id]);
+    $otherTeacher = User::factory()->create(['role_id' => $teacherRole->id]);
+    $admin = User::factory()->create(['role_id' => $adminRole->id]);
 
     $semester = Semester::create([
         'name' => 'SEM-ADV-'.Str::upper(Str::random(6)),

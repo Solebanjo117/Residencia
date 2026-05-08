@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\TeachingLoad;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
+use App\Models\TeachingLoad;
 use App\Models\User;
-use App\Models\Role;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Validation\Rule;
 use App\Services\FolderStructureService;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class TeachingLoadController extends Controller
 {
@@ -19,9 +19,8 @@ class TeachingLoadController extends Controller
     {
         $roleDocente = Role::where('name', Role::DOCENTE)->first();
 
-        // Optional filtering by semester, defaulting to active semester on first load
         $requestedSemesterId = $request->query('semester_id');
-        $activeSemesterId = Semester::where('status', 'OPEN')->value('id');
+        $activeSemesterId = Semester::active()?->id;
         $semesterId = $requestedSemesterId;
 
         if ($semesterId === null && $activeSemesterId) {
@@ -61,6 +60,7 @@ class TeachingLoadController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'group_code' => 'required|string|max:40',
             'hours_per_week' => 'nullable|integer|min:1|max:40',
+            'modality' => ['required', Rule::in([TeachingLoad::MODALITY_PRESENCIAL, TeachingLoad::MODALITY_EN_LINEA])],
         ]);
 
         // Prevent duplicate exact assignments
@@ -90,6 +90,7 @@ class TeachingLoadController extends Controller
             'subject_id' => 'required|exists:subjects,id',
             'group_code' => 'required|string|max:40',
             'hours_per_week' => 'nullable|integer|min:1|max:40',
+            'modality' => ['required', Rule::in([TeachingLoad::MODALITY_PRESENCIAL, TeachingLoad::MODALITY_EN_LINEA])],
         ]);
 
         $teachingLoad->update($validated);

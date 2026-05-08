@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ReviewDecision;
-use App\Enums\SemesterStatus;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\EvidenceSubmission;
@@ -27,7 +26,7 @@ class ReviewController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
+        $activeSemester = Semester::active();
 
         if (! $activeSemester) {
             return Inertia::render('Oficina/PendingReviews', [
@@ -84,7 +83,7 @@ class ReviewController extends Controller
     {
         /** @var \App\Models\User $reviewer */
         $reviewer = Auth::user();
-        $activeSemester = Semester::where('status', SemesterStatus::OPEN)->first();
+        $activeSemester = Semester::active();
 
         if (! $activeSemester) {
             return redirect()->route('oficina.revisiones');

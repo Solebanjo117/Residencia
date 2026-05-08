@@ -20,7 +20,7 @@ class AdvisoryScheduleController extends Controller
 
         $semester = $semesterQuery
             ? Semester::where('name', $semesterQuery)->first()
-            : (Semester::where('status', 'OPEN')->first() ?? Semester::orderBy('start_date', 'desc')->first());
+            : Semester::activeOrLatest();
 
         if (! $semester) {
             return Inertia::render('Asesorias/Index', [

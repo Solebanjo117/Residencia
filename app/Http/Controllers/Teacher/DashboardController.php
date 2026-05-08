@@ -21,8 +21,7 @@ class DashboardController extends Controller
         $user = Auth::user();
 
         // Get current active semester (or latest)
-        $currentSemester = Semester::where('status', 'OPEN')->first()
-            ?? Semester::orderBy('start_date', 'desc')->first();
+        $currentSemester = Semester::activeOrLatest();
 
         $teachingLoads = [];
         $upcomingWindows = [];
