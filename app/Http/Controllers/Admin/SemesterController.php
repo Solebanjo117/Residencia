@@ -58,7 +58,7 @@ class SemesterController extends Controller
             return $semester;
         });
 
-        return redirect()->route('admin.semesters.index')->with('success', 'Semester created successfully.');
+        return redirect()->route('admin.semesters.index')->with('success', 'Semestre creado correctamente.');
     }
 
     public function update(Request $request, Semester $semester)
@@ -85,19 +85,19 @@ class SemesterController extends Controller
             }
         });
 
-        return redirect()->route('admin.semesters.index')->with('success', 'Semester updated successfully.');
+        return redirect()->route('admin.semesters.index')->with('success', 'Semestre actualizado correctamente.');
     }
 
     public function destroy(Semester $semester)
     {
         // Add protection to prevent deleting if there are teaching loads etc.
         if ($semester->teachingLoads()->exists() || $semester->submissionWindows()->exists()) {
-            return back()->withErrors(['error' => 'Cannot delete semester with associated records. Close it instead.']);
+            return back()->withErrors(['error' => 'No se puede eliminar un semestre con registros asociados. Ciérrelo en su lugar.']);
         }
 
         $semester->delete();
 
-        return redirect()->route('admin.semesters.index')->with('success', 'Semester deleted successfully.');
+        return redirect()->route('admin.semesters.index')->with('success', 'Semestre eliminado correctamente.');
     }
 
     private function closeOtherOpenSemesters(?int $ignoreSemesterId = null): void

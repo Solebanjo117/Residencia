@@ -122,8 +122,9 @@ const destroyDepartment = (id: number) => {
                                 </div>
                                 
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Nombre</label>
+                                    <label for="dept-name" class="block text-sm font-medium text-gray-700">Nombre</label>
                                     <input 
+                                        id="dept-name"
                                         type="text" 
                                         v-model="form.name" 
                                         class="mt-1 block flex-1 w-full rounded-md sm:text-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500" 

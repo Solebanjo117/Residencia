@@ -242,7 +242,7 @@ class AdvisoryController extends Controller
         $validated = $request->validate([
             'teaching_load_id' => 'required|exists:teaching_loads,id',
             'evidence_item_id' => 'required|integer',
-            'status' => 'required|in:NA,DRAFT',
+            'status' => 'required|in:AO,VF,REV,PA,BL,R,NE,NA,DRAFT',
             'comments' => 'nullable|string|max:500',
         ]);
 
@@ -267,20 +267,53 @@ class AdvisoryController extends Controller
 
         abort_unless($user->can('markAsNA', $submission), 403);
 
-        if ($submission->isFinalApproved()) {
-            return back()->with('error', 'No puedes cambiar la aplicabilidad de una evidencia con visto bueno final.');
-        }
+        $manualStatus = $validated['status'];
+        $targetStatus = match ($manualStatus) {
+            'AO', 'VF', 'REV' => SubmissionStatus::APPROVED,
+            'PA' => SubmissionStatus::SUBMITTED,
+            'BL' => SubmissionStatus::DRAFT,
+            'R' => SubmissionStatus::REJECTED,
+            'NE' => SubmissionStatus::NE,
+            'NA' => SubmissionStatus::NA,
+            'DRAFT' => SubmissionStatus::DRAFT,
+        };
 
-        $targetStatus = SubmissionStatus::from($validated['status']);
-        $reason = $validated['comments'] ?: ($targetStatus === SubmissionStatus::NA
-            ? 'Marcado manualmente como no aplica.'
-            : 'Reactivado para captura y envio.');
+        $reason = $validated['comments']
+            ?: "Marcado manualmente como {$manualStatus} desde seguimiento docente.";
 
-        $evidenceService->changeStatus($submission, $targetStatus, $user, $reason);
+        $evidenceService->changeStatus($submission, $targetStatus, $user, $reason, enforceTransition: false);
+        $submission->refresh();
 
-        return back()->with('success', $targetStatus === SubmissionStatus::NA
-            ? 'La evidencia quedo marcada como no aplica.'
-            : 'La evidencia quedo reactiva para captura.'
+        $approvalFields = match ($manualStatus) {
+            'AO', 'REV' => [
+                'office_reviewed_at' => now(),
+                'office_reviewed_by_user_id' => $user->id,
+                'final_approved_at' => null,
+                'final_approved_by_user_id' => null,
+            ],
+            'VF' => [
+                'office_reviewed_at' => $submission->office_reviewed_at ?? now(),
+                'office_reviewed_by_user_id' => $submission->office_reviewed_by_user_id ?? $user->id,
+                'final_approved_at' => now(),
+                'final_approved_by_user_id' => $user->id,
+            ],
+            default => [
+                'office_reviewed_at' => null,
+                'office_reviewed_by_user_id' => null,
+                'final_approved_at' => null,
+                'final_approved_by_user_id' => null,
+            ],
+        };
+
+        $submission->update([
+            ...$approvalFields,
+            'manual_ui_status' => $manualStatus === 'DRAFT' ? null : $manualStatus,
+            'last_updated_at' => now(),
+        ]);
+
+        return back()->with('success', $manualStatus === 'DRAFT'
+            ? 'La evidencia quedo reactiva para captura.'
+            : "Estado actualizado a {$manualStatus}."
         );
     }
 
@@ -351,6 +384,10 @@ class AdvisoryController extends Controller
 
         if ($applicableStatuses->every(fn (string $status) => $status === 'VF')) {
             return 'VF';
+        }
+
+        if ($applicableStatuses->contains('REV')) {
+            return 'REV';
         }
 
         if ($applicableStatuses->every(fn (string $status) => in_array($status, ['AO', 'VF'], true))) {

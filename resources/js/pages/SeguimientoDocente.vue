@@ -19,6 +19,7 @@ const canManageApplicability = computed(() => ['JEFE_OFICINA', 'JEFE_DEPTO'].inc
 function statusPillClasses(status) {
     if (status === 'VF') return 'bg-emerald-100 text-emerald-800 ring-emerald-300';
     if (status === 'AO') return 'bg-green-100 text-green-800 ring-green-300';
+    if (status === 'REV') return 'bg-cyan-100 text-cyan-800 ring-cyan-300';
     if (status === 'PA') return 'bg-amber-100 text-amber-800 ring-amber-300';
     if (status === 'R') return 'bg-rose-100 text-rose-800 ring-rose-300';
     if (status === 'BL') return 'bg-blue-100 text-blue-800 ring-blue-300';
@@ -30,6 +31,7 @@ function statusLabel(status) {
     const labels = {
         VF: 'VF',
         AO: 'AO',
+        REV: 'REV',
         PA: 'PA',
         R: 'R',
         BL: 'BL',
@@ -46,6 +48,7 @@ function statusTooltip(cell) {
     const base = {
         VF: 'Visto bueno final del jefe de departamento',
         AO: 'Aprobado por oficina, pendiente de liberacion final',
+        REV: 'En revision del jefe de departamento',
         PA: 'Pendiente de envio o revision',
         R: 'Rechazado',
         BL: cell.availability?.label || 'Bloqueado',
@@ -132,6 +135,16 @@ const cellModalRow = ref(null);
 const cellModalCol = ref(null);
 const departmentReviewModalOpen = ref(false);
 const departmentReviewRow = ref(null);
+const cellStatusOptions = [
+    { value: 'AO', label: 'AO', description: 'Aprobado por oficina' },
+    { value: 'VF', label: 'VF', description: 'Visto bueno final' },
+    { value: 'REV', label: 'REV', description: 'Revision jefe Depto' },
+    { value: 'PA', label: 'PA', description: 'Pendiente' },
+    { value: 'BL', label: 'BL', description: 'Bloqueado' },
+    { value: 'R', label: 'R', description: 'Rechazado' },
+    { value: 'NE', label: 'NE', description: 'No evidencia' },
+    { value: 'NA', label: 'NA', description: 'No aplica' },
+];
 
 function openCellDetail(row, col) {
     const cell = row.cells[col.key];
@@ -144,6 +157,10 @@ function openCellDetail(row, col) {
     reviewForm.reset();
     finalApprovalForm.reset();
     cellStatusForm.reset();
+    cellStatusForm.status = cellStatusOptions.some((option) => option.value === cell.status)
+        ? cell.status
+        : 'PA';
+    cellStatusForm.comments = '';
 }
 
 function closeCellDetail() {
@@ -177,7 +194,7 @@ const finalApprovalForm = useForm({
 const cellStatusForm = useForm({
     teaching_load_id: null,
     evidence_item_id: null,
-    status: 'NA',
+    status: 'PA',
     comments: '',
 });
 
@@ -212,12 +229,11 @@ function submitFinalApproval() {
     });
 }
 
-function updateCellStatus(status) {
+function updateCellStatus() {
     if (!cellModalData.value) return;
 
     cellStatusForm.teaching_load_id = cellModalData.value.teaching_load_id;
     cellStatusForm.evidence_item_id = cellModalData.value.evidence_item_id;
-    cellStatusForm.status = status;
 
     cellStatusForm.post('/asesorias/cells/status', {
         preserveScroll: true,
@@ -581,20 +597,36 @@ function formatBytes(bytes) {
                         </ul>
                     </div>
 
-                    <div v-if="canManageApplicability && cellModalData.can_mark_na && cellModalData.status !== 'NA' && !['AO', 'VF'].includes(cellModalData.status)" class="rounded-lg border border-slate-100 p-3">
-                        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">Aplicabilidad</h3>
+                    <div v-if="canManageApplicability" class="rounded-lg border border-slate-100 p-3">
+                        <h3 class="mb-2 text-xs font-semibold uppercase text-slate-500">Estado de seguimiento</h3>
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <label
+                                v-for="option in cellStatusOptions"
+                                :key="option.value"
+                                class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50"
+                                :class="cellStatusForm.status === option.value ? 'border-slate-400 bg-slate-50 ring-1 ring-slate-300' : ''"
+                            >
+                                <input
+                                    v-model="cellStatusForm.status"
+                                    type="radio"
+                                    class="mt-1"
+                                    :value="option.value"
+                                />
+                                <span>
+                                    <span class="font-bold text-slate-900">{{ option.label }}</span>
+                                    <span class="ml-2 text-slate-600">{{ option.description }}</span>
+                                </span>
+                            </label>
+                        </div>
                         <textarea
                             v-model="cellStatusForm.comments"
                             rows="2"
-                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
-                            placeholder="Motivo opcional para marcar no aplica..."
+                            class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                            placeholder="Comentario opcional para el cambio de estado..."
                         ></textarea>
                         <div class="mt-3 flex items-center gap-2">
-                            <button type="button" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" :disabled="cellStatusForm.processing" @click="updateCellStatus('NA')">
-                                Marcar NA
-                            </button>
-                            <button v-if="cellModalData.can_reactivate" type="button" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="cellStatusForm.processing" @click="updateCellStatus('DRAFT')">
-                                Reactivar
+                            <button type="button" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50" :disabled="cellStatusForm.processing" @click="updateCellStatus">
+                                Actualizar estado
                             </button>
                         </div>
                     </div>

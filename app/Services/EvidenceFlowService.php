@@ -214,6 +214,10 @@ class EvidenceFlowService
 
     public function uiStatus(?EvidenceSubmission $submission, array $availability): string
     {
+        if ($submission?->manual_ui_status) {
+            return $submission->manual_ui_status;
+        }
+
         if ($submission?->status === SubmissionStatus::NA) {
             return 'NA';
         }

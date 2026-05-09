@@ -93,6 +93,32 @@ it('allows office to mark a load evidence as no aplica and reactivate it later',
     expect($submission->fresh()->status)->toBe(SubmissionStatus::DRAFT);
 });
 
+it('allows office to manually mark seguimiento statuses', function () {
+    $ctx = createApplicabilityContext();
+
+    $this
+        ->from('/asesorias')
+        ->actingAs($ctx['office'])
+        ->post(route('asesorias.cells.status'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'status' => 'REV',
+            'comments' => 'Lista para revision del jefe de departamento',
+        ])
+        ->assertRedirect('/asesorias');
+
+    $submission = EvidenceSubmission::query()
+        ->where('teaching_load_id', $ctx['load']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->firstOrFail();
+
+    expect($submission->status)->toBe(SubmissionStatus::APPROVED);
+    expect($submission->manual_ui_status)->toBe('REV');
+    expect($submission->office_reviewed_at)->not->toBeNull();
+    expect($submission->office_reviewed_by_user_id)->toBe($ctx['office']->id);
+    expect($submission->final_approved_at)->toBeNull();
+});
+
 it('forbids docente from marking a load evidence as no aplica', function () {
     $ctx = createApplicabilityContext();
 

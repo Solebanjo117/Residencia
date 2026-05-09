@@ -42,4 +42,24 @@ class FolderNodePolicy
     {
         return $this->view($user, $folderNode);
     }
+
+    public function create(User $user, FolderNode $parent): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    public function update(User $user, FolderNode $folderNode): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    public function move(User $user, FolderNode $folderNode): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    public function delete(User $user, FolderNode $folderNode): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
 }

@@ -12,6 +12,7 @@ use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Services\AuditService;
 use App\Services\EvidenceFlowService;
+use App\Services\FolderManagerService;
 use App\Services\StorageService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -21,12 +22,16 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 class FileController extends Controller
 {
     protected $storageService;
+
     protected $auditService;
 
-    public function __construct(StorageService $storageService, AuditService $auditService)
+    protected $folderManagerService;
+
+    public function __construct(StorageService $storageService, AuditService $auditService, FolderManagerService $folderManagerService)
     {
         $this->storageService = $storageService;
         $this->auditService = $auditService;
+        $this->folderManagerService = $folderManagerService;
     }
 
     public function download(Request $request, EvidenceFile $file)
@@ -34,7 +39,7 @@ class FileController extends Controller
         $this->authorize('download', $file);
         $this->storageService->assertEvidenceFilePath($file);
 
-        if (!Storage::disk('local')->exists($file->stored_relative_path)) {
+        if (! Storage::disk('local')->exists($file->stored_relative_path)) {
             abort(404);
         }
 
@@ -51,7 +56,7 @@ class FileController extends Controller
         $this->authorize('preview', $file);
         $this->storageService->assertEvidenceFilePath($file);
 
-        if (!Storage::disk('local')->exists($file->stored_relative_path)) {
+        if (! Storage::disk('local')->exists($file->stored_relative_path)) {
             abort(404);
         }
 
@@ -64,7 +69,7 @@ class FileController extends Controller
             Storage::disk('local')->path($file->stored_relative_path),
             [
                 'Content-Type' => $file->mime_type ?? 'application/octet-stream',
-                'Content-Disposition' => ResponseHeaderBag::DISPOSITION_INLINE . '; filename="' . addslashes($file->file_name) . '"',
+                'Content-Disposition' => ResponseHeaderBag::DISPOSITION_INLINE.'; filename="'.addslashes($file->file_name).'"',
             ]
         );
     }
@@ -81,7 +86,7 @@ class FileController extends Controller
         $ownerId = $folder->owner_user_id ?? $user->id;
         $semesterId = $folder->semester_id;
 
-        if (!$semesterId) {
+        if (! $semesterId) {
             return back()->withErrors(['file' => 'Esta carpeta no esta asociada a un semestre.']);
         }
 
@@ -97,23 +102,23 @@ class FileController extends Controller
                 ->first();
         }
 
-        if (!$load) {
+        if (! $load) {
             $load = TeachingLoad::where('teacher_user_id', $ownerId)
                 ->where('semester_id', $semesterId)
                 ->first();
         }
 
-        if (!$load) {
+        if (! $load) {
             return back()->withErrors(['file' => 'No se encontro carga docente para este semestre.']);
         }
 
         $evidenceItem = $this->matchFolderToEvidenceItem($folder->name);
 
-        if (!$evidenceItem) {
+        if (! $evidenceItem) {
             $evidenceItem = EvidenceItem::where('active', true)->first();
         }
 
-        if (!$evidenceItem) {
+        if (! $evidenceItem) {
             return back()->withErrors(['file' => 'No hay evidencias configuradas en el sistema.']);
         }
 
@@ -130,14 +135,14 @@ class FileController extends Controller
             ]
         );
 
-        if (!$this->canManageSubmissionFiles($user, $submission)) {
+        if (! $this->canManageSubmissionFiles($user, $submission)) {
             abort(403);
         }
 
         $availability = $this->fileManagerAvailability($submission, $flowService);
-        if (!$this->canBypassAvailability($user) && !$availability['is_available']) {
+        if (! $this->canBypassAvailability($user) && ! $availability['is_available']) {
             return back()->withErrors([
-                'file' => 'La evidencia no esta disponible para carga: ' . $availability['label'] . '.',
+                'file' => 'La evidencia no esta disponible para carga: '.$availability['label'].'.',
             ]);
         }
 
@@ -168,8 +173,8 @@ class FileController extends Controller
 
             if (
                 $submission
-                && !$this->canBypassAvailability($request->user())
-                && !$this->fileManagerAvailability($submission, $flowService)['is_available']
+                && ! $this->canBypassAvailability($request->user())
+                && ! $this->fileManagerAvailability($submission, $flowService)['is_available']
             ) {
                 return back()->withErrors([
                     'file' => 'La evidencia no esta disponible para carga en este momento.',
@@ -203,9 +208,36 @@ class FileController extends Controller
     {
         $this->authorize('delete', $file);
 
+        $submission = $file->submission;
+
         $this->storageService->deleteEvidence($file, $request->user());
 
+        if ($submission) {
+            $submission->update(['last_updated_at' => now()]);
+        }
+
         return back()->with('success', 'Archivo eliminado.');
+    }
+
+    public function move(Request $request, EvidenceFile $file)
+    {
+        $this->authorize('move', $file);
+
+        $request->validate([
+            'target_folder_id' => 'required|exists:folder_nodes,id',
+        ]);
+
+        $target = FolderNode::findOrFail($request->input('target_folder_id'));
+
+        try {
+            $this->folderManagerService->moveFile($request->user(), $file, $target);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return back()->withErrors(['target_folder_id' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Archivo movido correctamente.');
     }
 
     private function canManageSubmissionFiles($user, EvidenceSubmission $submission): bool
@@ -214,7 +246,7 @@ class FileController extends Controller
             return true;
         }
 
-        if (!$this->isTeacherManagingOwnSubmission($user, $submission)) {
+        if (! $this->isTeacherManagingOwnSubmission($user, $submission)) {
             return false;
         }
 
@@ -273,7 +305,7 @@ class FileController extends Controller
 
         while ($current && $current->parent_id) {
             $parent = FolderNode::find($current->parent_id);
-            if (!$parent) {
+            if (! $parent) {
                 break;
             }
 

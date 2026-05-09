@@ -10,7 +10,7 @@ class EvidenceFilePolicy
 {
     public function view(User $user, EvidenceFile $file): bool
     {
-        if (!$file->folderNode) {
+        if (! $file->folderNode) {
             return false;
         }
 
@@ -37,6 +37,11 @@ class EvidenceFilePolicy
         return $this->canManage($user, $file);
     }
 
+    public function move(User $user, EvidenceFile $file): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
     private function canManage(User $user, EvidenceFile $file): bool
     {
         if ($user->isJefeOficina() || $user->isJefeDepto()) {
@@ -44,23 +49,30 @@ class EvidenceFilePolicy
         }
 
         $submission = $file->submission;
-        if (!$submission) {
+        if (! $submission) {
             return false;
         }
 
         if ($user->isDocente()) {
-            // Teachers can only delete files from their own submission.
             if ((int) $submission->teacher_user_id !== (int) $user->id) {
                 return false;
             }
 
-            // Status must be DRAFT or REJECTED
-            // Or if there is an active unlock
             if ($submission->activeResubmissionUnlock()->exists()) {
                 return true;
             }
 
-            return in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true);
+            if (in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
+                return true;
+            }
+
+            if ($submission->status === SubmissionStatus::SUBMITTED
+                && $submission->office_reviewed_at === null
+                && $submission->final_approved_at === null) {
+                return true;
+            }
+
+            return false;
         }
 
         return false;

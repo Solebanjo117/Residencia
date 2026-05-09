@@ -24,15 +24,15 @@ function createFileManagerContext(bool $windowOpen = true, bool $createWindow = 
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-FM-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-FM-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-FM-' . Str::upper(Str::random(6)),
-        'name' => 'Materia FM ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-FM-'.Str::upper(Str::random(6)),
+        'name' => 'Materia FM '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -46,7 +46,7 @@ function createFileManagerContext(bool $windowOpen = true, bool $createWindow = 
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-FM-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-FM-'.Str::upper(Str::random(8)),
         'description' => 'Item test file manager',
         'requires_subject' => true,
         'active' => true,
@@ -62,7 +62,7 @@ function createFileManagerContext(bool $windowOpen = true, bool $createWindow = 
     ]);
 
     $root = StorageRoot::create([
-        'name' => 'root-fm-' . Str::lower(Str::random(8)),
+        'name' => 'root-fm-'.Str::lower(Str::random(8)),
         'base_path' => 'storage_root',
         'is_active' => true,
     ]);
@@ -70,7 +70,7 @@ function createFileManagerContext(bool $windowOpen = true, bool $createWindow = 
     $folder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'Evidencias',
-        'relative_path' => 'sem_' . $semester->id . '/docente_' . $teacher->id . '/' . Str::lower(Str::random(8)),
+        'relative_path' => 'sem_'.$semester->id.'/docente_'.$teacher->id.'/'.Str::lower(Str::random(8)),
         'owner_user_id' => $teacher->id,
         'semester_id' => $semester->id,
         'parent_id' => null,
@@ -292,7 +292,8 @@ it('rejects upload when filename contains path traversal separators', function (
 
     // Symfony strips path segments from original names by default, so we
     // override this getter to exercise the defensive validation in StorageService.
-    $maliciousFile = new class($tempPath) extends UploadedFile {
+    $maliciousFile = new class($tempPath) extends UploadedFile
+    {
         public function __construct(string $path)
         {
             parent::__construct($path, 'malicioso.pdf', 'application/pdf', null, true);
@@ -348,7 +349,7 @@ it('logs audit entry on successful file download', function () {
 
     $ctx = createFileManagerContext(windowOpen: true);
 
-    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    $storedPath = $ctx['folder']->relative_path.'/archivo.pdf';
     Storage::disk('local')->put($storedPath, '%PDF-1.4 ok');
 
     $file = EvidenceFile::create([
@@ -383,7 +384,7 @@ it('allows jefe depto to preview a pdf file inside the page', function () {
     $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
 
-    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    $storedPath = $ctx['folder']->relative_path.'/archivo.pdf';
     Storage::disk('local')->put($storedPath, '%PDF-1.4 preview');
 
     $file = EvidenceFile::create([
@@ -413,7 +414,7 @@ it('shows sd2 advance files inside the matching sd4 advance folder so they can b
     $parent = FolderNode::create([
         'storage_root_id' => $ctx['folder']->storage_root_id,
         'name' => '4.1-CAPACITACION',
-        'relative_path' => $ctx['folder']->relative_path . '/4.1-CAPACITACION',
+        'relative_path' => $ctx['folder']->relative_path.'/4.1-CAPACITACION',
         'owner_user_id' => $ctx['teacher']->id,
         'semester_id' => $ctx['semester']->id,
         'parent_id' => $ctx['folder']->id,
@@ -422,7 +423,7 @@ it('shows sd2 advance files inside the matching sd4 advance folder so they can b
     $sd2Folder = FolderNode::create([
         'storage_root_id' => $ctx['folder']->storage_root_id,
         'name' => 'SD2-AVANCE-50%',
-        'relative_path' => $parent->relative_path . '/SD2-AVANCE-50%',
+        'relative_path' => $parent->relative_path.'/SD2-AVANCE-50%',
         'owner_user_id' => $ctx['teacher']->id,
         'semester_id' => $ctx['semester']->id,
         'parent_id' => $parent->id,
@@ -431,13 +432,13 @@ it('shows sd2 advance files inside the matching sd4 advance folder so they can b
     $sd4Folder = FolderNode::create([
         'storage_root_id' => $ctx['folder']->storage_root_id,
         'name' => 'SD4-AVANCE-100%',
-        'relative_path' => $parent->relative_path . '/SD4-AVANCE-100%',
+        'relative_path' => $parent->relative_path.'/SD4-AVANCE-100%',
         'owner_user_id' => $ctx['teacher']->id,
         'semester_id' => $ctx['semester']->id,
         'parent_id' => $parent->id,
     ]);
 
-    $storedPath = $sd2Folder->relative_path . '/avance.docx';
+    $storedPath = $sd2Folder->relative_path.'/avance.docx';
     Storage::disk('local')->put($storedPath, 'docx-content');
 
     $file = EvidenceFile::create([
@@ -472,7 +473,7 @@ it('forbids docente from previewing a file outside their own folder', function (
     $otherTeacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $otherTeacher = User::factory()->create(['role_id' => $otherTeacherRoleId]);
 
-    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    $storedPath = $ctx['folder']->relative_path.'/archivo.pdf';
     Storage::disk('local')->put($storedPath, '%PDF-1.4 private');
 
     $file = EvidenceFile::create([
@@ -493,16 +494,17 @@ it('forbids docente from previewing a file outside their own folder', function (
         ->assertForbidden();
 });
 
-it('forbids teacher from deleting files when submission is already submitted', function () {
+it('forbids teacher from deleting files when submission has been reviewed by office', function () {
     Storage::fake('local');
 
     $ctx = createFileManagerContext(windowOpen: true);
     $ctx['submission']->update([
         'status' => SubmissionStatus::SUBMITTED,
         'submitted_at' => now(),
+        'office_reviewed_at' => now(),
     ]);
 
-    $storedPath = $ctx['folder']->relative_path . '/archivo.pdf';
+    $storedPath = $ctx['folder']->relative_path.'/archivo.pdf';
     Storage::disk('local')->put($storedPath, '%PDF-1.4 submitted');
 
     $file = EvidenceFile::create([

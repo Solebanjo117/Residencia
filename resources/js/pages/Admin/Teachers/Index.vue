@@ -89,7 +89,7 @@ const toggleActive = (teacher: any) => {
 const generateFolders = (teacher: any, force = false) => {
     if (force) {
         const confirmed = confirm(
-            'Esto regenerara la estructura completa e ignorara temporalmente los checkboxes de carpetas para este docente. Deseas continuar?',
+            'Esto regenerará la estructura completa e ignorará temporalmente los checkboxes de carpetas para este docente. ¿Deseas continuar?',
         );
 
         if (!confirmed) {
@@ -129,7 +129,7 @@ const clearAllFolders = () => {
                         Docentes
                     </h1>
                     <p class="mt-1 text-sm text-gray-500">
-                        Gestiona los docentes registrados y su adscripcion departamental.
+                        Gestiona los docentes registrados y su adscripción departamental.
                     </p>
                 </div>
                 <button
@@ -288,7 +288,7 @@ const clearAllFolders = () => {
                                     </div>
 
                                     <div>
-                                        <label for="email" class="block text-sm font-medium text-gray-700">Correo Electronico</label>
+                                        <label for="email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
                                         <input
                                             id="email"
                                             v-model="form.email"
@@ -303,7 +303,7 @@ const clearAllFolders = () => {
 
                                     <div>
                                         <label for="password" class="block text-sm font-medium text-gray-700">
-                                            Contraseña {{ editingTeacher ? '(deja vacio para mantener la actual)' : '' }}
+                                            Contraseña {{ editingTeacher ? '(deja vacío para mantener la actual)' : '' }}
                                         </label>
                                         <input
                                             id="password"
