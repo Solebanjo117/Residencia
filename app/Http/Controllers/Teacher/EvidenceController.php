@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Enums\SemesterStatus;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
-use App\Models\EvidenceRequirement;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
@@ -29,22 +29,54 @@ class EvidenceController extends Controller
         $user = Auth::user();
         $department = $user->departments()->first();
 
-        $currentSemester = Semester::activeOrLatest();
+        $teacherSemesters = Semester::whereHas('teachingLoads', function ($q) use ($user) {
+            $q->where('teacher_user_id', $user->id);
+        })->orderByDesc('start_date')->orderByDesc('id')->get();
 
-        if (!$currentSemester || !$department) {
+        $selectedSemesterId = $request->query('semester_id');
+        $selectedSemesterId = is_numeric($selectedSemesterId) ? (int) $selectedSemesterId : null;
+        $selectedSemester = $teacherSemesters->firstWhere('id', $selectedSemesterId)
+            ?? $teacherSemesters->firstWhere('status', SemesterStatus::OPEN)
+            ?? $teacherSemesters->first()
+            ?? Semester::activeOrLatest();
+
+        if (! $selectedSemester || ! $department) {
             return Inertia::render('Teacher/Evidencias/Index', [
                 'tasks' => [],
-                'semester' => $currentSemester,
+                'semester' => $selectedSemester,
+                'semesters' => $teacherSemesters->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]),
+                'selectedSemesterId' => $selectedSemester?->id,
+                'teachingLoads' => [],
+                'selectedTeachingLoadId' => null,
                 'allowedExtensions' => $this->allowedUploadExtensions(),
             ]);
         }
 
-        $loads = TeachingLoad::with('subject')
+        $selectedLoadId = $request->query('teaching_load_id');
+        $selectedLoadId = is_numeric($selectedLoadId) ? (int) $selectedLoadId : null;
+
+        $teachingLoadsCollection = TeachingLoad::with('subject')
             ->where('teacher_user_id', $user->id)
-            ->where('semester_id', $currentSemester->id)
+            ->where('semester_id', $selectedSemester->id)
             ->get();
 
-        $requirements = $flowService->requirementsForDepartment($currentSemester->id, $department->id);
+        $selectedTeachingLoad = $selectedLoadId
+            ? $teachingLoadsCollection->firstWhere('id', $selectedLoadId)
+            : null;
+        $selectedTeachingLoadId = $selectedTeachingLoad?->id;
+
+        $loads = $selectedTeachingLoadId
+            ? $teachingLoadsCollection->where('id', $selectedTeachingLoadId)->values()
+            : $teachingLoadsCollection;
+
+        $teachingLoads = $teachingLoadsCollection
+            ->map(fn ($l) => [
+                'id' => $l->id,
+                'label' => $l->subject->name.' - Grupo '.$l->group_name,
+            ])
+            ->values();
+
+        $requirements = $flowService->requirementsForDepartment($selectedSemester->id, $department->id);
 
         $submissions = EvidenceSubmission::with([
             'files',
@@ -55,12 +87,12 @@ class EvidenceController extends Controller
             'activeResubmissionUnlock',
         ])
             ->where('teacher_user_id', $user->id)
-            ->where('semester_id', $currentSemester->id)
+            ->where('semester_id', $selectedSemester->id)
             ->get()
             ->groupBy('teaching_load_id');
 
         $windows = SubmissionWindow::query()
-            ->where('semester_id', $currentSemester->id)
+            ->where('semester_id', $selectedSemester->id)
             ->where('status', 'ACTIVE')
             ->get()
             ->keyBy('evidence_item_id');
@@ -81,6 +113,8 @@ class EvidenceController extends Controller
                 );
 
                 $latestReview = $submission?->reviews?->first();
+
+                $isPendingEditable = $submission && $this->isPendingEditable($submission);
 
                 $tasks[] = [
                     'id' => $submission?->id,
@@ -107,6 +141,13 @@ class EvidenceController extends Controller
                                 'size' => $file->size_bytes,
                                 'uploaded_at' => $file->uploaded_at,
                                 'download_url' => route('files.download', $file->id),
+                                'mime_type' => $file->mime_type,
+                                'is_docx' => $file->isDocx(),
+                                'editor_url' => $file->isDocx() ? route('files.docx.show', $file->id) : null,
+                                'can_edit_docx' => $file->isDocx()
+                                    && $user->can('replace', $file)
+                                    && $availability['is_available'],
+                                'can_delete' => $user->can('delete', $file),
                             ])->values()->toArray()
                             : [],
                         'submitted_late' => (bool) $submission?->submitted_late,
@@ -139,9 +180,9 @@ class EvidenceController extends Controller
                         'state_label' => $availability['label'],
                         'is_open' => $availability['code'] === 'OPEN',
                     ] : null,
-                    'can_initialize' => !$submission && $availability['is_available'],
+                    'can_initialize' => ! $submission && $availability['is_available'],
                     'can_upload' => $submission
-                        && in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
+                        && ($isPendingEditable || in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true))
                         && $availability['is_available'],
                     'can_submit' => $submission
                         && in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
@@ -153,7 +194,11 @@ class EvidenceController extends Controller
 
         return Inertia::render('Teacher/Evidencias/Index', [
             'tasks' => $tasks,
-            'semester' => $currentSemester,
+            'semester' => $selectedSemester,
+            'semesters' => $teacherSemesters->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]),
+            'selectedSemesterId' => $selectedSemester->id,
+            'teachingLoads' => $teachingLoads,
+            'selectedTeachingLoadId' => $selectedTeachingLoadId,
             'allowedExtensions' => $this->allowedUploadExtensions(),
         ]);
     }
@@ -187,7 +232,7 @@ class EvidenceController extends Controller
         $requirements = $this->teacherRequirementsForLoad($user, $load, $flowService);
         $requirement = $requirements->firstWhere('evidence_item_id', (int) $request->evidence_item_id);
 
-        if (!$requirement) {
+        if (! $requirement) {
             return back()->with('error', 'La evidencia solicitada no forma parte de tu matriz activa.');
         }
 
@@ -210,8 +255,8 @@ class EvidenceController extends Controller
             false
         );
 
-        if (!$availability['is_available']) {
-            return back()->with('error', 'Esta evidencia aun no se puede iniciar: ' . $availability['label'] . '.');
+        if (! $availability['is_available']) {
+            return back()->with('error', 'Esta evidencia aun no se puede iniciar: '.$availability['label'].'.');
         }
 
         $submission = EvidenceSubmission::firstOrCreate(
@@ -261,7 +306,7 @@ class EvidenceController extends Controller
             abort(403);
         }
 
-        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
+        if (! in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
             Log::channel('operations')->warning('evidence.submit_invalid_state', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -275,7 +320,7 @@ class EvidenceController extends Controller
 
         $context = $this->resolveSubmissionContext($submission, $flowService);
 
-        if (!$context['availability']['is_available']) {
+        if (! $context['availability']['is_available']) {
             Log::channel('operations')->warning('evidence.submit_window_closed', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -287,7 +332,7 @@ class EvidenceController extends Controller
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('error', 'La evidencia no esta disponible para envio: ' . $context['availability']['label'] . '.');
+            return back()->with('error', 'La evidencia no esta disponible para envio: '.$context['availability']['label'].'.');
         }
 
         if ($submission->files()->count() === 0) {
@@ -353,7 +398,8 @@ class EvidenceController extends Controller
             abort(403);
         }
 
-        if (!in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)) {
+        if (! in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
+            && ! $this->isPendingEditable($submission)) {
             Log::channel('operations')->warning('evidence.file_upload_invalid_state', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -367,7 +413,7 @@ class EvidenceController extends Controller
 
         $context = $this->resolveSubmissionContext($submission, $flowService);
 
-        if (!$context['availability']['is_available']) {
+        if (! $context['availability']['is_available']) {
             Log::channel('operations')->warning('evidence.file_upload_window_closed', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -379,15 +425,15 @@ class EvidenceController extends Controller
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('error', 'La evidencia no esta disponible para carga: ' . $context['availability']['label'] . '.');
+            return back()->with('error', 'La evidencia no esta disponible para carga: '.$context['availability']['label'].'.');
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:' . implode(',', $this->allowedUploadExtensions()) . '|max:' . $this->maxUploadKb(),
+            'file' => 'required|file|mimes:'.implode(',', $this->allowedUploadExtensions()).'|max:'.$this->maxUploadKb(),
         ]);
 
         $root = StorageRoot::where('is_active', true)->first();
-        if (!$root) {
+        if (! $root) {
             return back()->with('error', 'Error del sistema: No hay una ruta de almacenamiento activa configurada.');
         }
 
@@ -401,7 +447,7 @@ class EvidenceController extends Controller
                 'relative_path' => $itemPath,
             ],
             [
-                'name' => 'Entregables Item ' . $submission->evidence_item_id,
+                'name' => 'Entregables Item '.$submission->evidence_item_id,
                 'owner_user_id' => $submission->teacher_user_id,
                 'semester_id' => $submission->semester_id,
                 'parent_id' => null,
@@ -447,7 +493,7 @@ class EvidenceController extends Controller
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            return back()->with('error', 'Error al guardar el archivo: ' . $e->getMessage());
+            return back()->with('error', 'Error al guardar el archivo: '.$e->getMessage());
         }
     }
 
@@ -499,6 +545,13 @@ class EvidenceController extends Controller
     private function hasActiveUnlock(EvidenceSubmission $submission): bool
     {
         return $submission->activeResubmissionUnlock()->exists();
+    }
+
+    private function isPendingEditable(EvidenceSubmission $submission): bool
+    {
+        return $submission->status === SubmissionStatus::SUBMITTED
+            && $submission->office_reviewed_at === null
+            && $submission->final_approved_at === null;
     }
 
     private function allowedUploadExtensions(): array

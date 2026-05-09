@@ -3,19 +3,32 @@
 namespace App\Http\Controllers;
 
 use App\Models\EvidenceFile;
+use App\Models\EvidenceRequirement;
+use App\Models\EvidenceSubmission;
+use App\Models\SubmissionWindow;
 use App\Services\DocxEditorService;
+use App\Services\EvidenceFlowService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use RuntimeException;
 
 class DocxEditorController extends Controller
 {
-    public function show(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService)
+    public function show(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService, EvidenceFlowService $flowService)
     {
         $this->authorize('view', $file);
         abort_unless($file->isDocx(), 404);
 
         $canEdit = $request->user()->can('replace', $file);
+        $submission = $file->submission;
+
+        if ($canEdit && $submission && ! $this->canBypassAvailability($request->user())) {
+            $availability = $this->fileManagerAvailability($submission, $flowService);
+
+            if (! $availability['is_available']) {
+                $canEdit = false;
+            }
+        }
         $payload = null;
         $loadError = null;
 
@@ -58,10 +71,21 @@ class DocxEditorController extends Controller
         ]);
     }
 
-    public function store(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService)
+    public function store(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService, EvidenceFlowService $flowService)
     {
         $this->authorize('replace', $file);
         abort_unless($file->isDocx(), 404);
+
+        $submission = $file->submission;
+        if ($submission && ! $this->canBypassAvailability($request->user())) {
+            $availability = $this->fileManagerAvailability($submission, $flowService);
+
+            if (! $availability['is_available']) {
+                return back()->withErrors([
+                    'docx' => 'La evidencia no esta disponible para carga en este momento.',
+                ]);
+            }
+        }
 
         $validated = $request->validate([
             'html' => 'required|string',
@@ -95,5 +119,63 @@ class DocxEditorController extends Controller
                 ? 'Nueva version DOCX guardada correctamente.'
                 : 'Documento DOCX guardado correctamente.'
             );
+    }
+
+    private function canBypassAvailability($user): bool
+    {
+        return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    private function submissionAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
+    {
+        $requirements = $flowService->requirementsForDepartment(
+            $submission->semester_id,
+            $submission->teacher->departments()->first()?->id
+        );
+
+        $requirement = $requirements->firstWhere('evidence_item_id', $submission->evidence_item_id);
+
+        $loadSubmissions = EvidenceSubmission::query()
+            ->where('teacher_user_id', $submission->teacher_user_id)
+            ->where('semester_id', $submission->semester_id)
+            ->where('teaching_load_id', $submission->teaching_load_id)
+            ->get()
+            ->keyBy('evidence_item_id');
+
+        $window = SubmissionWindow::query()
+            ->where('semester_id', $submission->semester_id)
+            ->where('evidence_item_id', $submission->evidence_item_id)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        $stageUnlocked = $requirement instanceof EvidenceRequirement
+            ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)
+            : true;
+
+        return $flowService->resolveAvailability(
+            $window,
+            $stageUnlocked,
+            $submission->activeResubmissionUnlock()->exists(),
+            $submission
+        );
+    }
+
+    private function fileManagerAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
+    {
+        $availability = $this->submissionAvailability($submission, $flowService);
+
+        if ($availability['code'] === 'NOT_CONFIGURED') {
+            return [
+                ...$availability,
+                'code' => 'FILE_MANAGER_DRAFT',
+                'label' => 'Disponible en borrador dentro del gestor (sin ventana configurada)',
+                'is_available' => true,
+                'is_late' => false,
+                'is_future' => false,
+                'tone' => 'amber',
+            ];
+        }
+
+        return $availability;
     }
 }

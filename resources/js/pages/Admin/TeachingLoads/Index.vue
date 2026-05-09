@@ -112,26 +112,26 @@ const submitForm = () => {
 };
 
 const destroyLoad = (id: number) => {
-    if (confirm('Seguro que deseas eliminar esta asignacion de carga docente?')) {
+    if (confirm('¿Seguro que deseas eliminar esta asignación de carga docente?')) {
         router.delete(`/admin/teaching-loads/${id}`, { preserveScroll: true });
     }
 };
 </script>
 
 <template>
-    <Head title="Cargas Academicas" />
+    <Head title="Cargas Académicas" />
 
     <AppLayout
         :breadcrumbs="[
             { title: 'Admin', href: '#' },
-            { title: 'Cargas Academicas', href: '/admin/teaching-loads' },
+            { title: 'Cargas Académicas', href: '/admin/teaching-loads' },
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
             <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">
-                        Gestion de Cargas Academicas
+                        Gestión de Cargas Académicas
                     </h1>
                     <p class="mt-1 text-sm text-gray-500">
                         Asigna materias y grupos a docentes por semestre.
@@ -230,7 +230,7 @@ const destroyLoad = (id: number) => {
                                     class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                                     :class="load.modality === 'EN_LINEA' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'"
                                 >
-                                    {{ load.modality === 'EN_LINEA' ? 'Materia en linea' : 'Presencial' }}
+                                    {{ load.modality === 'EN_LINEA' ? 'Materia en línea' : 'Presencial' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -243,6 +243,7 @@ const destroyLoad = (id: number) => {
                                     type="button"
                                     @click="openEditModal(load)"
                                     class="mr-3 text-indigo-600 hover:text-indigo-900"
+                                    aria-label="Editar"
                                 >
                                     <Edit2 class="h-4 w-4" />
                                 </button>
@@ -250,6 +251,7 @@ const destroyLoad = (id: number) => {
                                     type="button"
                                     @click="destroyLoad(load.id)"
                                     class="text-red-600 hover:text-red-900"
+                                    aria-label="Eliminar"
                                 >
                                     <Trash2 class="h-4 w-4" />
                                 </button>
@@ -257,7 +259,7 @@ const destroyLoad = (id: number) => {
                         </tr>
                         <tr v-if="teachingLoads.data.length === 0">
                             <td colspan="7" class="bg-gray-50 px-6 py-12 text-center text-gray-500">
-                                No se encontraron cargas academicas para este filtro.
+                                No se encontraron cargas académicas para este filtro.
                             </td>
                         </tr>
                     </tbody>
@@ -298,7 +300,7 @@ const destroyLoad = (id: number) => {
                             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div class="mb-5">
                                     <h3 class="border-b pb-2 text-xl font-bold leading-8 text-gray-900">
-                                        {{ editingLoad ? 'Editar Asignacion' : 'Asignar Carga Academica' }}
+                                        {{ editingLoad ? 'Editar Asignación' : 'Asignar Carga Académica' }}
                                     </h3>
                                 </div>
 
@@ -347,8 +349,9 @@ const destroyLoad = (id: number) => {
 
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700">Clave de Grupo</label>
+                                            <label for="load-group-code" class="block text-sm font-medium text-gray-700">Clave de Grupo</label>
                                             <input
+                                                id="load-group-code"
                                                 v-model="form.group_code"
                                                 type="text"
                                                 class="mt-1 block w-full flex-1 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
@@ -360,8 +363,9 @@ const destroyLoad = (id: number) => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700">Horas por Semana (Opcional)</label>
+                                            <label for="load-hours" class="block text-sm font-medium text-gray-700">Horas por Semana (Opcional)</label>
                                             <input
+                                                id="load-hours"
                                                 v-model="form.hours_per_week"
                                                 type="number"
                                                 class="mt-1 block w-full flex-1 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
@@ -375,17 +379,18 @@ const destroyLoad = (id: number) => {
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Modalidad</label>
+                                        <label for="load-modality" class="block text-sm font-medium text-gray-700">Modalidad</label>
                                         <select
+                                            id="load-modality"
                                             v-model="form.modality"
                                             class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                                             required
                                         >
                                             <option value="PRESENCIAL">Presencial</option>
-                                            <option value="EN_LINEA">Materia en linea</option>
+                                            <option value="EN_LINEA">Materia en línea</option>
                                         </select>
                                         <p class="mt-1 text-xs text-gray-500">
-                                            Las materias en linea pueden usar ventanas de entrega especiales mas amplias.
+                                            Las materias en línea pueden usar ventanas de entrega especiales más amplias.
                                         </p>
                                         <div v-if="form.errors.modality" class="mt-1 text-xs text-red-500">
                                             {{ form.errors.modality }}

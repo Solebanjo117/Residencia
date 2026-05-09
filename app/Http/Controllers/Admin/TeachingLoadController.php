@@ -71,7 +71,7 @@ class TeachingLoadController extends Controller
             ->exists();
 
         if ($exists) {
-            return back()->withErrors(['error' => 'This exact teaching load has already been assigned to the teacher.']);
+            return back()->withErrors(['error' => 'Esta carga académica ya está asignada al docente.']);
         }
 
         $load = TeachingLoad::create($validated);
@@ -79,7 +79,7 @@ class TeachingLoadController extends Controller
         // Auto-generate full folder structure for the assigned teacher
         app(FolderStructureService::class)->generateFullStructure($load->semester, $load->teacher);
 
-        return redirect()->back()->with('success', 'Teaching load assigned successfully.');
+        return redirect()->back()->with('success', 'Carga académica asignada correctamente.');
     }
 
     public function update(Request $request, TeachingLoad $teachingLoad)
@@ -95,13 +95,13 @@ class TeachingLoadController extends Controller
 
         $teachingLoad->update($validated);
 
-        return redirect()->back()->with('success', 'Teaching load updated successfully.');
+        return redirect()->back()->with('success', 'Carga académica actualizada correctamente.');
     }
 
     public function destroy(TeachingLoad $teachingLoad)
     {
         $teachingLoad->delete();
 
-        return redirect()->back()->with('success', 'Teaching load removed successfully.');
+        return redirect()->back()->with('success', 'Carga académica eliminada correctamente.');
     }
 }

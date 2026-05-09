@@ -16,9 +16,8 @@ class RequirementController extends Controller
 {
     public function index(Request $request)
     {
-        $semesterId = $request->query('semester_id');
-        
         $semesters = Semester::orderBy('start_date', 'desc')->get();
+        $semesterId = $request->query('semester_id') ?? $semesters->first()?->id;
         $departments = Department::orderBy('name')->get();
         
         // Group items by category for nicer UI
@@ -26,10 +25,9 @@ class RequirementController extends Controller
             $q->where('active', true)->orderBy('name');
         }])->orderBy('name')->get();
 
-        $requirements = [];
-        if ($semesterId) {
-            $requirements = EvidenceRequirement::where('semester_id', $semesterId)->get();
-        }
+        $requirements = $semesterId
+            ? EvidenceRequirement::where('semester_id', $semesterId)->get()
+            : collect();
 
         return Inertia::render('Admin/Requirements/Matrix', [
             'semesters' => $semesters,
@@ -44,7 +42,7 @@ class RequirementController extends Controller
     {
         $validated = $request->validate([
             'semester_id' => 'required|exists:semesters,id',
-            'requirements' => 'required|array',
+            'requirements' => 'present|array',
             'requirements.*.department_id' => 'nullable|exists:departments,id',
             'requirements.*.evidence_item_id' => 'required|exists:evidence_items,id',
             'requirements.*.is_mandatory' => 'required|boolean',
@@ -65,6 +63,6 @@ class RequirementController extends Controller
             }
         });
 
-        return redirect()->back()->with('success', 'Requirements matrix saved successfully.');
+        return redirect()->back()->with('success', 'Matriz de evidencias guardada correctamente.');
     }
 }

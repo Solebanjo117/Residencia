@@ -15,8 +15,8 @@ import {
     PlusCircle,
     ClipboardList,
 } from 'lucide-vue-next';
-import { RoleName } from '@/types/enums';
 import type { NavItem } from '@/types';
+import { RoleName } from '@/types/enums';
 
 export const getNavItemsByRole = (roleName?: string): NavItem[] => {
     const common: NavItem[] = [
@@ -31,7 +31,7 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             icon: FolderOpen,
         },
         {
-            title: 'Control de Seguimiento Docente',
+            title: 'Seguimiento Docente',
             href: '/asesorias',
             icon: MessageCircle,
         },
@@ -79,6 +79,18 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     icon: FileText,
                 },
                 {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Configuración',
+                },
+                {
+                    title: 'Matriz de Evidencias',
+                    href: '/admin/requirements',
+                    icon: Settings,
+                    section: 'Configuración',
+                },
+                {
                     title: 'Usuarios',
                     href: '/admin/users',
                     icon: Users,
@@ -94,12 +106,6 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     title: 'Materias',
                     href: '/admin/subjects',
                     icon: PlusCircle,
-                    section: 'Agregar',
-                },
-                {
-                    title: 'Rubros de Evidencia',
-                    href: '/admin/evidence-items',
-                    icon: ClipboardList,
                     section: 'Agregar',
                 },
                 {
@@ -136,6 +142,13 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     title: 'Matriz de Evidencias',
                     href: '/admin/requirements',
                     icon: Settings,
+                    section: 'Configuración',
+                },
+                {
+                    title: 'Rubros de Evidencia',
+                    href: '/admin/evidence-items',
+                    icon: ClipboardList,
+                    section: 'Configuración',
                 },
                 {
                     title: 'Usuarios',
@@ -156,12 +169,6 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     section: 'Agregar',
                 },
                 {
-                    title: 'Rubros de Evidencia',
-                    href: '/admin/evidence-items',
-                    icon: ClipboardList,
-                    section: 'Agregar',
-                },
-                {
                     title: 'Departamentos',
                     href: '/admin/departments',
                     icon: Building2,
@@ -170,6 +177,11 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     title: 'Cargas Académicas',
                     href: '/admin/teaching-loads',
                     icon: Briefcase,
+                },
+                {
+                    title: 'Auditoría',
+                    href: '/admin/audits',
+                    icon: FileText,
                 },
             ];
 

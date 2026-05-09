@@ -11,18 +11,53 @@ use Inertia\Inertia;
 
 class EvidenceItemController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $search = $request->query('search');
+        $categoryId = $request->query('category_id');
+        $status = $request->query('status', 'all');
+        $usage = $request->query('usage', 'all');
+
+        $items = EvidenceItem::query()
+            ->with('category')
+            ->withCount(['requirements', 'submissions'])
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->when($categoryId, function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            })
+            ->when($status === 'active', function ($q) {
+                $q->where('active', true);
+            })
+            ->when($status === 'inactive', function ($q) {
+                $q->where('active', false);
+            })
+            ->when($usage === 'used', function ($q) {
+                $q->whereHas('requirements')->orWhereHas('submissions');
+            })
+            ->when($usage === 'unused', function ($q) {
+                $q->whereDoesntHave('requirements')->whereDoesntHave('submissions');
+            })
+            ->orderBy('name')
+            ->paginate(15)
+            ->withQueryString();
+
         return Inertia::render('Admin/EvidenceItems/Index', [
             'categories' => EvidenceCategory::query()
                 ->withCount('items')
                 ->orderBy('name')
                 ->get(),
-            'items' => EvidenceItem::query()
-                ->with('category')
-                ->withCount(['requirements', 'submissions'])
-                ->orderBy('name')
-                ->paginate(15),
+            'items' => $items,
+            'filters' => [
+                'search' => $search ?? '',
+                'category_id' => $categoryId ?? '',
+                'status' => $status,
+                'usage' => $usage,
+            ],
         ]);
     }
 

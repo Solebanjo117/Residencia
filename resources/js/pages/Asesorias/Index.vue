@@ -66,7 +66,7 @@ const props = defineProps<{
 const dayCols = [
     { key: 'L', label: 'LUNES' },
     { key: 'M', label: 'MARTES' },
-    { key: 'Mi', label: 'MIERCOLES' },
+    { key: 'Mi', label: 'MIÉRCOLES' },
     { key: 'J', label: 'JUEVES' },
     { key: 'V', label: 'VIERNES' },
 ] as const;
@@ -74,7 +74,7 @@ const dayCols = [
 const dayOptions = [
     { value: 1, label: 'Lunes' },
     { value: 2, label: 'Martes' },
-    { value: 3, label: 'Miercoles' },
+    { value: 3, label: 'Miércoles' },
     { value: 4, label: 'Jueves' },
     { value: 5, label: 'Viernes' },
 ];
@@ -123,8 +123,8 @@ const availableLoads = computed(() => {
 const isEditing = computed(() => Boolean(editingSchedule.value));
 const modalTitle = computed(() =>
     isEditing.value
-        ? 'Editar horario de asesoria'
-        : 'Registrar horario de asesoria',
+        ? 'Editar horario de asesoría'
+        : 'Registrar horario de asesoría',
 );
 
 watch(semester, (newVal) => {
@@ -224,7 +224,7 @@ function submitForm() {
 }
 
 function deleteSchedule(schedule: AdvisorySchedule) {
-    if (!confirm('Eliminar este horario de asesoria?')) return;
+    if (!confirm('¿Eliminar este horario de asesoría?')) return;
 
     useForm({}).delete(`/asesorias-horarios/${schedule.id}`, {
         preserveScroll: true,
@@ -241,7 +241,7 @@ function printSchedule() {
 
     printWindow.document.open();
     printWindow.document.write(`<!doctype html>
-<html lang="es"><head><meta charset="utf-8"/><title>Horario de Asesorias</title>
+<html lang="es"><head><meta charset="utf-8"/><title>Horario de Asesorías</title>
 <style>
 @page{size:A4 landscape;margin:12mm}html,body{font-family:Arial,sans-serif;color:#111}
 body{padding-bottom:42mm}h1{font-size:18px;margin:0 0 4px;text-align:center}p{font-size:12px;margin:0 0 12px;color:#444;text-align:center}
@@ -251,7 +251,7 @@ td{text-align:left}.day-cell{text-align:center}tr:nth-child(even){background:#f9
 .signature-footer{position:fixed;left:12mm;right:12mm;bottom:12mm;display:flex;justify-content:space-between;gap:24px}
 .signature-block{width:32%;text-align:center}.signature-line{border-top:1px solid #111;padding-top:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 </style></head><body>
-<h1>Horario de Asesorias Docentes</h1>
+<h1>Horario de Asesorías Docentes</h1>
 <p>Semestre: ${semester.value}</p>
 ${clone.outerHTML}
 <div class="signature-footer">
@@ -269,24 +269,24 @@ ${clone.outerHTML}
 </script>
 
 <template>
-    <Head title="Horario de Asesorias" />
+    <Head title="Horario de Asesorías" />
 
     <AppLayout
         :breadcrumbs="[
-            { title: 'Asesorias - Horarios', href: '/asesorias-horarios' },
+            { title: 'Asesorías - Horarios', href: '/asesorias-horarios' },
         ]"
     >
-        <div class="min-h-screen bg-gray-50">
+        <div class="min-h-screen bg-slate-50">
             <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                 <div
                     class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
                 >
                     <div>
-                        <h1 class="text-2xl font-semibold text-gray-900">
-                            Horario de Asesorias
+                        <h1 class="text-2xl font-semibold text-slate-900">
+                            Horario de Asesorías
                         </h1>
-                        <p class="mt-1 text-sm text-gray-600">
-                            Horarios semanales de asesoria por docente, con o
+                        <p class="mt-1 text-sm text-slate-600">
+                            Horarios semanales de asesoría por docente, con o
                             sin materia asociada.
                         </p>
                     </div>
@@ -303,29 +303,29 @@ ${clone.outerHTML}
                 </div>
 
                 <div
-                    class="toolbar mb-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
+                    class="toolbar mb-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between"
                 >
                     <div class="flex flex-1 flex-col gap-3 md:flex-row">
                         <div class="relative w-full max-w-md">
                             <Search
-                                class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+                                class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-slate-400"
                             />
                             <input
                                 v-model="search"
                                 type="text"
-                                class="w-full rounded-lg border border-gray-200 bg-white py-2 pr-4 pl-10 text-sm outline-none focus:border-gray-300"
+                                class="w-full rounded-lg border border-slate-200 bg-white py-2 pr-4 pl-10 text-sm outline-none focus:border-slate-300"
                                 placeholder="Buscar por docente, materia o aula"
                             />
                         </div>
                         <div class="flex items-center gap-2">
                             <span
-                                class="hidden text-sm text-gray-500 md:inline"
+                                class="hidden text-sm text-slate-500 md:inline"
                             >
                                 Semestre
                             </span>
                             <select
                                 v-model="semester"
-                                class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-gray-300"
+                                class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
                             >
                                 <option
                                     v-for="semesterName in semesters"
@@ -339,7 +339,7 @@ ${clone.outerHTML}
                     </div>
                     <button
                         type="button"
-                        class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                         @click="printSchedule"
                     >
                         <Printer class="h-4 w-4" />
@@ -348,13 +348,13 @@ ${clone.outerHTML}
                 </div>
 
                 <div
-                    class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                    class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                 >
                     <div class="overflow-x-auto">
                         <table ref="printTableRef" class="w-full table-auto">
-                            <thead class="bg-gray-50">
+                            <thead class="bg-slate-50">
                                 <tr
-                                    class="text-[11px] font-semibold tracking-wide text-gray-600 uppercase"
+                                    class="text-[11px] font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     <th
                                         class="min-w-[180px] px-4 py-3 text-left"
@@ -377,17 +377,17 @@ ${clone.outerHTML}
                                     <th class="px-4 py-3 text-left">Lugar</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-slate-100">
                                 <tr
                                     v-for="row in filteredRows"
                                     :key="row.id"
-                                    class="hover:bg-gray-50/60"
+                                    class="hover:bg-slate-50/60"
                                 >
-                                    <td class="px-4 py-3 text-sm text-gray-800">
+                                    <td class="px-4 py-3 text-sm text-slate-800">
                                         {{ row.materia }}
                                     </td>
                                     <td
-                                        class="px-4 py-3 text-sm font-semibold text-gray-900"
+                                        class="px-4 py-3 text-sm font-semibold text-slate-900"
                                     >
                                         {{ row.docente }}
                                     </td>
@@ -402,23 +402,23 @@ ${clone.outerHTML}
                                         >
                                             {{ row[day.key] }}
                                         </span>
-                                        <span v-else class="text-gray-300"
+                                        <span v-else class="text-slate-300"
                                             >-</span
                                         >
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                    <td class="px-4 py-3 text-sm text-slate-700">
                                         {{ row.carrera }}
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-600">
+                                    <td class="px-4 py-3 text-sm text-slate-600">
                                         {{ row.aula || '-' }}
                                     </td>
                                 </tr>
                                 <tr v-if="filteredRows.length === 0">
                                     <td
                                         colspan="9"
-                                        class="px-4 py-10 text-center text-sm text-gray-500"
+                                        class="px-4 py-10 text-center text-sm text-slate-500"
                                     >
-                                        No hay horarios de asesoria registrados.
+                                        No hay horarios de asesoría registrados.
                                     </td>
                                 </tr>
                             </tbody>
@@ -428,12 +428,12 @@ ${clone.outerHTML}
 
                 <section
                     v-if="canManage"
-                    class="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+                    class="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
                     <div class="mb-4 flex items-center gap-2">
                         <CalendarClock class="h-5 w-5 text-indigo-600" />
-                        <h2 class="text-sm font-semibold text-gray-900">
-                            Edicion de horarios
+                        <h2 class="text-sm font-semibold text-slate-900">
+                            Edición de horarios
                         </h2>
                     </div>
 
@@ -441,16 +441,16 @@ ${clone.outerHTML}
                         <article
                             v-for="schedule in schedules"
                             :key="schedule.id"
-                            class="rounded-lg border border-gray-200 p-4"
+                            class="rounded-lg border border-slate-200 p-4"
                         >
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <p
-                                        class="text-sm font-semibold text-gray-900"
+                                        class="text-sm font-semibold text-slate-900"
                                     >
                                         {{ schedule.teacher_name }}
                                     </p>
-                                    <p class="mt-1 text-sm text-gray-600">
+                                    <p class="mt-1 text-sm text-slate-600">
                                         {{ scheduleTitle(schedule) }}
                                     </p>
                                     <p class="mt-1 text-sm text-indigo-700">
@@ -460,7 +460,7 @@ ${clone.outerHTML}
                                     </p>
                                     <p
                                         v-if="schedule.location"
-                                        class="mt-1 text-xs text-gray-500"
+                                        class="mt-1 text-xs text-slate-500"
                                     >
                                         {{ schedule.location }}
                                     </p>
@@ -491,7 +491,7 @@ ${clone.outerHTML}
         </div>
 
         <div v-if="showModal" class="relative z-50">
-            <div class="fixed inset-0 bg-gray-500/75 transition-opacity"></div>
+            <div class="fixed inset-0 bg-slate-500/75 transition-opacity"></div>
             <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
                 <div
                     class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"
@@ -501,10 +501,10 @@ ${clone.outerHTML}
                         @submit.prevent="submitForm"
                     >
                         <div
-                            class="border-b border-gray-100 bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4"
+                            class="border-b border-slate-100 bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4"
                         >
                             <h3
-                                class="mb-4 text-lg leading-6 font-semibold text-gray-900"
+                                class="mb-4 text-lg leading-6 font-semibold text-slate-900"
                             >
                                 {{ modalTitle }}
                             </h3>
@@ -512,13 +512,13 @@ ${clone.outerHTML}
                             <div class="space-y-4">
                                 <div>
                                     <label
-                                        class="block text-sm leading-6 font-medium text-gray-900"
+                                        class="block text-sm leading-6 font-medium text-slate-900"
                                         >Docente</label
                                     >
                                     <select
                                         v-model="form.teacher_user_id"
                                         required
-                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-slate-900 ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                     >
                                         <option value="" disabled>
                                             Selecciona docente
@@ -541,15 +541,15 @@ ${clone.outerHTML}
 
                                 <div>
                                     <label
-                                        class="block text-sm leading-6 font-medium text-gray-900"
+                                        class="block text-sm leading-6 font-medium text-slate-900"
                                         >Materia / grupo (opcional)</label
                                     >
                                     <select
                                         v-model="form.teaching_load_id"
-                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-slate-900 ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                     >
                                         <option value="">
-                                            Asesoria general / sin materia
+                                            Asesoría general / sin materia
                                         </option>
                                         <option
                                             v-for="load in availableLoads"
@@ -569,13 +569,13 @@ ${clone.outerHTML}
 
                                 <div>
                                     <label
-                                        class="block text-sm leading-6 font-medium text-gray-900"
-                                        >Dia semanal</label
+                                        class="block text-sm leading-6 font-medium text-slate-900"
+                                        >Día semanal</label
                                     >
                                     <select
                                         v-model="form.day_of_week"
                                         required
-                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                        class="mt-2 block w-full rounded-md border-0 py-1.5 pr-10 pl-3 text-slate-900 ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                     >
                                         <option
                                             v-for="day in dayOptions"
@@ -596,14 +596,14 @@ ${clone.outerHTML}
                                 <div class="grid grid-cols-2 gap-4">
                                     <div>
                                         <label
-                                            class="block text-sm leading-6 font-medium text-gray-900"
+                                            class="block text-sm leading-6 font-medium text-slate-900"
                                             >Hora inicio</label
                                         >
                                         <input
                                             v-model="form.start_time"
                                             type="time"
                                             required
-                                            class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                            class="mt-2 block w-full rounded-md border-0 py-1.5 text-slate-900 ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                         />
                                         <p
                                             v-if="form.errors.start_time"
@@ -614,14 +614,14 @@ ${clone.outerHTML}
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-sm leading-6 font-medium text-gray-900"
+                                            class="block text-sm leading-6 font-medium text-slate-900"
                                             >Hora fin</label
                                         >
                                         <input
                                             v-model="form.end_time"
                                             type="time"
                                             required
-                                            class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                            class="mt-2 block w-full rounded-md border-0 py-1.5 text-slate-900 ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                         />
                                         <p
                                             v-if="form.errors.end_time"
@@ -634,14 +634,14 @@ ${clone.outerHTML}
 
                                 <div>
                                     <label
-                                        class="block text-sm leading-6 font-medium text-gray-900"
+                                        class="block text-sm leading-6 font-medium text-slate-900"
                                         >Lugar</label
                                     >
                                     <input
                                         v-model="form.location"
                                         type="text"
-                                        placeholder="Ej. Cubiculo, aula o en linea"
-                                        class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 ring-1 ring-gray-300 ring-inset placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                        placeholder="Ej. Cubículo, aula o en línea"
+                                        class="mt-2 block w-full rounded-md border-0 py-1.5 text-slate-900 ring-1 ring-slate-300 ring-inset placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6"
                                     />
                                     <p
                                         v-if="form.errors.location"
@@ -653,7 +653,7 @@ ${clone.outerHTML}
                             </div>
                         </div>
                         <div
-                            class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"
+                            class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"
                         >
                             <button
                                 type="submit"
@@ -668,7 +668,7 @@ ${clone.outerHTML}
                             </button>
                             <button
                                 type="button"
-                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                                class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-slate-300 ring-inset hover:bg-slate-50 sm:mt-0 sm:w-auto"
                                 @click="closeModal"
                             >
                                 Cancelar

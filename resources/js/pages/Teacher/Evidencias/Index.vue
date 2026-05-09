@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
     AlertCircle,
     AlertTriangle,
@@ -9,10 +9,13 @@ import {
     Clock,
     File as FileIcon,
     FileStack,
+    Pencil,
     Send,
     ShieldCheck,
+    Trash2,
     UploadCloud,
 } from 'lucide-vue-next';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 interface Task {
     id: number | null;
@@ -38,6 +41,11 @@ interface Task {
             size: number;
             uploaded_at: string;
             download_url: string;
+            mime_type: string | null;
+            is_docx: boolean;
+            editor_url: string | null;
+            can_edit_docx: boolean;
+            can_delete: boolean;
         }>;
         submitted_late: boolean;
         office_approved_at: string | null;
@@ -78,10 +86,24 @@ interface Task {
     can_submit: boolean;
 }
 
+interface SemesterOption {
+    id: number;
+    name: string;
+}
+
+interface TeachingLoadOption {
+    id: number;
+    label: string;
+}
+
 const props = defineProps<{
     semester: any | null;
     tasks: Task[];
     allowedExtensions?: string[];
+    semesters: SemesterOption[];
+    selectedSemesterId: number | null;
+    teachingLoads: TeachingLoadOption[];
+    selectedTeachingLoadId: number | null;
 }>();
 
 const uploadAccept = computed(() => {
@@ -92,8 +114,44 @@ const uploadAccept = computed(() => {
     return extensions.map((extension) => `.${extension}`).join(',');
 });
 
+const selectedSemesterId = ref<number | null>(props.selectedSemesterId);
+const selectedTeachingLoadId = ref<number | null>(props.selectedTeachingLoadId);
+
+const handleSemesterChange = () => {
+    router.get('/docente/evidencias', { semester_id: selectedSemesterId.value ?? undefined }, { preserveState: false });
+};
+
+const handleTeachingLoadChange = () => {
+    router.get('/docente/evidencias', {
+        semester_id: selectedSemesterId.value ?? undefined,
+        teaching_load_id: selectedTeachingLoadId.value ?? undefined,
+    }, { preserveScroll: true });
+};
+
+watch(() => props.selectedSemesterId, (val) => {
+    selectedSemesterId.value = val ?? null;
+});
+
+watch(() => props.selectedTeachingLoadId, (val) => {
+    selectedTeachingLoadId.value = val ?? null;
+});
+
+watch(() => props.tasks, () => {
+    if (selectedTask.value) {
+        const updatedTask = props.tasks.find((task) => taskKey(task) === taskKey(selectedTask.value!));
+        if (!updatedTask) {
+            selectedTask.value = null;
+        }
+    }
+});
+
 const selectedTask = ref<Task | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const showSubmitConfirm = ref(false);
+const submitProcessing = ref(false);
+const showDeleteConfirm = ref(false);
+const deleteProcessing = ref(false);
+const deletingFileId = ref<number | null>(null);
 
 const uploadForm = useForm({
     file: null as File | null,
@@ -195,15 +253,24 @@ const handleFileSelected = (event: Event) => {
 const submitEvidence = () => {
     if (!selectedTask.value?.id) return;
 
-    if (confirm('Se enviara esta evidencia para revision. Continuar?')) {
-        router.post(`/docente/evidencias/${selectedTask.value.id}/submit`, {}, {
-            preserveScroll: true,
-            onSuccess: () => {
-                const updatedTask = props.tasks.find((task) => task.id === selectedTask.value?.id);
-                if (updatedTask) selectedTask.value = updatedTask;
-            },
-        });
-    }
+    showSubmitConfirm.value = true;
+};
+
+const confirmSubmitEvidence = () => {
+    if (!selectedTask.value?.id || submitProcessing.value) return;
+
+    submitProcessing.value = true;
+    router.post(`/docente/evidencias/${selectedTask.value.id}/submit`, {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showSubmitConfirm.value = false;
+            const updatedTask = props.tasks.find((task) => task.id === selectedTask.value?.id);
+            if (updatedTask) selectedTask.value = updatedTask;
+        },
+        onFinish: () => {
+            submitProcessing.value = false;
+        },
+    });
 };
 
 const initSubmission = () => {
@@ -243,35 +310,85 @@ const formatBytes = (bytes: number) => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
+
+const requestDeleteFile = (fileId: number) => {
+    deletingFileId.value = fileId;
+    showDeleteConfirm.value = true;
+};
+
+const confirmDeleteFile = () => {
+    if (!deletingFileId.value || deleteProcessing.value) return;
+
+    deleteProcessing.value = true;
+    router.delete(`/files/${deletingFileId.value}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showDeleteConfirm.value = false;
+            deletingFileId.value = null;
+            const updatedTask = props.tasks.find((task) => task.id === selectedTask.value?.id);
+            if (updatedTask) selectedTask.value = updatedTask;
+        },
+        onFinish: () => {
+            deleteProcessing.value = false;
+        },
+    });
+};
 </script>
 
 <template>
     <Head title="Mis Evidencias" />
 
     <AppLayout :breadcrumbs="[{ title: 'Mi Espacio', href: '/docente/evidencias' }]">
-        <div class="mx-auto flex h-[calc(100vh-4rem)] max-w-7xl flex-col px-6 py-8">
+        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
             <div class="mb-6">
                 <h1 class="flex items-center text-2xl font-bold text-slate-900">
                     <FileStack class="mr-3 h-6 w-6 text-indigo-600" />
                     Mis Entregas y Evidencias
                 </h1>
                 <p class="mt-1 text-sm text-slate-500">
-                    Visualiza tus etapas activas, carga evidencia y monitorea aprobacion de oficina y liberacion final.
+                    Visualiza tus etapas activas, carga evidencia y monitorea aprobación de oficina y liberación final.
                 </p>
             </div>
 
             <div v-if="!semester" class="rounded-md border-l-4 border-amber-400 bg-amber-50 p-4">
-                <p class="text-sm text-amber-700">El semestre no esta activo.</p>
+                <p class="text-sm text-amber-700">El semestre no está activo.</p>
             </div>
 
-            <div v-else class="flex flex-1 gap-6 overflow-hidden pb-8">
-                <div class="flex w-1/3 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div v-else>
+                <div class="mb-4 flex flex-wrap items-center gap-3">
+                    <div class="flex-1 min-w-[180px]">
+                        <label for="semester-filter" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">Semestre</label>
+                        <select
+                            id="semester-filter"
+                            v-model="selectedSemesterId"
+                            @change="handleSemesterChange"
+                            class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        >
+                            <option v-for="s in semesters" :key="s.id" :value="s.id">{{ s.name }}</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[220px]">
+                        <label for="load-filter" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">Materia</label>
+                        <select
+                            id="load-filter"
+                            v-model="selectedTeachingLoadId"
+                            @change="handleTeachingLoadChange"
+                            class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        >
+                            <option :value="null">Todas las materias</option>
+                            <option v-for="tl in teachingLoads" :key="tl.id" :value="tl.id">{{ tl.label }}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:gap-6">
+                <div class="flex w-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm lg:w-1/3 lg:overflow-hidden lg:max-h-[calc(100vh-12rem)]">
                     <div class="border-b border-slate-200 bg-slate-50 p-4">
                         <h2 class="font-semibold text-slate-800">Materias Asignadas</h2>
                     </div>
                     <div class="flex-1 overflow-y-auto p-2">
                         <div v-if="Object.keys(groupedTasks).length === 0" class="p-4 text-center text-sm text-slate-500">
-                            No tienes cargas academicas asignadas.
+                            No tienes cargas académicas asignadas.
                         </div>
 
                         <div v-for="(groupTasks, subjectName) in groupedTasks" :key="subjectName" class="mb-4">
@@ -305,14 +422,14 @@ const formatBytes = (bytes: number) => {
                     </div>
                 </div>
 
-                <div class="relative flex w-2/3 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div class="relative flex w-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm lg:w-2/3 lg:overflow-hidden lg:max-h-[calc(100vh-12rem)]">
                     <div v-if="!selectedTask" class="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-400">
                         <FileStack class="mb-4 h-16 w-16 text-slate-200" />
                         <p class="text-lg font-medium text-slate-600">Selecciona un documento</p>
                         <p class="mt-1 text-sm">Haz clic en un entregable para ver su detalle y sus reglas operativas.</p>
                     </div>
 
-                    <div v-else class="flex h-full flex-col">
+                    <div v-else class="flex flex-col lg:h-full">
                         <div class="border-b border-slate-200 bg-white p-6">
                             <div class="mb-4 flex items-start justify-between">
                                 <div>
@@ -328,7 +445,7 @@ const formatBytes = (bytes: number) => {
                                             {{ selectedTask.availability.label }}
                                         </span>
                                         <span v-if="selectedTask.submission.submitted_late || selectedTask.availability.is_late" class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                                            Extemporanea
+                                            Extemporánea
                                         </span>
                                     </div>
                                     <h2 class="text-xl font-bold text-slate-900">{{ selectedTask.requirement.item_name }}</h2>
@@ -372,7 +489,7 @@ const formatBytes = (bytes: number) => {
                                     class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
                                 >
                                     <UploadCloud class="mr-1.5 h-4 w-4" />
-                                    Subir Archivo
+                                    Subir archivo
                                 </button>
                                 <input ref="fileInput" type="file" class="hidden" :accept="uploadAccept" @change="handleFileSelected" />
                             </div>
@@ -388,9 +505,31 @@ const formatBytes = (bytes: number) => {
                                             <p class="mt-0.5 text-xs text-slate-500">{{ formatBytes(file.size) }} - Subido el {{ formatDate(file.uploaded_at) }}</p>
                                         </div>
                                     </div>
-                                    <a :href="file.download_url" class="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                                        Descargar
-                                    </a>
+                                    <div class="flex items-center gap-2">
+                                        <a
+                                            v-if="file.is_docx && file.can_edit_docx"
+                                            :href="file.editor_url"
+                                            class="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                                        >
+                                            <Pencil class="mr-1 h-3.5 w-3.5" />
+                                            Editar Word
+                                        </a>
+                                        <a
+                                            :href="file.download_url"
+                                            class="inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                        >
+                                            Descargar
+                                        </a>
+                                        <button
+                                            v-if="file.can_delete"
+                                            type="button"
+                                            @click="requestDeleteFile(file.id)"
+                                            class="inline-flex items-center rounded-md border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                        >
+                                            <Trash2 class="mr-1 h-3.5 w-3.5" />
+                                            Eliminar
+                                        </button>
+                                    </div>
                                 </li>
                             </ul>
 
@@ -400,7 +539,7 @@ const formatBytes = (bytes: number) => {
                             </div>
 
                             <div v-if="selectedTask.submission.last_review" class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                <h3 class="mb-2 text-sm font-semibold text-slate-900">Ultima revision</h3>
+                                <h3 class="mb-2 text-sm font-semibold text-slate-900">Última revisión</h3>
                                 <div class="flex flex-wrap items-center gap-2 text-xs">
                                     <span class="rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">
                                         {{ selectedTask.submission.last_review.stage === 'FINAL' ? 'FINAL' : 'OFICINA' }}
@@ -425,7 +564,7 @@ const formatBytes = (bytes: number) => {
                                 :disabled="!selectedTask.can_initialize || initForm.processing"
                                 class="inline-flex items-center rounded-lg bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                Inicializar Entrega
+                                Inicializar entrega
                             </button>
 
                             <button
@@ -435,7 +574,7 @@ const formatBytes = (bytes: number) => {
                                 class="inline-flex items-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
                             >
                                 <Send class="mr-2 h-4 w-4 -ml-1" />
-                                Enviar Evidencia a Revision
+                                Enviar evidencia a revisión
                             </button>
 
                             <div v-else-if="footerAvailabilityLabel(selectedTask)" class="text-sm text-slate-500">
@@ -445,6 +584,27 @@ const formatBytes = (bytes: number) => {
                     </div>
                 </div>
             </div>
+            </div>
         </div>
     </AppLayout>
+
+    <ConfirmDialog
+        :open="showSubmitConfirm"
+        title="Enviar evidencia"
+        description="¿Se enviará esta evidencia para revisión? Podrás ajustar archivos mientras permanezca pendiente y no haya sido revisada."
+        confirm-label="Enviar"
+        variant="default"
+        @update:open="showSubmitConfirm = $event"
+        @confirm="confirmSubmitEvidence"
+    />
+
+    <ConfirmDialog
+        :open="showDeleteConfirm"
+        title="Eliminar archivo"
+        description="¿Estás seguro de que deseas eliminar este archivo? Esta acción no se puede deshacer."
+        confirm-label="Eliminar"
+        variant="destructive"
+        @update:open="(val: boolean) => { showDeleteConfirm = val; if (!val) deletingFileId = null; }"
+        @confirm="confirmDeleteFile"
+    />
 </template>

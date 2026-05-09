@@ -36,10 +36,10 @@ const isWindowOpen = (opensAt: string) => {
             <!-- Header section -->
             <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Panel de Control Docente</h1>
-                    <p class="mt-1 text-sm text-gray-500">
+                    <h1 class="text-2xl font-bold text-slate-900">Panel de Control Docente</h1>
+                    <p class="mt-1 text-sm text-slate-500">
                         Bienvenido al sistema. Tu carga actual es para el semestre: 
-                        <span class="font-semibold text-gray-800">{{ semester?.name || 'No disponible' }}</span>
+                        <span class="font-semibold text-slate-800">{{ semester?.name || 'No disponible' }}</span>
                     </p>
                 </div>
                 
@@ -65,27 +65,27 @@ const isWindowOpen = (opensAt: string) => {
             <div class="grid grid-cols-1 gap-6 mb-8 lg:grid-cols-3">
                 
                 <!-- Progress Card -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
-                    <h2 class="text-base font-semibold text-gray-900 mb-4 flex items-center">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 lg:col-span-2">
+                    <h2 class="text-base font-semibold text-slate-900 mb-4 flex items-center">
                         <FileStack class="w-5 h-5 mr-2 text-indigo-500" />
                         Progreso de Entregas (Semestre Actual)
                     </h2>
                     <div class="flex items-end justify-between mb-2">
                         <div>
-                            <span class="text-3xl font-bold text-gray-900">{{ progress.percentage }}%</span>
-                            <span class="text-sm font-medium text-gray-500 ml-2">Completado</span>
+                            <span class="text-3xl font-bold text-slate-900">{{ progress.percentage }}%</span>
+                            <span class="text-sm font-medium text-slate-500 ml-2">Completado</span>
                         </div>
-                        <div class="text-sm font-medium text-gray-600">
+                        <div class="text-sm font-medium text-slate-600">
                             {{ progress.submitted }} de {{ progress.total }} obligatorios
                         </div>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div class="w-full bg-slate-200 rounded-full h-3">
                         <div 
                             class="bg-indigo-600 h-3 rounded-full transition-all duration-500"
                             :style="{ width: `${progress.percentage}%` }"
                         ></div>
                     </div>
-                    <p class="mt-4 text-xs text-gray-500">El cálculo de progreso se basa en los lineamientos requeridos por tu departamento.</p>
+                    <p class="mt-4 text-xs text-slate-500">El cálculo de progreso se basa en los lineamientos requeridos por tu departamento.</p>
                 </div>
 
                 <!-- Fast Info -->
@@ -105,16 +105,16 @@ const isWindowOpen = (opensAt: string) => {
                 
                 <!-- Calendar / Windows -->
                 <div>
-                    <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
                         <CalendarClock class="w-5 h-5 mr-2 text-blue-500" />
                         Fechas Límite (Ventanas)
                     </h2>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div v-if="upcomingWindows.length === 0" class="p-6 text-center text-sm text-gray-500">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div v-if="upcomingWindows.length === 0" class="p-6 text-center text-sm text-slate-500">
                             No hay ventanas de entrega programadas o activas en este momento.
                         </div>
-                        <ul v-else class="divide-y divide-gray-200">
-                            <li v-for="win in upcomingWindows" :key="win.id" class="p-4 hover:bg-gray-50 transition">
+                        <ul v-else class="divide-y divide-slate-200">
+                            <li v-for="win in upcomingWindows" :key="win.id" class="p-4 hover:bg-slate-50 transition">
                                 <div class="flex justify-between items-start">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-2 mb-1">
@@ -125,10 +125,10 @@ const isWindowOpen = (opensAt: string) => {
                                                 {{ isWindowOpen(win.opens_at) ? 'ABIERTA' : 'PROGRAMADA' }}
                                             </span>
                                         </div>
-                                        <h3 class="text-sm font-semibold text-gray-900">{{ win.evidence_item.name }}</h3>
-                                        <div class="mt-1 text-xs text-gray-500 flex items-center gap-4">
-                                            <span><strong class="font-medium text-gray-700">Abre:</strong> {{ formatDate(win.opens_at) }}</span>
-                                            <span><strong class="font-medium text-gray-700">Cierra:</strong> {{ formatDate(win.closes_at) }}</span>
+                                        <h3 class="text-sm font-semibold text-slate-900">{{ win.evidence_item.name }}</h3>
+                                        <div class="mt-1 text-xs text-slate-500 flex items-center gap-4">
+                                            <span><strong class="font-medium text-slate-700">Abre:</strong> {{ formatDate(win.opens_at) }}</span>
+                                            <span><strong class="font-medium text-slate-700">Cierra:</strong> {{ formatDate(win.closes_at) }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -139,26 +139,26 @@ const isWindowOpen = (opensAt: string) => {
 
                 <!-- Teaching Loads -->
                 <div id="cargas">
-                    <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                    <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center">
                         <BookOpen class="w-5 h-5 mr-2 text-indigo-500" />
                         Carga Académica y Grupos
                     </h2>
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div v-if="teachingLoads.length === 0" class="p-6 text-center text-sm text-gray-500">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div v-if="teachingLoads.length === 0" class="p-6 text-center text-sm text-slate-500">
                             No tienes materias o grupos asignados para este semestre.
                         </div>
-                        <ul v-else class="divide-y divide-gray-200">
-                            <li v-for="load in teachingLoads" :key="load.id" class="p-4 hover:bg-gray-50 transition">
+                        <ul v-else class="divide-y divide-slate-200">
+                            <li v-for="load in teachingLoads" :key="load.id" class="p-4 hover:bg-slate-50 transition">
                                 <div class="flex justify-between items-center">
                                     <div>
-                                        <h3 class="text-sm font-semibold text-gray-900">{{ load.subject.name }}</h3>
-                                        <div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                                        <h3 class="text-sm font-semibold text-slate-900">{{ load.subject.name }}</h3>
+                                        <div class="mt-1 flex items-center gap-3 text-xs text-slate-500">
                                             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-400"></span> Clave: {{ load.subject.code }}</span>
                                             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-400"></span> Grupo: {{ load.group_name }}</span>
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="text-xs font-medium text-gray-600 mb-1 border px-2 py-0.5 rounded shadow-sm bg-white">Alumnos: {{ load.student_count || 0 }}</div>
+                                        <div class="text-xs font-medium text-slate-600 mb-1 border px-2 py-0.5 rounded shadow-sm bg-white">Alumnos: {{ load.student_count || 0 }}</div>
                                     </div>
                                 </div>
                             </li>

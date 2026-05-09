@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     node: any;
     level?: number;
     expandedState: Record<string, boolean>;
     activeFolderId?: number | null;
+    hasInternalDrag?: boolean;
 }>();
 
 const emit = defineEmits<{
     (event: 'toggle-folder', folderId: string | number): void;
+    (event: 'drop-on-folder', folderId: number): void;
+    (event: 'folder-action', action: string, folder: any): void;
 }>();
 
 const page = usePage();
@@ -31,16 +34,55 @@ const isActive = computed(() => {
     return page.url === `/files/folders/${props.node.id}`;
 });
 
+const isDragOver = ref(false);
+
 const toggle = () => {
     if (hasChildren.value && !isVirtualNode.value) {
         emit('toggle-folder', props.node.id);
     }
 };
+
+const onDragOver = (event: DragEvent) => {
+    if (isVirtualNode.value) return;
+
+    if (event.dataTransfer?.types?.includes('Files') && !props.hasInternalDrag) {
+        return;
+    }
+
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'move';
+    }
+    isDragOver.value = true;
+};
+
+const onDragLeave = () => {
+    isDragOver.value = false;
+};
+
+const onDrop = (event: DragEvent) => {
+    isDragOver.value = false;
+    if (isVirtualNode.value) return;
+
+    if (event.dataTransfer?.types?.includes('Files') && !props.hasInternalDrag) {
+        event.preventDefault();
+        return;
+    }
+
+    event.preventDefault();
+    emit('drop-on-folder', Number(props.node.id));
+};
 </script>
 
 <template>
     <div class="pl-2">
-        <div class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100">
+        <div
+            class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
+            :class="{ 'ring-2 ring-blue-400 bg-blue-50': isDragOver }"
+            @dragover="onDragOver($event)"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+        >
             <button
                 type="button"
                 class="flex h-5 w-5 items-center justify-center rounded hover:bg-gray-200"
@@ -81,7 +123,10 @@ const toggle = () => {
                 :level="(level || 0) + 1"
                 :expanded-state="expandedState"
                 :active-folder-id="activeFolderId"
+                :has-internal-drag="hasInternalDrag"
                 @toggle-folder="emit('toggle-folder', $event)"
+                @drop-on-folder="emit('drop-on-folder', $event)"
+                @folder-action="emit('folder-action', $event)"
             />
         </div>
     </div>

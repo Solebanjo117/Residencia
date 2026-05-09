@@ -65,7 +65,7 @@ class TeacherController extends Controller
 
         $this->teacherService->createTeacher($validated);
 
-        return redirect()->route('admin.teachers.index')->with('success', 'Teacher created successfully.');
+        return redirect()->route('admin.teachers.index')->with('success', 'Docente creado correctamente.');
     }
 
     public function update(Request $request, User $teacher)
@@ -91,14 +91,14 @@ class TeacherController extends Controller
 
         $this->teacherService->updateTeacher($teacher, $validated);
 
-        return redirect()->route('admin.teachers.index')->with('success', 'Teacher updated successfully.');
+        return redirect()->route('admin.teachers.index')->with('success', 'Docente actualizado correctamente.');
     }
 
     public function destroy(User $teacher)
     {
         $teacher->update(['is_active' => false]);
 
-        return redirect()->route('admin.teachers.index')->with('success', 'Teacher disabled successfully.');
+        return redirect()->route('admin.teachers.index')->with('success', 'Docente desactivado correctamente.');
     }
 
     public function generateFolders(Request $request, User $teacher)

@@ -29,15 +29,20 @@ class EvidenceSubmissionPolicy
 
     public function update(User $user, EvidenceSubmission $submission): bool
     {
-        // Teacher can update if DRAFT or REJECTED or Unlocked
         if ($user->id === $submission->teacher_user_id) {
-            // Check unlock
             if ($submission->activeResubmissionUnlock) {
                 return true;
             }
 
-            // Standard rules
-            return in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED]);
+            if (in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED])) {
+                return true;
+            }
+
+            if ($submission->status === SubmissionStatus::SUBMITTED
+                && $submission->office_reviewed_at === null
+                && $submission->final_approved_at === null) {
+                return true;
+            }
         }
 
         return false;

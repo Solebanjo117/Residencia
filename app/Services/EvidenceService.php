@@ -41,12 +41,18 @@ class EvidenceService
         $this->notificationService = $notificationService;
     }
 
-    public function changeStatus(EvidenceSubmission $submission, SubmissionStatus $newStatus, User $user, ?string $reason = null)
+    public function changeStatus(
+        EvidenceSubmission $submission,
+        SubmissionStatus $newStatus,
+        User $user,
+        ?string $reason = null,
+        bool $enforceTransition = true
+    )
     {
         $startedAt = microtime(true);
         $oldStatus = $submission->status;
 
-        if ($oldStatus === $newStatus) {
+        if ($oldStatus === $newStatus && $enforceTransition) {
             Log::channel('operations')->info('evidence.status_change_skipped', [
                 'actor_user_id' => $user->id,
                 'actor_role_id' => $user->role_id,
@@ -59,7 +65,7 @@ class EvidenceService
 
         // Validate the state transition
         $allowedTargets = self::ALLOWED_TRANSITIONS[$oldStatus->value] ?? [];
-        if (! in_array($newStatus->value, $allowedTargets)) {
+        if ($enforceTransition && ! in_array($newStatus->value, $allowedTargets)) {
             throw new \InvalidArgumentException(
                 "Transición de estado no permitida: {$oldStatus->value} -> {$newStatus->value}"
             );
@@ -68,6 +74,7 @@ class EvidenceService
         DB::transaction(function () use ($submission, $newStatus, $user, $reason, $oldStatus) {
             $attributes = [
                 'status' => $newStatus,
+                'manual_ui_status' => null,
                 'last_updated_at' => now(),
                 'submitted_at' => ($newStatus === SubmissionStatus::SUBMITTED) ? now() : $submission->submitted_at,
             ];
@@ -142,6 +149,7 @@ class EvidenceService
                     'office_reviewed_by_user_id' => $reviewer->id,
                     'final_approved_at' => null,
                     'final_approved_by_user_id' => null,
+                    'manual_ui_status' => null,
                 ]);
             }
 
@@ -199,6 +207,7 @@ class EvidenceService
             $submission->update([
                 'final_approved_at' => now(),
                 'final_approved_by_user_id' => $reviewer->id,
+                'manual_ui_status' => null,
                 'last_updated_at' => now(),
             ]);
 

@@ -1,16 +1,19 @@
 <?php
 
 use App\Enums\SubmissionStatus;
+use App\Enums\WindowStatus;
 use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
+use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
 use App\Models\Subject;
+use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use App\Services\DocxEditorService;
@@ -604,9 +607,118 @@ it('loads and saves editable header and footer content when the docx already def
     $zip->close();
 });
 
+it('blocks saving a docx when submission is pending and window is not open', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext(SubmissionStatus::SUBMITTED);
+
+    $departmentId = $ctx['teacher']->departments()->first()->id;
+
+    EvidenceRequirement::create([
+        'semester_id' => $ctx['semester']->id,
+        'department_id' => $departmentId,
+        'evidence_item_id' => $ctx['submission']->evidence_item_id,
+        'is_mandatory' => true,
+    ]);
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['submission']->evidence_item_id,
+        'opens_at' => now()->addDays(2),
+        'closes_at' => now()->addDays(5),
+        'created_by_user_id' => $ctx['teacher']->id,
+        'status' => WindowStatus::ACTIVE,
+    ]);
+
+    $storedPath = $ctx['folder']->relative_path . '/pendiente.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Base</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'pendiente.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-pending'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+        'is_current_version' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.docx.store', $file->id), [
+            'html' => '<p>Actualizacion</p>',
+            'save_mode' => 'replace_current',
+        ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHasErrors('docx');
+
+    $this->assertDatabaseMissing('evidence_files', [
+        'previous_version_file_id' => $file->id,
+    ]);
+});
+
+it('allows saving a docx when submission is pending and window is open', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext(SubmissionStatus::SUBMITTED);
+
+    $departmentId = $ctx['teacher']->departments()->first()->id;
+
+    EvidenceRequirement::create([
+        'semester_id' => $ctx['semester']->id,
+        'department_id' => $departmentId,
+        'evidence_item_id' => $ctx['submission']->evidence_item_id,
+        'is_mandatory' => true,
+    ]);
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['submission']->evidence_item_id,
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addDay(),
+        'created_by_user_id' => $ctx['teacher']->id,
+        'status' => WindowStatus::ACTIVE,
+    ]);
+
+    $storedPath = $ctx['folder']->relative_path . '/pendiente.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Base</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'pendiente.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-pending-open'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+        'is_current_version' => true,
+    ]);
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.docx.store', $file->id), [
+            'html' => '<p>Actualizacion</p>',
+            'save_mode' => 'replace_current',
+        ]);
+
+    $newFile = EvidenceFile::query()
+        ->where('previous_version_file_id', $file->id)
+        ->first();
+
+    expect($newFile)->not->toBeNull();
+    $response->assertRedirect(route('files.docx.show', $newFile->id));
+});
+
 it('renders the docx editor in read only mode when teacher can no longer replace the file', function () {
     Storage::fake('local');
     $ctx = createDocxEditorContext(SubmissionStatus::SUBMITTED);
+    $ctx['submission']->update([
+        'office_reviewed_at' => now(),
+    ]);
 
     $storedPath = $ctx['folder']->relative_path . '/solo-lectura.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Solo lectura</w:t></w:r></w:p>'));

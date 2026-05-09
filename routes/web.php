@@ -1,13 +1,13 @@
 <?php
 
+use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocxEditorController;
+use App\Http\Controllers\FileController;
+use App\Http\Controllers\FolderController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DocxEditorController;
-use App\Http\Controllers\FolderController;
-use App\Http\Controllers\FileController;
-use App\Http\Controllers\Auth\SocialAuthController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -29,12 +29,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::group(['prefix' => 'docente', 'as' => 'docente.', 'middleware' => ['role:'.\App\Models\Role::DOCENTE]], function () {
         Route::get('dashboard', [\App\Http\Controllers\Teacher\DashboardController::class, 'index'])->name('teacher.dashboard');
-        
+
         Route::get('evidencias', [\App\Http\Controllers\Teacher\EvidenceController::class, 'index'])->name('evidencias');
         Route::post('evidencias/init', [\App\Http\Controllers\Teacher\EvidenceController::class, 'initSubmission'])->name('evidencias.init');
         Route::post('evidencias/{submission}/submit', [\App\Http\Controllers\Teacher\EvidenceController::class, 'submit'])->name('evidencias.submit');
         Route::post('evidencias/{submission}/upload', [\App\Http\Controllers\Teacher\EvidenceController::class, 'storeFile'])->name('evidencias.upload');
-        
+
         Route::get('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'index'])->name('asesorias');
         Route::post('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'store'])->name('asesorias.store');
         Route::match(['put', 'post'], 'asesorias/{session}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'update'])->name('asesorias.update');
@@ -66,12 +66,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('evidence-items', \App\Http\Controllers\Admin\EvidenceItemController::class)->except(['create', 'show', 'edit']);
         Route::resource('semesters', \App\Http\Controllers\Admin\SemesterController::class);
         Route::resource('teaching-loads', \App\Http\Controllers\Admin\TeachingLoadController::class);
-        
+
         Route::get('requirements', [\App\Http\Controllers\Admin\RequirementController::class, 'index'])->name('requirements.index');
         Route::post('requirements', [\App\Http\Controllers\Admin\RequirementController::class, 'store'])->name('requirements.store');
-        
+
         Route::resource('windows', \App\Http\Controllers\Admin\SubmissionWindowController::class);
-        
+
         Route::get('audits', [\App\Http\Controllers\Admin\AuditController::class, 'index'])->name('audits.index');
     });
 
@@ -105,7 +105,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // File Manager Routes
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
     Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->name('folders.show');
+    Route::post('/files/folders/{folder}/folders', [FolderController::class, 'storeSubfolder'])->name('folders.store');
+    Route::patch('/files/folders/{folder}', [FolderController::class, 'update'])->name('folders.update');
+    Route::patch('/files/folders/{folder}/move', [FolderController::class, 'move'])->name('folders.move');
+    Route::delete('/files/folders/{folder}', [FolderController::class, 'destroy'])->name('folders.destroy');
     Route::post('/files/folders/{folder}/upload', [FileController::class, 'store'])->name('files.store');
+    Route::patch('/files/{file}/move', [FileController::class, 'move'])->name('files.move');
     Route::get('/files/{file}/docx', [DocxEditorController::class, 'show'])->name('files.docx.show');
     Route::post('/files/{file}/docx', [DocxEditorController::class, 'store'])->name('files.docx.store');
     Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');

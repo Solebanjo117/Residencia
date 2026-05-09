@@ -112,7 +112,7 @@ class DashboardController extends Controller
             ],
             [
                 'key' => 'my_under_review',
-                'label' => 'En revision',
+                'label' => 'En revisión',
                 'value' => (clone $base)->where('status', SubmissionStatus::SUBMITTED)->count(),
                 'description' => 'Evidencias enviadas en espera de dictamen institucional.',
                 'tone' => 'blue',
@@ -142,9 +142,9 @@ class DashboardController extends Controller
             ],
             [
                 'key' => 'my_late_submissions',
-                'label' => 'Extemporaneas',
+                'label' => 'Extemporáneas',
                 'value' => (clone $base)->where('submitted_late', true)->count(),
-                'description' => 'Entregas realizadas despues del cierre regular.',
+                'description' => 'Entregas realizadas después del cierre regular.',
                 'tone' => 'amber',
             ],
         ];
@@ -157,7 +157,7 @@ class DashboardController extends Controller
         return [
             [
                 'key' => 'pending_review',
-                'label' => 'Pendientes de revision',
+                'label' => 'Pendientes de revisión',
                 'value' => (clone $base)->where('status', SubmissionStatus::SUBMITTED)->count(),
                 'description' => 'Entregas listas para dictamen institucional.',
                 'tone' => 'amber',
@@ -173,19 +173,19 @@ class DashboardController extends Controller
                 'key' => 'final_approved',
                 'label' => 'Liberadas',
                 'value' => (clone $base)->whereNotNull('final_approved_at')->count(),
-                'description' => 'Entregas con liberacion final.',
+                'description' => 'Entregas con liberación final.',
                 'tone' => 'blue',
             ],
             [
                 'key' => 'rejected',
                 'label' => 'Rechazadas',
                 'value' => (clone $base)->where('status', SubmissionStatus::REJECTED)->count(),
-                'description' => 'Entregas devueltas para correccion.',
+                'description' => 'Entregas devueltas para corrección.',
                 'tone' => 'red',
             ],
             [
                 'key' => 'late_submissions',
-                'label' => 'Extemporaneas',
+                'label' => 'Extemporáneas',
                 'value' => (clone $base)->where('submitted_late', true)->count(),
                 'description' => 'Entregas recibidas fuera del periodo regular.',
                 'tone' => 'amber',
@@ -197,7 +197,7 @@ class DashboardController extends Controller
                     ->where('reviewed_by_user_id', $user->id)
                     ->whereDate('reviewed_at', now()->toDateString())
                     ->count(),
-                'description' => 'Actividad de revision del dia.',
+                'description' => 'Actividad de revisión del día.',
                 'tone' => 'blue',
             ],
         ];
@@ -255,7 +255,7 @@ class DashboardController extends Controller
                 'key' => 'final_pending',
                 'label' => 'Pendientes de visto bueno',
                 'value' => (clone $submissionBase)->where('status', SubmissionStatus::APPROVED)->whereNull('final_approved_at')->count(),
-                'description' => 'Entregas aprobadas que esperan liberacion final.',
+                'description' => 'Entregas aprobadas que esperan liberación final.',
                 'tone' => 'amber',
             ],
             [
@@ -324,12 +324,12 @@ class DashboardController extends Controller
             return [
                 [
                     'title' => 'Mis Evidencias',
-                    'description' => 'Inicializa, carga y envia tus documentos.',
+                    'description' => 'Inicializa, carga y envía tus documentos.',
                     'href' => '/docente/evidencias',
                 ],
                 [
-                    'title' => 'Mis Asesorias',
-                    'description' => 'Registra sesiones y actividades de asesoria.',
+                    'title' => 'Mis Asesorías',
+                    'description' => 'Registra sesiones y actividades de asesoría.',
                     'href' => '/docente/asesorias',
                 ],
                 [
@@ -343,7 +343,7 @@ class DashboardController extends Controller
         if ($user->isAdministrativeAuthority()) {
             return [
                 [
-                    'title' => 'Pendientes de Revision',
+                    'title' => 'Pendientes de Revisión',
                     'description' => 'Atiende entregas en estado SUBMITTED.',
                     'href' => '/oficina/revisiones',
                 ],
@@ -353,18 +353,18 @@ class DashboardController extends Controller
                     'href' => '/oficina/reportes',
                 ],
                 [
-                    'title' => 'Auditoria',
-                    'description' => 'Revisa bitacora institucional de acciones.',
+                    'title' => 'Auditoría',
+                    'description' => 'Revisa bitácora institucional de acciones.',
                     'href' => '/admin/audits',
                 ],
                 [
                     'title' => 'Ventanas de Entrega',
-                    'description' => 'Configura calendarios de recepcion.',
+                    'description' => 'Configura calendarios de recepción.',
                     'href' => '/admin/windows',
                 ],
                 [
                     'title' => 'Matriz de Evidencias',
-                    'description' => 'Manten la asignacion por semestre.',
+                    'description' => 'Mantén la asignación por semestre.',
                     'href' => '/admin/requirements',
                 ],
                 [
@@ -383,7 +383,7 @@ class DashboardController extends Controller
             ],
             [
                 'title' => 'Seguimiento Docente',
-                'description' => 'Consulta el tablero de control academico.',
+                'description' => 'Consulta el tablero de control académico.',
                 'href' => '/asesorias',
             ],
         ];

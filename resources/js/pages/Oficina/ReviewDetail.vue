@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { type BreadcrumbItem } from '@/types';
 
 declare const route: any;
@@ -31,12 +32,14 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Pendientes Revision', href: '/oficina/revisiones' },
+    { title: 'Pendientes Revisión', href: '/oficina/revisiones' },
     { title: props.teacher.name, href: '#' },
 ];
 
 const showRejectModal = ref(false);
 const rejectingSubmissionId = ref<number | null>(null);
+const showApproveConfirm = ref(false);
+const approvingSubmissionId = ref<number | null>(null);
 
 const rejectForm = useForm({
     status: 'REJECTED',
@@ -73,16 +76,28 @@ function submitRejection() {
 }
 
 function approveSubmission(submissionId: number) {
-    if (
-        !confirm(
-            'Se aprobara esta evidencia en revision administrativa. Continuar?',
-        )
-    )
-        return;
+    approvingSubmissionId.value = submissionId;
+    showApproveConfirm.value = true;
+}
 
-    approveForm.post(route('oficina.revisiones.status', submissionId), {
+function confirmApproveSubmission() {
+    if (!approvingSubmissionId.value || approveForm.processing) return;
+
+    approveForm.post(route('oficina.revisiones.status', approvingSubmissionId.value), {
         preserveScroll: true,
+        onSuccess: () => {
+            showApproveConfirm.value = false;
+            approvingSubmissionId.value = null;
+        },
     });
+}
+
+function handleApproveDialogUpdate(open: boolean) {
+    showApproveConfirm.value = open;
+
+    if (!open) {
+        approvingSubmissionId.value = null;
+    }
 }
 
 function statusColor(status: string) {
@@ -99,7 +114,7 @@ function statusColor(status: string) {
 </script>
 
 <template>
-    <Head :title="'Revision: ' + teacher.name" />
+    <Head :title="'Revisión: ' + teacher.name" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -407,7 +422,7 @@ function statusColor(status: string) {
                                     <h4
                                         class="mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase"
                                     >
-                                        Historial de revision
+                                        Historial de revisión
                                     </h4>
                                     <ul class="space-y-2">
                                         <li
@@ -551,5 +566,15 @@ function statusColor(status: string) {
                 </div>
             </div>
         </div>
+
+        <ConfirmDialog
+            :open="showApproveConfirm"
+            title="Aprobar evidencia"
+            description="¿Se aprobará esta evidencia en revisión administrativa? Esta acción no se puede deshacer."
+            confirm-label="Aprobar"
+            variant="default"
+            @update:open="handleApproveDialogUpdate"
+            @confirm="confirmApproveSubmission"
+        />
     </AppLayout>
 </template>

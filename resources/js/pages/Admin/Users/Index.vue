@@ -151,12 +151,12 @@ const deactivateUser = (user: UserRow) => {
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Usuario</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Rol</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Departamentos</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Docente asociado</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Estado</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Acciones</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Usuario</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Rol</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Departamentos</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Docente asociado</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Estado</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 bg-white">
@@ -241,36 +241,36 @@ const deactivateUser = (user: UserRow) => {
 
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Nombre</label>
-                                        <input v-model="form.name" type="text" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required />
+                                        <label for="user-name" class="block text-sm font-medium text-gray-700">Nombre</label>
+                                        <input id="user-name" v-model="form.name" type="text" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required />
                                         <div v-if="form.errors.name" class="mt-1 text-xs text-red-500">{{ form.errors.name }}</div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Correo</label>
-                                        <input v-model="form.email" type="email" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required />
+                                        <label for="user-email" class="block text-sm font-medium text-gray-700">Correo electrónico</label>
+                                        <input id="user-email" v-model="form.email" type="email" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required />
                                         <div v-if="form.errors.email" class="mt-1 text-xs text-red-500">{{ form.errors.email }}</div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">
-                                            Contrasena {{ editingUser ? '(deja vacio para mantener)' : '' }}
+                                        <label for="user-password" class="block text-sm font-medium text-gray-700">
+                                            Contraseña {{ editingUser ? '(deja vacío para mantener)' : '' }}
                                         </label>
-                                        <input v-model="form.password" type="password" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" :required="!editingUser" />
+                                        <input id="user-password" v-model="form.password" type="password" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" :required="!editingUser" />
                                         <div v-if="form.errors.password" class="mt-1 text-xs text-red-500">{{ form.errors.password }}</div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Rol</label>
-                                        <select v-model="form.role_id" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required>
+                                        <label for="user-role" class="block text-sm font-medium text-gray-700">Rol</label>
+                                        <select id="user-role" v-model="form.role_id" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm" required>
                                             <option v-for="role in roles" :key="role.id" :value="role.id">{{ roleLabel(role) }}</option>
                                         </select>
                                         <div v-if="form.errors.role_id" class="mt-1 text-xs text-red-500">{{ form.errors.role_id }}</div>
                                     </div>
 
                                     <div v-if="!isDocenteRoleSelected">
-                                        <label class="block text-sm font-medium text-gray-700">Docente asociado (opcional)</label>
-                                        <select v-model="form.linked_teacher_user_id" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm">
+                                        <label for="user-linked-teacher" class="block text-sm font-medium text-gray-700">Docente asociado (opcional)</label>
+                                        <select id="user-linked-teacher" v-model="form.linked_teacher_user_id" class="mt-1 block w-full rounded-md border-gray-300 sm:text-sm">
                                             <option :value="null">Sin docente asociado</option>
                                             <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
                                                 {{ teacher.name }} - {{ teacher.email }}

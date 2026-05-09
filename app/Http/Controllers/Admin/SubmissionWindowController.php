@@ -59,7 +59,7 @@ class SubmissionWindowController extends Controller
 
         SubmissionWindow::create($validated);
 
-        return redirect()->back()->with('success', 'Submission window created successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega creada correctamente.');
     }
 
     public function update(Request $request, SubmissionWindow $window)
@@ -78,14 +78,14 @@ class SubmissionWindowController extends Controller
 
         $window->update($validated);
 
-        return redirect()->back()->with('success', 'Submission window updated successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega actualizada correctamente.');
     }
 
     public function destroy(SubmissionWindow $window)
     {
         $window->delete();
 
-        return redirect()->back()->with('success', 'Submission window deleted successfully.');
+        return redirect()->back()->with('success', 'Ventana de entrega eliminada correctamente.');
     }
 
     private function ensureNoActiveWindowOverlap(array $data, ?int $ignoreWindowId = null): void

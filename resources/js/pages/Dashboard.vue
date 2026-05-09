@@ -3,7 +3,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuth } from '@/composables/useAuth';
-import { ArrowUpRight, CalendarClock, CircleAlert, LayoutGrid, Rocket, ShieldCheck } from 'lucide-vue-next';
+import { ArrowUpRight, CalendarClock, CircleAlert, Clock, FileCheck, FileStack, Rocket, ShieldCheck, XCircle, AlertTriangle, Bell, Users, CheckCircle2 } from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
 
 interface OverviewMetric {
@@ -43,7 +43,7 @@ const { user, isDocente, isJefeOficina, isJefeDepto } = useAuth();
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Panel Principal',
         href: '/dashboard',
     },
 ];
@@ -91,6 +91,27 @@ const daysRemaining = (closesAt: string | null): string => {
     if (days === 1) return 'Cierra en 1 día';
     return `Cierra en ${days} días`;
 };
+
+const metricIcon: Record<string, any> = {
+    unread_notifications: Bell,
+    my_pending: AlertTriangle,
+    my_under_review: Clock,
+    my_office_approved: CheckCircle2,
+    my_final_approved: FileCheck,
+    mandatory_progress: FileStack,
+    my_late_submissions: Clock,
+    pending_review: AlertTriangle,
+    office_approved: CheckCircle2,
+    final_approved: FileCheck,
+    rejected: XCircle,
+    late_submissions: Clock,
+    reviews_today: Clock,
+    active_windows: CalendarClock,
+    teachers_scope: Users,
+    final_pending: Clock,
+    mandatory_requirements: FileStack,
+    active_windows_scope: CalendarClock,
+};
 </script>
 
 <template>
@@ -135,7 +156,7 @@ const daysRemaining = (closesAt: string | null): string => {
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="text-xs font-semibold tracking-wide uppercase">{{ metric.label }}</div>
-                        <LayoutGrid class="h-4 w-4" />
+                        <component :is="metricIcon[metric.key] ?? FileStack" class="h-4 w-4" />
                     </div>
                     <div class="mt-3 text-3xl leading-none font-bold">{{ metric.value }}</div>
                     <p class="mt-3 text-xs leading-relaxed">{{ metric.description }}</p>

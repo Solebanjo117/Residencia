@@ -148,6 +148,12 @@ export interface FolderNode {
     owner?: User;
     semester?: Semester;
     created_at: string;
+    can_rename?: boolean;
+    can_move?: boolean;
+    can_delete?: boolean;
+    move_url?: string;
+    update_url?: string;
+    delete_url?: string;
 }
 
 export interface EvidenceSubmission {

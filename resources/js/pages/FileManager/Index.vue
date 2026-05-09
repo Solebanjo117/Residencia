@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Folder, FileText, Eye, Download, Trash2, Upload, RefreshCw, X } from 'lucide-vue-next';
+import { Folder, FileText, Eye, Download, Trash2, Upload, RefreshCw, X, FolderPlus, Pencil, ArrowRightLeft, Move, AlertTriangle } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import FolderTree from '@/components/FileManager/FolderTree.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -14,6 +14,10 @@ const props = defineProps<{
               name: string;
               parent_id?: number | null;
               can_upload: boolean;
+              can_create_folder?: boolean;
+              can_rename?: boolean;
+              can_move?: boolean;
+              can_delete?: boolean;
               ancestors?: Array<{
                   id: number;
                   name: string;
@@ -202,7 +206,19 @@ const uploadAccept = computed(() => {
     return extensions.map((extension) => `.${extension}`).join(',');
 });
 
+const allowedExtensionsSet = computed(() => {
+    const extensions = props.allowedExtensions?.length
+        ? props.allowedExtensions
+        : ['docx', 'pdf', 'jpg', 'jpeg', 'png', 'webp'];
+
+    return new Set(extensions.map((e) => e.toLowerCase()));
+});
+
 const canUploadCurrentFolder = computed(() => Boolean(props.currentFolder?.can_upload));
+const canCreateFolder = computed(() => Boolean(props.currentFolder?.can_create_folder));
+const canRenameCurrentFolder = computed(() => Boolean(props.currentFolder?.can_rename));
+const canMoveCurrentFolder = computed(() => Boolean(props.currentFolder?.can_move));
+const canDeleteCurrentFolder = computed(() => Boolean(props.currentFolder?.can_delete));
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -274,6 +290,32 @@ const replaceForm = useForm({
     file: null as File | null,
 });
 
+const uploadError = ref('');
+const uploadSuccess = ref('');
+
+const uploadSingleFile = (file: File): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        if (!props.currentFolder) {
+            reject(new Error('No hay carpeta seleccionada.'));
+            return;
+        }
+
+        uploadForm.file = file;
+        uploadForm.post(`/files/folders/${props.currentFolder.id}/upload`, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                uploadForm.reset();
+                resolve();
+            },
+            onError: (errors: any) => {
+                uploadForm.reset();
+                reject(new Error(errors.file || 'Error al subir archivo.'));
+            },
+        });
+    });
+};
+
 const triggerUpload = () => {
     if (!canUploadCurrentFolder.value) {
         return;
@@ -282,32 +324,22 @@ const triggerUpload = () => {
     fileInput.value?.click();
 };
 
-const uploadError = ref('');
-const uploadSuccess = ref('');
-
 const handleFileSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
     uploadError.value = '';
     uploadSuccess.value = '';
     if (target.files && target.files.length > 0 && props.currentFolder) {
-        uploadForm.file = target.files[0];
-        uploadForm.post(`/files/folders/${props.currentFolder.id}/upload`, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => {
+        uploadSingleFile(target.files[0])
+            .then(() => {
                 target.value = '';
-                uploadForm.reset();
                 uploadSuccess.value = 'Archivo subido correctamente.';
-                setTimeout(() => {
-                    uploadSuccess.value = '';
-                }, 3000);
-            },
-            onError: (errors: any) => {
+                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+                router.reload({ preserveScroll: true });
+            })
+            .catch((err: Error) => {
                 target.value = '';
-                uploadForm.reset();
-                uploadError.value = errors.file || 'Error al subir archivo.';
-            },
-        });
+                uploadError.value = err.message;
+            });
     }
 };
 
@@ -329,9 +361,7 @@ const handleReplaceSelected = (event: Event) => {
                 fileToReplace.value = null;
                 replaceForm.reset();
                 uploadSuccess.value = 'Archivo reemplazado correctamente.';
-                setTimeout(() => {
-                    uploadSuccess.value = '';
-                }, 3000);
+                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
             },
             onError: (errors: any) => {
                 target.value = '';
@@ -350,6 +380,413 @@ const openPreview = (file: any) => {
 const closePreview = () => {
     previewFile.value = null;
 };
+
+// ---- External Drag-and-Drop Upload ----
+
+const isExternalDragOver = ref(false);
+const isUploadingDroppedFiles = ref(false);
+const dropUploadProgress = ref({ total: 0, completed: 0 });
+let externalDragCounter = 0;
+
+const isExternalFileDrag = (event: DragEvent): boolean => {
+    return !!(event.dataTransfer?.types?.includes('Files'));
+};
+
+const onContentDragEnter = (event: DragEvent) => {
+    if (!props.currentFolder || !canUploadCurrentFolder.value) return;
+    if (dragType.value) return;
+    if (!isExternalFileDrag(event)) return;
+
+    event.preventDefault();
+    externalDragCounter++;
+    isExternalDragOver.value = true;
+};
+
+const onContentDragOver = (event: DragEvent) => {
+    if (!props.currentFolder || !canUploadCurrentFolder.value) return;
+    if (dragType.value) return;
+    if (!isExternalFileDrag(event)) return;
+
+    event.preventDefault();
+    if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+    }
+};
+
+const onContentDragLeave = (event: DragEvent) => {
+    if (!isExternalDragOver.value) return;
+    event.preventDefault();
+    externalDragCounter--;
+    if (externalDragCounter <= 0) {
+        externalDragCounter = 0;
+        isExternalDragOver.value = false;
+    }
+};
+
+const onContentDrop = async (event: DragEvent) => {
+    event.preventDefault();
+    isExternalDragOver.value = false;
+    externalDragCounter = 0;
+
+    if (!props.currentFolder || !canUploadCurrentFolder.value) {
+        uploadError.value = 'No tienes permiso para subir archivos en esta carpeta.';
+        setTimeout(() => { uploadError.value = ''; }, 4000);
+        return;
+    }
+
+    if (dragType.value) return;
+
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const validFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.size === 0) continue;
+
+        const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+        if (ext && allowedExtensionsSet.value.has(ext)) {
+            validFiles.push(file);
+        }
+    }
+
+    if (validFiles.length === 0) {
+        uploadError.value = 'Formato no permitido. Formatos validos: ' + [...allowedExtensionsSet.value].join(', ');
+        setTimeout(() => { uploadError.value = ''; }, 4000);
+        return;
+    }
+
+    isUploadingDroppedFiles.value = true;
+    dropUploadProgress.value = { total: validFiles.length, completed: 0 };
+
+    let succeeded = 0;
+    let lastError = '';
+
+    for (const file of validFiles) {
+        try {
+            await uploadSingleFile(file);
+            succeeded++;
+            dropUploadProgress.value.completed++;
+        } catch (err: any) {
+            lastError = err.message;
+            dropUploadProgress.value.completed++;
+        }
+    }
+
+    isUploadingDroppedFiles.value = false;
+
+    if (succeeded === validFiles.length) {
+        if (succeeded === 1) {
+            uploadSuccess.value = 'Archivo subido correctamente.';
+        } else {
+            uploadSuccess.value = `${succeeded} archivos subidos correctamente.`;
+        }
+    } else if (succeeded > 0) {
+        uploadSuccess.value = `Se subieron ${succeeded} de ${validFiles.length} archivos. Revisa los errores.`;
+        if (lastError) {
+            uploadError.value = lastError;
+        }
+    } else {
+        uploadError.value = lastError || 'Error al subir archivos.';
+    }
+
+    setTimeout(() => {
+        uploadSuccess.value = '';
+        uploadError.value = '';
+    }, 4000);
+
+    router.reload({ preserveScroll: true });
+};
+
+// ---- Folder Management Modals ----
+
+type ModalType = 'createFolder' | 'renameFolder' | 'moveFolder' | 'deleteFolder' | 'moveFile' | null;
+
+const activeModal = ref<ModalType>(null);
+const processingAction = ref(false);
+const modalError = ref('');
+
+const createFolderForm = useForm({ name: '' });
+const renameFolderForm = useForm({ name: '' });
+const moveFolderForm = useForm({ target_folder_id: '' });
+const moveFileForm = useForm({ target_folder_id: '' });
+const moveTargetId = ref('');
+
+const selectedFolder = ref<any>(null);
+const selectedFile = ref<any>(null);
+
+const openCreateFolderModal = () => {
+    createFolderForm.reset();
+    modalError.value = '';
+    activeModal.value = 'createFolder';
+};
+
+const openRenameFolderModal = (folder?: any) => {
+    const target = folder || props.currentFolder;
+    if (!target || !target.can_rename) return;
+    selectedFolder.value = target;
+    renameFolderForm.name = target.name;
+    modalError.value = '';
+    activeModal.value = 'renameFolder';
+};
+
+const openMoveFolderModal = (folder?: any) => {
+    const target = folder || props.currentFolder;
+    if (!target || !target.can_move) return;
+    selectedFolder.value = target;
+    moveTargetId.value = '';
+    modalError.value = '';
+    activeModal.value = 'moveFolder';
+};
+
+const openDeleteFolderModal = (folder?: any) => {
+    const target = folder || props.currentFolder;
+    if (!target || !target.can_delete) return;
+    selectedFolder.value = target;
+    modalError.value = '';
+    activeModal.value = 'deleteFolder';
+};
+
+const openMoveFileModal = (file: any) => {
+    if (!file.can_move) return;
+    selectedFile.value = file;
+    moveTargetId.value = '';
+    modalError.value = '';
+    activeModal.value = 'moveFile';
+};
+
+const closeModal = () => {
+    activeModal.value = null;
+    selectedFolder.value = null;
+    selectedFile.value = null;
+    modalError.value = '';
+    processingAction.value = false;
+};
+
+const submitCreateFolder = () => {
+    if (!props.currentFolder) return;
+    processingAction.value = true;
+    createFolderForm.post(`/files/folders/${props.currentFolder.id}/folders`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModal();
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors: any) => {
+            modalError.value = errors.name || 'Error al crear carpeta.';
+            processingAction.value = false;
+        },
+        onFinish: () => {
+            processingAction.value = false;
+        },
+    });
+};
+
+const submitRenameFolder = () => {
+    if (!selectedFolder.value) return;
+    processingAction.value = true;
+    renameFolderForm.patch(`/files/folders/${selectedFolder.value.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModal();
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors: any) => {
+            modalError.value = errors.name || 'Error al renombrar carpeta.';
+            processingAction.value = false;
+        },
+        onFinish: () => {
+            processingAction.value = false;
+        },
+    });
+};
+
+const submitMoveFolder = () => {
+    if (!selectedFolder.value) return;
+    processingAction.value = true;
+    moveFolderForm.target_folder_id = moveTargetId.value;
+    moveFolderForm.patch(`/files/folders/${selectedFolder.value.id}/move`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModal();
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors: any) => {
+            modalError.value = errors.target_folder_id || 'Error al mover carpeta.';
+            processingAction.value = false;
+        },
+        onFinish: () => {
+            processingAction.value = false;
+        },
+    });
+};
+
+const submitMoveFile = () => {
+    if (!selectedFile.value) return;
+    processingAction.value = true;
+    moveFileForm.target_folder_id = moveTargetId.value;
+    moveFileForm.patch(`/files/${selectedFile.value.id}/move`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModal();
+            router.reload({ preserveScroll: true });
+        },
+        onError: (errors: any) => {
+            modalError.value = errors.target_folder_id || 'Error al mover archivo.';
+            processingAction.value = false;
+        },
+        onFinish: () => {
+            processingAction.value = false;
+        },
+    });
+};
+
+const submitDeleteFolder = () => {
+    if (!selectedFolder.value) return;
+    processingAction.value = true;
+    router.delete(`/files/folders/${selectedFolder.value.id}`, {
+        preserveScroll: false,
+        onSuccess: () => {
+            closeModal();
+        },
+        onError: (errors: any) => {
+            modalError.value = errors.folder || 'Error al eliminar carpeta.';
+            processingAction.value = false;
+        },
+        onFinish: () => {
+            processingAction.value = false;
+        },
+    });
+};
+
+const moveTargets = computed(() => {
+    const targets: Array<{ id: number | string; name: string; depth: number; disabled: boolean }> = [];
+    const excludeIds = new Set<number>();
+
+    if (activeModal.value === 'moveFolder' && selectedFolder.value) {
+        excludeIds.add(Number(selectedFolder.value.id));
+        collectDescendantIds(props.folderTree, excludeIds);
+    }
+
+    function collectDescendantIds(nodes: any[], ids: Set<number>) {
+        for (const node of nodes) {
+            if (node.is_virtual) {
+                collectDescendantIds(node.children || [], ids);
+                continue;
+            }
+            ids.add(Number(node.id));
+        }
+    }
+
+    function walk(nodes: any[], depth: number) {
+        for (const node of nodes) {
+            if (node.is_virtual) {
+                walk(node.children || [], depth);
+                continue;
+            }
+            targets.push({
+                id: node.id,
+                name: node.name,
+                depth,
+                disabled: excludeIds.has(Number(node.id)),
+            });
+            walk(node.children || [], depth + 1);
+        }
+    }
+
+    walk(props.folderTree, 0);
+    return targets;
+});
+
+// Internal drag-and-drop for move
+const dragItem = ref<any>(null);
+const dragType = ref<'file' | 'folder' | null>(null);
+
+const onDragStart = (event: DragEvent, item: any, type: 'file' | 'folder') => {
+    dragItem.value = item;
+    dragType.value = type;
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(item.id));
+    }
+};
+
+const onDropOnFolder = (targetFolderId: number) => {
+    if (dragItem.value) {
+        // Internal move - handled by the move logic
+    } else {
+        return;
+    }
+
+    if (dragType.value === 'file') {
+        if (!dragItem.value.can_move) return;
+        moveTargetId.value = String(targetFolderId);
+        moveFileForm.target_folder_id = String(targetFolderId);
+        selectedFile.value = dragItem.value;
+        processingAction.value = true;
+        moveFileForm.patch(`/files/${dragItem.value.id}/move`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                dragItem.value = null;
+                dragType.value = null;
+                selectedFile.value = null;
+                moveTargetId.value = '';
+                router.reload({ preserveScroll: true });
+            },
+            onError: (errors: any) => {
+                uploadError.value = errors.target_folder_id || 'Error al mover archivo.';
+                dragItem.value = null;
+                dragType.value = null;
+                moveTargetId.value = '';
+            },
+            onFinish: () => {
+                processingAction.value = false;
+            },
+        });
+    } else if (dragType.value === 'folder') {
+        if (!dragItem.value.can_move) return;
+        moveTargetId.value = String(targetFolderId);
+        moveFolderForm.target_folder_id = String(targetFolderId);
+        selectedFolder.value = dragItem.value;
+        processingAction.value = true;
+        moveFolderForm.patch(`/files/folders/${dragItem.value.id}/move`, {
+            preserveScroll: true,
+            onSuccess: () => {
+                dragItem.value = null;
+                dragType.value = null;
+                selectedFolder.value = null;
+                moveTargetId.value = '';
+                router.reload({ preserveScroll: true });
+            },
+            onError: (errors: any) => {
+                uploadError.value = errors.target_folder_id || 'Error al mover carpeta.';
+                dragItem.value = null;
+                dragType.value = null;
+                moveTargetId.value = '';
+            },
+            onFinish: () => {
+                processingAction.value = false;
+            },
+        });
+    }
+
+    dragItem.value = null;
+    dragType.value = null;
+};
+
+const onFolderAction = (action: string, folder: any) => {
+    switch (action) {
+        case 'rename':
+            openRenameFolderModal(folder);
+            break;
+        case 'move':
+            openMoveFolderModal(folder);
+            break;
+        case 'delete':
+            openDeleteFolderModal(folder);
+            break;
+    }
+};
 </script>
 
 <template>
@@ -365,7 +802,9 @@ const closePreview = () => {
                     :node="root"
                     :expanded-state="expandedFolders"
                     :active-folder-id="currentFolder?.id ?? null"
+                    :has-internal-drag="!!dragType"
                     @toggle-folder="toggleFolderExpanded"
+                    @drop-on-folder="onDropOnFolder"
                 />
             </div>
 
@@ -377,7 +816,25 @@ const closePreview = () => {
                 <div class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"></div>
             </div>
 
-            <div class="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+            <div
+                class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-white"
+                @dragenter="onContentDragEnter"
+                @dragover="onContentDragOver"
+                @dragleave="onContentDragLeave"
+                @drop="onContentDrop"
+            >
+                <!-- External file drop overlay -->
+                <div
+                    v-if="isExternalDragOver"
+                    class="absolute inset-0 z-30 flex items-center justify-center border-4 border-dashed border-blue-400 bg-blue-50/80"
+                >
+                    <div class="text-center">
+                        <Upload class="mx-auto mb-2 h-10 w-10 text-blue-500" />
+                        <p class="text-lg font-semibold text-blue-700">Suelta archivos para subirlos a esta carpeta</p>
+                        <p v-if="!canUploadCurrentFolder" class="mt-1 text-sm text-red-600">No tienes permiso para subir archivos en esta carpeta.</p>
+                    </div>
+                </div>
+
                 <div class="flex items-center justify-between border-b border-gray-200 p-4">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">
@@ -387,33 +844,78 @@ const closePreview = () => {
                             Semestre: <b>{{ semesterName }}</b>
                         </span>
                     </div>
-                    <div v-if="uploadForm.processing" class="flex items-center gap-2 text-sm text-blue-600">
-                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        Subiendo...
+                    <div class="flex items-center gap-2">
+                        <div v-if="uploadForm.processing || processingAction || isUploadingDroppedFiles" class="flex items-center gap-2 text-sm text-blue-600">
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <template v-if="isUploadingDroppedFiles">Subiendo {{ dropUploadProgress.completed }}/{{ dropUploadProgress.total }}...</template>
+                            <template v-else>Procesando...</template>
+                        </div>
+                        <template v-if="currentFolder">
+                            <button
+                                v-if="canCreateFolder"
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                title="Nueva carpeta"
+                                @click="openCreateFolderModal"
+                            >
+                                <FolderPlus class="mr-1.5 h-4 w-4" />
+                                Carpeta
+                            </button>
+                            <button
+                                v-if="canRenameCurrentFolder"
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                title="Renombrar carpeta"
+                                @click="openRenameFolderModal()"
+                            >
+                                <Pencil class="mr-1.5 h-4 w-4" />
+                                Renombrar
+                            </button>
+                            <button
+                                v-if="canMoveCurrentFolder"
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                title="Mover carpeta"
+                                @click="openMoveFolderModal()"
+                            >
+                                <ArrowRightLeft class="mr-1.5 h-4 w-4" />
+                                Mover
+                            </button>
+                            <button
+                                v-if="canDeleteCurrentFolder"
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                                title="Eliminar carpeta"
+                                @click="openDeleteFolderModal()"
+                            >
+                                <Trash2 class="mr-1.5 h-4 w-4" />
+                                Eliminar
+                            </button>
+                        </template>
+                        <button
+                            v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing && !isUploadingDroppedFiles"
+                            type="button"
+                            @click="triggerUpload"
+                            class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:outline-none focus:ring active:bg-blue-900 disabled:opacity-25"
+                        >
+                            <Upload class="mr-2 h-4 w-4" />
+                            Subir Archivo
+                        </button>
+                        <input
+                            ref="fileInput"
+                            type="file"
+                            class="hidden"
+                            :accept="uploadAccept"
+                            @change="handleFileSelected"
+                        />
+                        <input
+                            ref="replaceFileInput"
+                            type="file"
+                            class="hidden"
+                            :accept="uploadAccept"
+                            @change="handleReplaceSelected"
+                        />
                     </div>
-                    <button
-                        v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing"
-                        type="button"
-                        @click="triggerUpload"
-                        class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:outline-none focus:ring active:bg-blue-900 disabled:opacity-25"
-                    >
-                        <Upload class="mr-2 h-4 w-4" />
-                        Subir Archivo
-                    </button>
-                    <input
-                        ref="fileInput"
-                        type="file"
-                        class="hidden"
-                        :accept="uploadAccept"
-                        @change="handleFileSelected"
-                    />
-                    <input
-                        ref="replaceFileInput"
-                        type="file"
-                        class="hidden"
-                        :accept="uploadAccept"
-                        @change="handleReplaceSelected"
-                    />
                 </div>
 
                 <div v-if="uploadError" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
@@ -435,15 +937,50 @@ const closePreview = () => {
                                 Subcarpetas
                             </h4>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                <Link
+                                <div
                                     v-for="folder in contents.folders"
                                     :key="folder.id"
-                                    :href="`/files/folders/${folder.id}`"
-                                    class="flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
+                                    class="group/folder relative flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
+                                    draggable="true"
+                                    @dragstart="onDragStart($event, folder, 'folder')"
                                 >
-                                    <Folder class="h-8 w-8 text-yellow-500" />
-                                    <span class="truncate font-medium text-gray-700">{{ folder.name }}</span>
-                                </Link>
+                                    <Link
+                                        :href="`/files/folders/${folder.id}`"
+                                        class="flex flex-1 items-center gap-3 text-gray-700 hover:text-blue-600"
+                                    >
+                                        <Folder class="h-8 w-8 text-yellow-500" />
+                                        <span class="truncate font-medium">{{ folder.name }}</span>
+                                    </Link>
+                                    <div v-if="folder.can_rename || folder.can_move || folder.can_delete" class="flex items-center gap-1 opacity-0 transition-opacity group-hover/folder:opacity-100">
+                                        <button
+                                            v-if="folder.can_rename"
+                                            type="button"
+                                            class="p-1 text-gray-400 hover:text-blue-600"
+                                            title="Renombrar"
+                                            @click.prevent="onFolderAction('rename', folder)"
+                                        >
+                                            <Pencil class="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            v-if="folder.can_move"
+                                            type="button"
+                                            class="p-1 text-gray-400 hover:text-blue-600"
+                                            title="Mover"
+                                            @click.prevent="onFolderAction('move', folder)"
+                                        >
+                                            <ArrowRightLeft class="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            v-if="folder.can_delete"
+                                            type="button"
+                                            class="p-1 text-gray-400 hover:text-red-600"
+                                            title="Eliminar"
+                                            @click.prevent="onFolderAction('delete', folder)"
+                                        >
+                                            <Trash2 class="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -464,7 +1001,7 @@ const closePreview = () => {
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 bg-white">
-                                        <tr v-for="file in contents.files" :key="file.id" class="hover:bg-gray-50">
+                                        <tr v-for="file in contents.files" :key="file.id" class="hover:bg-gray-50" :draggable="file.can_move" @dragstart="file.can_move ? onDragStart($event, file, 'file') : undefined">
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <div class="flex items-center">
                                                     <FileText class="mr-3 h-5 w-5 text-gray-400" />
@@ -532,6 +1069,15 @@ const closePreview = () => {
                                                     >
                                                         <RefreshCw class="h-4 w-4" />
                                                     </button>
+                                                    <button
+                                                        v-if="file.can_move"
+                                                        type="button"
+                                                        class="p-1 text-blue-600 hover:text-blue-900"
+                                                        title="Mover archivo"
+                                                        @click="openMoveFileModal(file)"
+                                                    >
+                                                        <Move class="h-4 w-4" />
+                                                    </button>
                                                     <a
                                                         :href="file.download_url"
                                                         class="p-1 text-blue-600 hover:text-blue-900"
@@ -564,6 +1110,98 @@ const closePreview = () => {
             </div>
         </div>
 
+        <!-- Create Folder Modal -->
+        <div v-if="activeModal === 'createFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">Nueva Carpeta</h3>
+                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <form @submit.prevent="submitCreateFolder">
+                    <input
+                        v-model="createFolderForm.name"
+                        type="text"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Nombre de la carpeta"
+                        autofocus
+                    />
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
+                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Crear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Rename Folder Modal -->
+        <div v-if="activeModal === 'renameFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">Renombrar Carpeta</h3>
+                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <form @submit.prevent="submitRenameFolder">
+                    <input
+                        v-model="renameFolderForm.name"
+                        type="text"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        autofocus
+                    />
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
+                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Renombrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Move Folder / Move File Modal -->
+        <div v-if="activeModal === 'moveFolder' || activeModal === 'moveFile'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+            <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">
+                    {{ activeModal === 'moveFolder' ? 'Mover Carpeta' : 'Mover Archivo' }}
+                </h3>
+                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <form @submit.prevent="activeModal === 'moveFolder' ? submitMoveFolder() : submitMoveFile()">
+                    <select
+                        v-model="moveTargetId"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        size="8"
+                    >
+                        <option value="" disabled>Selecciona la carpeta destino...</option>
+                        <option
+                            v-for="target in moveTargets"
+                            :key="target.id"
+                            :value="target.id"
+                            :disabled="target.disabled"
+                        >
+                            {{ '\u00A0\u00A0'.repeat(target.depth) }}{{ target.name }}
+                        </option>
+                    </select>
+                    <div class="mt-4 flex justify-end gap-2">
+                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
+                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Mover</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete Folder Confirmation Modal -->
+        <div v-if="activeModal === 'deleteFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">Eliminar Carpeta</h3>
+                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <div class="mb-4 flex items-start gap-3">
+                    <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                    <p class="text-sm text-gray-600">
+                        ¿Estas seguro de que deseas eliminar la carpeta <b>{{ selectedFolder?.name }}</b>?
+                        La carpeta debe estar vacia (sin subcarpetas ni archivos).
+                    </p>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
+                    <button type="button" :disabled="processingAction" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50" @click="submitDeleteFolder">Eliminar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Preview Modal -->
         <div v-if="previewFile" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
             <div class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
                 <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">

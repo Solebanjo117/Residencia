@@ -18,6 +18,7 @@ class EvidenceSubmission extends Model
         'evidence_item_id',
         'teaching_load_id',
         'status',
+        'manual_ui_status',
         'submitted_at',
         'submitted_late',
         'office_reviewed_at',

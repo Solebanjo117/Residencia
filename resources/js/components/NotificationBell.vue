@@ -68,6 +68,7 @@ function formatDate(dateStr: string) {
     <div class="relative" ref="dropdownRef">
         <button type="button" @click.stop="isOpen = !isOpen"
             class="relative p-2 text-gray-500 rounded-full hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            aria-label="Notificaciones"
         >
             <Bell class="w-5 h-5" />
             <span 
@@ -115,6 +116,7 @@ function formatDate(dateStr: string) {
                                 <button type="button" @click="markAsRead(notif.id)"
                                     class="text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                                     title="Marcar leído"
+                                    aria-label="Marcar leído"
                                 >
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />

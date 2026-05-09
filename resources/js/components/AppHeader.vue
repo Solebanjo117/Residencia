@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { LayoutGrid, Menu, Search } from 'lucide-vue-next';
+import { Menu } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -28,7 +28,9 @@ import {
 import UserMenuContent from '@/components/UserMenuContent.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
-import type { BreadcrumbItem, NavItem } from '@/types';
+import { useAuth } from '@/composables/useAuth';
+import { getNavItemsByRole } from '@/config/menu';
+import type { BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
 
 type Props = {
@@ -42,17 +44,12 @@ const props = withDefaults(defineProps<Props>(), {
 const page = usePage();
 const auth = computed(() => page.props.auth);
 const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
+const { user } = useAuth();
 
 const activeItemStyles =
     'text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100';
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Panel Principal',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
+const navItems = computed(() => getNavItemsByRole(user.value?.role?.name));
 </script>
 
 <template>
@@ -83,8 +80,8 @@ const mainNavItems: NavItem[] = [
                             >
                                 <nav class="-mx-3 space-y-1">
                                     <Link
-                                        v-for="item in mainNavItems"
-                                        :key="item.title"
+                                        v-for="item in navItems"
+                                        :key="item.href"
                                         :href="item.href"
                                         class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent"
                                         :class="
@@ -118,7 +115,7 @@ const mainNavItems: NavItem[] = [
                             class="flex h-full items-stretch space-x-2"
                         >
                             <NavigationMenuItem
-                                v-for="(item, index) in mainNavItems"
+                                v-for="(item, index) in navItems"
                                 :key="index"
                                 class="relative flex h-full items-center"
                             >
@@ -150,19 +147,6 @@ const mainNavItems: NavItem[] = [
                 </div>
 
                 <div class="ml-auto flex items-center space-x-2">
-                    <div class="relative flex items-center space-x-1">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            class="group h-9 w-9 cursor-pointer"
-                        >
-                            <Search
-                                class="size-5 opacity-80 group-hover:opacity-100"
-                            />
-                        </Button>
-
-                    </div>
-
                     <DropdownMenu>
                         <DropdownMenuTrigger :as-child="true">
                             <Button

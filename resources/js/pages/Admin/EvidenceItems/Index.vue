@@ -1,7 +1,24 @@
 <script setup lang="ts">
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Edit2, Plus, Trash2 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Head, useForm, router, usePage } from '@inertiajs/vue3';
+import { Edit2, Plus, Trash2, Search } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
+import AdminTable from '@/components/AdminTable.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import Pagination from '@/components/Pagination.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type EvidenceCategory = {
@@ -33,10 +50,45 @@ const props = defineProps<{
             active: boolean;
         }>;
     };
+    filters: {
+        search: string;
+        category_id: string;
+        status: string;
+        usage: string;
+    };
 }>();
 
+const page = usePage();
+
 const isModalOpen = ref(false);
+const isConfirmOpen = ref(false);
+const itemToDelete = ref<EvidenceItem | null>(null);
 const editingItem = ref<EvidenceItem | null>(null);
+
+const filterSearch = ref(props.filters.search);
+const filterCategory = ref(props.filters.category_id);
+const filterStatus = ref(props.filters.status);
+const filterUsage = ref(props.filters.usage);
+
+let debounceTimeout: ReturnType<typeof setTimeout>;
+
+const applyFilters = () => {
+    router.get('/admin/evidence-items', {
+        search: filterSearch.value || undefined,
+        category_id: filterCategory.value || undefined,
+        status: filterStatus.value !== 'all' ? filterStatus.value : undefined,
+        usage: filterUsage.value !== 'all' ? filterUsage.value : undefined,
+    }, { preserveState: true, replace: true });
+};
+
+watch(filterSearch, () => {
+    clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(applyFilters, 300);
+});
+
+watch([filterCategory, filterStatus, filterUsage], () => {
+    applyFilters();
+});
 
 const form = useForm({
     category_id: props.categories[0]?.id ?? '',
@@ -47,6 +99,11 @@ const form = useForm({
 });
 
 const canSubmit = computed(() => props.categories.length > 0);
+
+const flashSuccess = computed(() => page.props.flash?.success as string | undefined);
+watch(flashSuccess, (val) => {
+    if (val) toast.success(val);
+});
 
 const openCreateModal = () => {
     editingItem.value = null;
@@ -80,382 +137,416 @@ const submitForm = () => {
     if (editingItem.value) {
         form.put(`/admin/evidence-items/${editingItem.value.id}`, {
             preserveScroll: true,
-            onSuccess: closeModal,
+            onSuccess: () => {
+                closeModal();
+                toast.success('Rubro actualizado correctamente.');
+            },
         });
         return;
     }
 
     form.post('/admin/evidence-items', {
         preserveScroll: true,
-        onSuccess: closeModal,
+        onSuccess: () => {
+            closeModal();
+            toast.success('Rubro creado correctamente.');
+        },
     });
 };
 
-const deleteItem = (item: EvidenceItem) => {
-    if (
-        !confirm(
-            `Eliminar el rubro "${item.name}"? Esta accion no se puede deshacer.`,
-        )
-    ) {
-        return;
-    }
+const requestDelete = (item: EvidenceItem) => {
+    if (isUsed(item)) return;
+    itemToDelete.value = item;
+    isConfirmOpen.value = true;
+};
 
-    useForm({}).delete(`/admin/evidence-items/${item.id}`, {
+const confirmDelete = () => {
+    if (!itemToDelete.value) return;
+    useForm({}).delete(`/admin/evidence-items/${itemToDelete.value.id}`, {
         preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Rubro eliminado correctamente.');
+        },
     });
+    itemToDelete.value = null;
 };
+
+const isUsed = (item: EvidenceItem) =>
+    item.requirements_count > 0 || item.submissions_count > 0;
+
+const editingItemUsageWarning = computed(() => {
+    if (!editingItem.value || !isUsed(editingItem.value)) return null;
+    return `Este rubro está usado en ${editingItem.value.requirements_count} matriz${editingItem.value.requirements_count !== 1 ? 'ces' : ''} y ${editingItem.value.submissions_count} evidencia${editingItem.value.submissions_count !== 1 ? 's' : ''}.`;
+});
+
+const modalTitle = computed(() =>
+    editingItem.value ? 'Editar rubro' : 'Agregar rubro',
+);
 </script>
 
 <template>
-    <Head title="Rubros de Evidencia" />
+    <Head title="Rubros de evidencia" />
 
     <AppLayout
         :breadcrumbs="[
-            { title: 'Agregar', href: '#' },
+            { title: 'Admin', href: '#' },
             { title: 'Rubros de evidencia', href: '/admin/evidence-items' },
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
             <div class="mb-6 flex items-center justify-between gap-4">
                 <div>
-                    <p
-                        class="text-sm font-semibold uppercase tracking-wide text-blue-600"
-                    >
-                        Agregar
-                    </p>
                     <h1 class="text-2xl font-bold text-gray-900">
                         Rubros de evidencia
                     </h1>
-                    <p class="mt-1 text-sm text-gray-500">
-                        Alta y control de los documentos que despues se activan
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Alta y control de los documentos que después se activan
                         en la matriz por semestre y departamento.
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    class="inline-flex items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                <Button
                     :disabled="!canSubmit"
                     @click="openCreateModal"
                 >
-                    <Plus class="mr-2 h-5 w-5" />
+                    <Plus class="mr-2 h-4 w-4" />
                     Agregar rubro
-                </button>
+                </Button>
             </div>
 
             <div
                 v-if="props.categories.length === 0"
-                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800"
+                class="mb-4 rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm font-medium text-warning-foreground"
             >
-                No existen categorias de evidencia. Ejecuta las migraciones o el
-                bootstrap institucional antes de crear rubros.
+                No existen categorías de evidencia. Configura categorías de
+                evidencia antes de crear rubros.
             </div>
 
             <div
                 v-if="$page.props.errors.error"
-                class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                class="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
             >
                 {{ $page.props.errors.error }}
             </div>
 
             <div
-                class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                class="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
             >
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Rubro
-                            </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Categoria
-                            </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Alcance
-                            </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Estado
-                            </th>
-                            <th
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Uso
-                            </th>
-                            <th
-                                class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500"
-                            >
-                                Acciones
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 bg-white">
-                        <tr
-                            v-for="item in props.items.data"
-                            :key="item.id"
-                            class="transition-colors hover:bg-gray-50"
-                        >
-                            <td class="px-6 py-4 text-sm text-gray-900">
-                                <div class="font-semibold">{{ item.name }}</div>
-                                <div class="text-xs text-gray-500">
-                                    {{ item.description || 'Sin descripcion' }}
-                                </div>
-                            </td>
-                            <td class="whitespace-nowrap px-6 py-4 text-sm">
-                                {{ item.category?.name }}
-                            </td>
-                            <td class="whitespace-nowrap px-6 py-4 text-sm">
-                                {{
-                                    item.requires_subject
-                                        ? 'Por carga/materia'
-                                        : 'General del docente'
-                                }}
-                            </td>
-                            <td class="whitespace-nowrap px-6 py-4">
-                                <span
-                                    class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                                    :class="
-                                        item.active
-                                            ? 'bg-green-100 text-green-700'
-                                            : 'bg-slate-100 text-slate-600'
-                                    "
-                                >
-                                    {{ item.active ? 'Activo' : 'Inactivo' }}
-                                </span>
-                            </td>
-                            <td class="whitespace-nowrap px-6 py-4 text-sm">
-                                {{ item.requirements_count }} matriz /
-                                {{ item.submissions_count }} evidencias
-                            </td>
-                            <td
-                                class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium"
-                            >
-                                <div class="flex justify-end gap-3">
-                                    <button
-                                        type="button"
-                                        class="text-indigo-600 hover:text-indigo-900"
-                                        title="Editar"
-                                        @click="openEditModal(item)"
-                                    >
-                                        <Edit2 class="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="text-red-600 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-40"
-                                        title="Eliminar"
-                                        :disabled="
-                                            item.requirements_count > 0 ||
-                                            item.submissions_count > 0
-                                        "
-                                        @click="deleteItem(item)"
-                                    >
-                                        <Trash2 class="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <tr v-if="props.items.data.length === 0">
-                            <td
-                                colspan="6"
-                                class="bg-gray-50 px-6 py-12 text-center text-gray-500"
-                            >
-                                No hay rubros registrados. Comienza agregando
-                                los documentos que usara la matriz.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div
-                v-if="props.items.links.length > 3"
-                class="mt-4 flex items-center justify-center gap-1"
-            >
-                <template v-for="(link, i) in props.items.links" :key="i">
-                    <Link
-                        v-if="link.url"
-                        :href="link.url"
-                        class="rounded px-3 py-1 text-sm"
-                        :class="
-                            link.active
-                                ? 'bg-blue-600 font-semibold text-white'
-                                : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                        "
-                        preserve-state
-                    >
-                        <span v-html="link.label" />
-                    </Link>
-                    <span
-                        v-else
-                        class="px-3 py-1 text-sm text-gray-400"
-                        v-html="link.label"
-                    />
-                </template>
-            </div>
-
-            <div
-                v-if="isModalOpen"
-                class="fixed inset-0 z-50 overflow-y-auto"
-                aria-labelledby="modal-title"
-                role="dialog"
-                aria-modal="true"
-            >
-                <div
-                    class="flex min-h-full items-center justify-center p-4 text-center sm:p-0"
-                >
-                    <div
-                        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                        aria-hidden="true"
-                        @click="closeModal"
-                    ></div>
-
-                    <div
-                        class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
-                    >
-                        <form @submit.prevent="submitForm">
-                            <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
-                                <h3
-                                    id="modal-title"
-                                    class="mb-4 text-lg font-medium leading-6 text-gray-900"
-                                >
-                                    {{
-                                        editingItem
-                                            ? 'Editar rubro'
-                                            : 'Agregar rubro'
-                                    }}
-                                </h3>
-
-                                <div class="space-y-4">
-                                    <div>
-                                        <label
-                                            for="category_id"
-                                            class="block text-sm font-medium text-gray-700"
-                                        >
-                                            Categoria
-                                        </label>
-                                        <select
-                                            id="category_id"
-                                            v-model="form.category_id"
-                                            class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                            required
-                                        >
-                                            <option
-                                                v-for="category in props.categories"
-                                                :key="category.id"
-                                                :value="category.id"
-                                            >
-                                                {{ category.name }}
-                                            </option>
-                                        </select>
-                                        <div
-                                            v-if="form.errors.category_id"
-                                            class="mt-1 text-xs text-red-500"
-                                        >
-                                            {{ form.errors.category_id }}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            for="name"
-                                            class="block text-sm font-medium text-gray-700"
-                                        >
-                                            Nombre del rubro
-                                        </label>
-                                        <input
-                                            id="name"
-                                            v-model="form.name"
-                                            type="text"
-                                            class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                            required
-                                        />
-                                        <div
-                                            v-if="form.errors.name"
-                                            class="mt-1 text-xs text-red-500"
-                                        >
-                                            {{ form.errors.name }}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            for="description"
-                                            class="block text-sm font-medium text-gray-700"
-                                        >
-                                            Descripcion
-                                        </label>
-                                        <textarea
-                                            id="description"
-                                            v-model="form.description"
-                                            rows="3"
-                                            class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                                        ></textarea>
-                                        <div
-                                            v-if="form.errors.description"
-                                            class="mt-1 text-xs text-red-500"
-                                        >
-                                            {{ form.errors.description }}
-                                        </div>
-                                    </div>
-
-                                    <label
-                                        class="flex items-center gap-2 text-sm text-gray-700"
-                                    >
-                                        <input
-                                            v-model="form.requires_subject"
-                                            type="checkbox"
-                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        Requiere materia/carga academica
-                                    </label>
-
-                                    <label
-                                        class="flex items-center gap-2 text-sm text-gray-700"
-                                    >
-                                        <input
-                                            v-model="form.active"
-                                            type="checkbox"
-                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        Activo para matrices y ventanas
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div
-                                class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"
-                            >
-                                <button
-                                    type="submit"
-                                    :disabled="form.processing"
-                                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
-                                >
-                                    {{
-                                        editingItem
-                                            ? 'Guardar cambios'
-                                            : 'Agregar'
-                                    }}
-                                </button>
-                                <button
-                                    type="button"
-                                    class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                    @click="closeModal"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
+                <div class="flex-1 min-w-[200px]">
+                    <Label for="filter-search">Buscar</Label>
+                    <div class="relative mt-1">
+                        <Search
+                            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            id="filter-search"
+                            v-model="filterSearch"
+                            type="text"
+                            placeholder="Nombre o descripción..."
+                            class="pl-9"
+                        />
                     </div>
                 </div>
+                <div>
+                    <Label for="filter-category">Categoría</Label>
+                    <select
+                        id="filter-category"
+                        v-model="filterCategory"
+                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                    >
+                        <option value="">Todas</option>
+                        <option
+                            v-for="cat in props.categories"
+                            :key="cat.id"
+                            :value="cat.id"
+                        >
+                            {{ cat.name }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <Label for="filter-status">Estado</Label>
+                    <select
+                        id="filter-status"
+                        v-model="filterStatus"
+                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="active">Activo</option>
+                        <option value="inactive">Inactivo</option>
+                    </select>
+                </div>
+                <div>
+                    <Label for="filter-usage">Uso</Label>
+                    <select
+                        id="filter-usage"
+                        v-model="filterUsage"
+                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                    >
+                        <option value="all">Todos</option>
+                        <option value="used">En uso</option>
+                        <option value="unused">Sin uso</option>
+                    </select>
+                </div>
             </div>
+
+            <AdminTable>
+                <template #default>
+                    <table class="min-w-full divide-y divide-border">
+                        <thead class="bg-muted/50">
+                            <tr>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Rubro
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Categoría
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Alcance
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Estado
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Uso
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                >
+                                    Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border bg-background">
+                            <tr
+                                v-for="item in props.items.data"
+                                :key="item.id"
+                                class="transition-colors hover:bg-muted/50"
+                            >
+                                <td class="px-6 py-4 text-sm text-foreground">
+                                    <div class="font-semibold">
+                                        {{ item.name }}
+                                    </div>
+                                    <div class="text-xs text-muted-foreground">
+                                        {{
+                                            item.description || 'Sin descripción'
+                                        }}
+                                    </div>
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                                    {{ item.category?.name }}
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4">
+                                    <Badge
+                                        :variant="
+                                            item.requires_subject
+                                                ? 'info'
+                                                : 'secondary'
+                                        "
+                                    >
+                                        {{
+                                            item.requires_subject
+                                                ? 'Por carga/materia'
+                                                : 'General del docente'
+                                        }}
+                                    </Badge>
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4">
+                                    <Badge
+                                        :variant="
+                                            item.active ? 'success' : 'warning'
+                                        "
+                                    >
+                                        {{ item.active ? 'Activo' : 'Inactivo' }}
+                                    </Badge>
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                                    {{ item.requirements_count }} matriz /
+                                    {{ item.submissions_count }} evidencias
+                                </td>
+                                <td
+                                    class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium"
+                                >
+                                    <div class="flex justify-end gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Editar rubro"
+                                            @click="openEditModal(item)"
+                                        >
+                                            <Edit2 class="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            :disabled="isUsed(item)"
+                                            :aria-label="
+                                                isUsed(item)
+                                                    ? 'No se puede eliminar: rubro en uso'
+                                                    : 'Eliminar rubro'
+                                            "
+                                            :title="
+                                                isUsed(item)
+                                                    ? 'No se puede eliminar porque está usado en matriz o evidencias'
+                                                    : 'Eliminar'
+                                            "
+                                            class="text-destructive hover:text-destructive/80 disabled:text-muted-foreground"
+                                            @click="requestDelete(item)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr v-if="props.items.data.length === 0">
+                                <td
+                                    colspan="6"
+                                    class="bg-muted/30 px-6 py-12 text-center text-muted-foreground"
+                                >
+                                    No hay rubros que coincidan con los filtros.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </template>
+            </AdminTable>
+
+            <Pagination :links="props.items.links" />
         </div>
     </AppLayout>
+
+    <Dialog :open="isModalOpen" @update:open="(val: boolean) => { if (!val) closeModal() }">
+        <DialogContent class="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>{{ modalTitle }}</DialogTitle>
+                <DialogDescription v-if="editingItem">
+                    Modifica los datos del rubro de evidencia.
+                </DialogDescription>
+                <DialogDescription v-else>
+                    Completa los datos para crear un nuevo rubro de evidencia.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div
+                v-if="editingItemUsageWarning"
+                class="flex items-center gap-2 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+            >
+                <Badge variant="warning">
+                    {{ editingItemUsageWarning }}
+                </Badge>
+            </div>
+
+            <form @submit.prevent="submitForm" class="space-y-4">
+                <div>
+                    <Label for="evidence-category">Categoría</Label>
+                    <select
+                        id="evidence-category"
+                        v-model="form.category_id"
+                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pl-3 pr-10 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        required
+                    >
+                        <option
+                            v-for="category in props.categories"
+                            :key="category.id"
+                            :value="category.id"
+                        >
+                            {{ category.name }}
+                        </option>
+                    </select>
+                    <p v-if="form.errors.category_id" class="mt-1 text-xs text-destructive">
+                        {{ form.errors.category_id }}
+                    </p>
+                </div>
+
+                <div>
+                    <Label for="evidence-name">Nombre del rubro</Label>
+                    <Input
+                        id="evidence-name"
+                        v-model="form.name"
+                        type="text"
+                        class="mt-1"
+                        required
+                    />
+                    <p v-if="form.errors.name" class="mt-1 text-xs text-destructive">
+                        {{ form.errors.name }}
+                    </p>
+                </div>
+
+                <div>
+                    <Label for="evidence-description">Descripción</Label>
+                    <textarea
+                        id="evidence-description"
+                        v-model="form.description"
+                        rows="3"
+                        class="mt-1 block w-full rounded-md border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                    ></textarea>
+                    <p v-if="form.errors.description" class="mt-1 text-xs text-destructive">
+                        {{ form.errors.description }}
+                    </p>
+                </div>
+
+                <label class="flex items-center gap-2 text-sm text-foreground">
+                    <Checkbox v-model="form.requires_subject" />
+                    Requiere materia/carga académica
+                </label>
+
+                <label class="flex items-center gap-2 text-sm text-foreground">
+                    <Checkbox v-model="form.active" />
+                    Activo para matrices y ventanas
+                </label>
+
+                <p
+                    v-if="
+                        editingItem &&
+                        isUsed(editingItem) &&
+                        editingItem.active
+                    "
+                    class="text-xs text-muted-foreground"
+                >
+                    Para desactivar este rubro, desmarca la casilla "Activo" y
+                    guarda los cambios. No se puede eliminar porque está en uso.
+                </p>
+            </form>
+
+            <DialogFooter>
+                <Button variant="outline" @click="closeModal">
+                    Cancelar
+                </Button>
+                <Button
+                    :disabled="form.processing"
+                    @click="submitForm"
+                >
+                    {{ editingItem ? 'Guardar cambios' : 'Agregar' }}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+<ConfirmDialog
+        :open="isConfirmOpen"
+        title="Eliminar rubro"
+        :description="'¿Deseas eliminar el rubro? Esta acción no se puede deshacer.'"
+        confirm-label="Eliminar"
+        cancel-label="Cancelar"
+        variant="destructive"
+        @update:open="isConfirmOpen = $event"
+        @confirm="confirmDelete"
+    />
 </template>
