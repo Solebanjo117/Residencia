@@ -202,6 +202,15 @@
         @apply bg-background text-foreground;
     }
 
+    input:not([type='file']):not([type='checkbox']):not([type='radio']):not(
+            [type='hidden']
+        ),
+    textarea,
+    select {
+        @apply text-slate-900 placeholder:text-slate-400;
+        color-scheme: light;
+    }
+
     [data-sidebar='menu-button'][data-active='true'] {
         border-left: 3px solid hsl(var(--brand-gold));
         padding-left: calc(var(--spacing) * 2 - 3px);

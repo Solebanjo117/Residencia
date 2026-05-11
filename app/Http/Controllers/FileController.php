@@ -250,17 +250,11 @@ class FileController extends Controller
             return false;
         }
 
-        if ($submission->activeResubmissionUnlock()->exists()) {
-            return true;
+        if ($submission->status === SubmissionStatus::NA) {
+            return false;
         }
 
-        if ($this->isEditableLegacySubmission($submission)) {
-            $this->normalizeLegacyEditableSubmission($submission);
-
-            return true;
-        }
-
-        return $user->can('update', $submission);
+        return true;
     }
 
     private function canBypassAvailability($user): bool
@@ -271,32 +265,6 @@ class FileController extends Controller
     private function isTeacherManagingOwnSubmission($user, EvidenceSubmission $submission): bool
     {
         return $user->isDocente() && (int) $submission->teacher_user_id === (int) $user->id;
-    }
-
-    private function isEditableLegacySubmission(EvidenceSubmission $submission): bool
-    {
-        return in_array($submission->status, [SubmissionStatus::SUBMITTED, SubmissionStatus::APPROVED], true)
-            && $submission->submitted_at === null
-            && $submission->office_reviewed_at === null
-            && $submission->final_approved_at === null;
-    }
-
-    private function normalizeLegacyEditableSubmission(EvidenceSubmission $submission): void
-    {
-        if ($submission->status === SubmissionStatus::DRAFT) {
-            return;
-        }
-
-        $submission->forceFill([
-            'status' => SubmissionStatus::DRAFT,
-            'submitted_at' => null,
-            'submitted_late' => false,
-            'office_reviewed_at' => null,
-            'office_reviewed_by_user_id' => null,
-            'final_approved_at' => null,
-            'final_approved_by_user_id' => null,
-            'last_updated_at' => now(),
-        ])->save();
     }
 
     private function findMateriaFolder(FolderNode $folder): ?FolderNode

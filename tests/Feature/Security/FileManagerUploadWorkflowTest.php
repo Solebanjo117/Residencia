@@ -165,17 +165,17 @@ it('allows docente to upload files from file manager even when no submission win
     ]);
 });
 
-it('normalizes legacy approved submissions without review timestamps so docente can keep using file manager', function () {
+it('allows docente to add files from file manager without changing an approved submission', function () {
     Storage::fake('local');
 
     $ctx = createFileManagerContext(windowOpen: true);
     $ctx['submission']->update([
         'status' => SubmissionStatus::APPROVED,
-        'submitted_at' => null,
-        'office_reviewed_at' => null,
-        'office_reviewed_by_user_id' => null,
-        'final_approved_at' => null,
-        'final_approved_by_user_id' => null,
+        'submitted_at' => now()->subDay(),
+        'office_reviewed_at' => now()->subHours(3),
+        'office_reviewed_by_user_id' => $ctx['teacher']->id,
+        'final_approved_at' => now()->subHour(),
+        'final_approved_by_user_id' => $ctx['teacher']->id,
     ]);
 
     $response = $this
@@ -187,7 +187,9 @@ it('normalizes legacy approved submissions without review timestamps so docente 
 
     $response->assertRedirect('/files/manager');
 
-    expect($ctx['submission']->fresh()->status)->toBe(SubmissionStatus::DRAFT);
+    $ctx['submission']->refresh();
+    expect($ctx['submission']->status)->toBe(SubmissionStatus::APPROVED);
+    expect($ctx['submission']->final_approved_at)->not->toBeNull();
     $this->assertDatabaseHas('evidence_files', [
         'submission_id' => $ctx['submission']->id,
         'uploaded_by_user_id' => $ctx['teacher']->id,
