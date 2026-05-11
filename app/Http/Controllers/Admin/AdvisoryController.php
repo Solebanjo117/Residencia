@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\NotificationType;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
@@ -17,6 +18,7 @@ use App\Models\TeachingLoadReview;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use App\Services\FolderStructureService;
+use App\Services\NotificationService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -243,7 +245,7 @@ class AdvisoryController extends Controller
         return back()->with('success', 'Visto bueno final registrado correctamente.');
     }
 
-    public function upsertCellStatus(Request $request, EvidenceService $evidenceService)
+    public function upsertCellStatus(Request $request, EvidenceService $evidenceService, NotificationService $notificationService)
     {
         $validated = $request->validate([
             'teaching_load_id' => 'required|exists:teaching_loads,id',
@@ -317,6 +319,13 @@ class AdvisoryController extends Controller
             'last_updated_at' => now(),
         ]);
 
+        $this->notifyTeacherForManualStatusChange(
+            $submission->fresh(['teacher', 'evidenceItem']),
+            $manualStatus,
+            $validated['comments'] ?? null,
+            $notificationService
+        );
+
         return back()->with('success', $manualStatus === 'DRAFT'
             ? 'La evidencia quedo reactiva para captura.'
             : "Estado actualizado a {$manualStatus}."
@@ -378,7 +387,7 @@ class AdvisoryController extends Controller
             'status' => SubmissionStatus::DRAFT,
             'manual_ui_status' => null,
             'submitted_at' => null,
-            'submitted_late' => false,
+            'submitted_late' => $submission->submitted_late || $availability['is_late'],
             'office_reviewed_at' => null,
             'office_reviewed_by_user_id' => null,
             'final_approved_at' => null,
@@ -435,6 +444,46 @@ class AdvisoryController extends Controller
         $departmentIds = $user->departments()->pluck('departments.id');
 
         return $load->teacher->departments()->whereIn('departments.id', $departmentIds)->exists();
+    }
+
+    private function notifyTeacherForManualStatusChange(
+        EvidenceSubmission $submission,
+        string $manualStatus,
+        ?string $comments,
+        NotificationService $notificationService
+    ): void {
+        $payload = match ($manualStatus) {
+            'AO', 'REV' => [
+                NotificationType::SUBMISSION_APPROVED,
+                'Evidencia aprobada por oficina',
+                'Tu evidencia '.$submission->evidenceItem->name.' fue aprobada por oficina.',
+            ],
+            'VF' => [
+                NotificationType::SUBMISSION_APPROVED,
+                'Evidencia con visto bueno final',
+                'Tu evidencia '.$submission->evidenceItem->name.' recibio visto bueno final.',
+            ],
+            'R' => [
+                NotificationType::SUBMISSION_REJECTED,
+                'Evidencia rechazada',
+                'Tu evidencia '.$submission->evidenceItem->name.' fue rechazada.',
+            ],
+            default => null,
+        };
+
+        if (! $payload || ! $submission->teacher) {
+            return;
+        }
+
+        [$type, $title, $message] = $payload;
+
+        $notificationService->notifyImmediate(
+            $submission->teacher,
+            $type,
+            $title,
+            $message.($comments ? ' Comentarios: '.$comments : ''),
+            $submission
+        );
     }
 
     private function canUploadCellFile($user, TeachingLoad $load, ?EvidenceSubmission $submission, array $availability): bool

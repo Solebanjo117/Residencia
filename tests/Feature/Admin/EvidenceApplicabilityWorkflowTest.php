@@ -5,6 +5,7 @@ use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
@@ -15,14 +16,17 @@ use Illuminate\Support\Str;
 function createApplicabilityContext(): array
 {
     $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $deptHeadRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
 
     $office = User::factory()->create(['role_id' => $officeRoleId]);
+    $deptHead = User::factory()->create(['role_id' => $deptHeadRoleId]);
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $department = Department::create([
         'name' => 'Dept APP '.Str::upper(Str::random(4)),
     ]);
+    $deptHead->departments()->attach($department->id);
     $teacher->departments()->attach($department->id);
 
     $semester = Semester::create([
@@ -54,7 +58,7 @@ function createApplicabilityContext(): array
         'active' => true,
     ]);
 
-    return compact('office', 'teacher', 'load', 'item');
+    return compact('office', 'deptHead', 'teacher', 'load', 'item');
 }
 
 it('allows office to mark a load evidence as no aplica and reactivate it later', function () {
@@ -117,6 +121,35 @@ it('allows office to manually mark seguimiento statuses', function () {
     expect($submission->office_reviewed_at)->not->toBeNull();
     expect($submission->office_reviewed_by_user_id)->toBe($ctx['office']->id);
     expect($submission->final_approved_at)->toBeNull();
+});
+
+it('notifies the teacher when seguimiento status is manually approved', function () {
+    $ctx = createApplicabilityContext();
+
+    $this
+        ->from('/asesorias')
+        ->actingAs($ctx['deptHead'])
+        ->post(route('asesorias.cells.status'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'status' => 'VF',
+            'comments' => 'Visto bueno final',
+        ])
+        ->assertRedirect('/asesorias');
+
+    $submission = EvidenceSubmission::query()
+        ->where('teaching_load_id', $ctx['load']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->firstOrFail();
+
+    expect($submission->status)->toBe(SubmissionStatus::APPROVED);
+    expect($submission->final_approved_at)->not->toBeNull();
+
+    $notification = Notification::where('user_id', $ctx['teacher']->id)->first();
+
+    expect($notification)->not->toBeNull();
+    expect($notification->type->value)->toBe('SUBMISSION_APPROVED');
+    expect($notification->related_entity_id)->toBe($submission->id);
 });
 
 it('forbids docente from marking a load evidence as no aplica', function () {

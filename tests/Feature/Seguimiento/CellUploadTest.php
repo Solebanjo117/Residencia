@@ -95,6 +95,7 @@ it('lets a teacher upload a seguimiento cell file and exposes it in file manager
 
     expect($submission->status)->toBe(SubmissionStatus::DRAFT)
         ->and($submission->manual_ui_status)->toBeNull()
+        ->and($submission->submitted_late)->toBeFalse()
         ->and($file->folderNode->name)->toBe('ASESORIAS');
 
     $this->assertDatabaseHas('folder_nodes', [
@@ -171,4 +172,33 @@ it('does not create a draft submission when a seguimiento cell is not available'
         'evidence_item_id' => $ctx['item']->id,
     ]);
     $this->assertDatabaseCount('evidence_files', 0);
+});
+
+it('keeps a late flag when a seguimiento cell file is uploaded after the regular window', function () {
+    Storage::fake('local');
+    $ctx = createSeguimientoCellUploadContext();
+
+    SubmissionWindow::where('semester_id', $ctx['semester']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->update([
+            'opens_at' => now()->subDays(3),
+            'closes_at' => now()->subDay(),
+        ]);
+
+    $this
+        ->from(route('asesorias', ['semester' => $ctx['semester']->name]))
+        ->actingAs($ctx['teacher'])
+        ->post(route('asesorias.cells.upload'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'file' => UploadedFile::fake()->create('tarde.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect(route('asesorias', ['semester' => $ctx['semester']->name]));
+
+    $submission = EvidenceSubmission::query()
+        ->where('teaching_load_id', $ctx['load']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->firstOrFail();
+
+    expect($submission->submitted_late)->toBeTrue();
 });
