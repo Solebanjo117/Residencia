@@ -5,18 +5,23 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\ReviewDecision;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
+use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
+use App\Models\FolderNode;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\TeachingLoadReview;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
+use App\Services\FolderStructureService;
+use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class AdvisoryController extends Controller
@@ -178,6 +183,7 @@ class AdvisoryController extends Controller
                         && ! $submission?->isFinalApproved(),
                     'can_reactivate' => ($user->isJefeOficina() || $user->isJefeDepto())
                         && $submission?->status === SubmissionStatus::NA,
+                    'can_upload' => $this->canUploadCellFile($user, $load, $submission, $availability),
                 ];
             }
 
@@ -317,6 +323,75 @@ class AdvisoryController extends Controller
         );
     }
 
+    public function uploadCellFile(
+        Request $request,
+        StorageService $storageService,
+        FolderStructureService $folderStructureService,
+        EvidenceFlowService $flowService
+    ) {
+        $validated = $request->validate([
+            'teaching_load_id' => 'required|exists:teaching_loads,id',
+            'evidence_item_id' => 'required|exists:evidence_items,id',
+            'file' => 'required|file',
+        ]);
+
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $load = TeachingLoad::with(['teacher.departments', 'subject', 'semester'])
+            ->findOrFail($validated['teaching_load_id']);
+
+        abort_unless($user->isDocente() && (int) $load->teacher_user_id === (int) $user->id, 403);
+
+        $evidenceItem = EvidenceItem::findOrFail($validated['evidence_item_id']);
+        $submissionLookup = [
+            'semester_id' => $load->semester_id,
+            'teacher_user_id' => $load->teacher_user_id,
+            'evidence_item_id' => $evidenceItem->id,
+            'teaching_load_id' => $load->id,
+        ];
+        $submission = EvidenceSubmission::where($submissionLookup)->first();
+
+        $availability = $this->resolveCellAvailability($load, $evidenceItem, $submission, $flowService);
+        if (! $this->canUploadCellFile($user, $load, $submission, $availability)) {
+            return back()->withErrors([
+                'file' => 'La evidencia no esta disponible para carga: '.$availability['label'].'.',
+            ]);
+        }
+
+        $submission = EvidenceSubmission::firstOrCreate(
+            $submissionLookup,
+            [
+                'status' => SubmissionStatus::DRAFT,
+                'last_updated_at' => now(),
+            ]
+        );
+
+        $folder = $this->resolveEvidenceFolderForCell($load, $evidenceItem, $folderStructureService);
+
+        try {
+            $storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+        } catch (\Throwable $exception) {
+            return back()->withErrors(['file' => $exception->getMessage()]);
+        }
+
+        $submission->forceFill([
+            'status' => SubmissionStatus::DRAFT,
+            'manual_ui_status' => null,
+            'submitted_at' => null,
+            'submitted_late' => false,
+            'office_reviewed_at' => null,
+            'office_reviewed_by_user_id' => null,
+            'final_approved_at' => null,
+            'final_approved_by_user_id' => null,
+            'last_updated_at' => now(),
+        ])->save();
+
+        return back()->with('success', $availability['is_late']
+            ? 'Archivo subido correctamente en periodo extemporaneo.'
+            : 'Archivo subido correctamente.'
+        );
+    }
+
     public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad)
     {
         /** @var \App\Models\User $user */
@@ -360,6 +435,137 @@ class AdvisoryController extends Controller
         $departmentIds = $user->departments()->pluck('departments.id');
 
         return $load->teacher->departments()->whereIn('departments.id', $departmentIds)->exists();
+    }
+
+    private function canUploadCellFile($user, TeachingLoad $load, ?EvidenceSubmission $submission, array $availability): bool
+    {
+        if (! $user->isDocente() || (int) $load->teacher_user_id !== (int) $user->id) {
+            return false;
+        }
+
+        if (! $availability['is_available']) {
+            return false;
+        }
+
+        if (! $submission) {
+            return true;
+        }
+
+        return in_array($submission->status, [
+            SubmissionStatus::DRAFT,
+            SubmissionStatus::REJECTED,
+            SubmissionStatus::NE,
+        ], true);
+    }
+
+    private function resolveCellAvailability(
+        TeachingLoad $load,
+        EvidenceItem $item,
+        ?EvidenceSubmission $submission,
+        EvidenceFlowService $flowService
+    ): array {
+        $requirements = $flowService->requirementsForDepartment($load->semester_id, $load->teacher->departments()->first()?->id);
+        $requirement = $requirements->firstWhere('evidence_item_id', $item->id);
+        $loadSubmissions = EvidenceSubmission::query()
+            ->where('teacher_user_id', $load->teacher_user_id)
+            ->where('semester_id', $load->semester_id)
+            ->where('teaching_load_id', $load->id)
+            ->get()
+            ->keyBy('evidence_item_id');
+        $windows = SubmissionWindow::query()
+            ->where('semester_id', $load->semester_id)
+            ->where('evidence_item_id', $item->id)
+            ->where('status', 'ACTIVE')
+            ->get();
+        $stageUnlocked = $requirement instanceof EvidenceRequirement
+            ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)
+            : true;
+
+        return $flowService->resolveAvailability(
+            $this->resolveWindowForLoad($windows, $load),
+            $stageUnlocked,
+            $submission?->activeResubmissionUnlock()->exists() ?? false,
+            $submission,
+            $load->semester?->status !== \App\Enums\SemesterStatus::OPEN
+        );
+    }
+
+    private function resolveEvidenceFolderForCell(
+        TeachingLoad $load,
+        EvidenceItem $item,
+        FolderStructureService $folderStructureService
+    ): FolderNode {
+        $teacherFolder = $folderStructureService->generateFullStructure($load->semester, $load->teacher);
+        $subjectFolder = FolderNode::firstOrCreate(
+            [
+                'storage_root_id' => $teacherFolder->storage_root_id,
+                'parent_id' => $teacherFolder->id,
+                'name' => $load->subject->name,
+            ],
+            [
+                'relative_path' => $teacherFolder->relative_path.'/'.Str::slug($load->subject->name),
+                'owner_user_id' => $load->teacher_user_id,
+                'semester_id' => $load->semester_id,
+            ]
+        );
+
+        $candidates = collect($this->evidenceFolderNameCandidates($item->name))
+            ->map(fn (string $name) => $this->normalizeFolderLookupName($name))
+            ->all();
+        $folder = $subjectFolder->children()
+            ->get()
+            ->first(fn (FolderNode $child) => in_array($this->normalizeFolderLookupName($child->name), $candidates, true));
+
+        if ($folder) {
+            return $folder;
+        }
+
+        $folderName = $this->defaultEvidenceFolderName($item->name);
+
+        return FolderNode::firstOrCreate(
+            [
+                'storage_root_id' => $subjectFolder->storage_root_id,
+                'parent_id' => $subjectFolder->id,
+                'name' => $folderName,
+            ],
+            [
+                'relative_path' => $subjectFolder->relative_path.'/'.Str::slug($folderName),
+                'owner_user_id' => $load->teacher_user_id,
+                'semester_id' => $load->semester_id,
+            ]
+        );
+    }
+
+    private function evidenceFolderNameCandidates(string $itemName): array
+    {
+        $name = $this->normalizeFolderLookupName($itemName);
+
+        return match (true) {
+            str_contains($name, 'HORARIO') => ['0.HORARIO OFICIAL', 'HORARIO OFICIAL', 'HORARIO'],
+            str_contains($name, 'INSTRUM') => ['1.INSTRUMENTACIONES', 'INSTRUMENTACIONES'],
+            str_contains($name, 'DIAGN') => ['2.EVALUACION DIAGNOSTICA', 'EVALUACION DIAGNOSTICA'],
+            str_contains($name, 'ASESOR') => ['ASESORIAS'],
+            str_contains($name, 'CALIF') || str_contains($name, 'PARCIAL') => ['CALIFICACIONES PARCIALES', 'CALIF. PARCIALES'],
+            str_contains($name, 'EVIDENCIAS') => ['3.EVIDENCIAS DE ASIGNATURAS', 'EVIDENCIAS DE ASIGNATURAS'],
+            str_contains($name, 'PROY') => ['4.PROYECTOS INDIVIDUALES', 'PROYECTOS INDIVIDUALES'],
+            default => [$itemName],
+        };
+    }
+
+    private function defaultEvidenceFolderName(string $itemName): string
+    {
+        return match (true) {
+            str_contains($this->normalizeFolderLookupName($itemName), 'ASESOR') => 'ASESORIAS',
+            str_contains($this->normalizeFolderLookupName($itemName), 'CALIF') => 'CALIFICACIONES PARCIALES',
+            default => $itemName,
+        };
+    }
+
+    private function normalizeFolderLookupName(string $name): string
+    {
+        $normalized = Str::ascii(mb_strtoupper($name));
+
+        return trim(preg_replace('/\s+/', ' ', str_replace(['.', '_', '-'], ' ', $normalized)));
     }
 
     private function resolveWindowForLoad(Collection $windows, TeachingLoad $load): ?SubmissionWindow

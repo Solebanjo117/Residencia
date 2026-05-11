@@ -165,6 +165,9 @@ function openCellDetail(row, col) {
     cellModalOpen.value = true;
     reviewForm.reset();
     finalApprovalForm.reset();
+    uploadForm.reset();
+    uploadForm.clearErrors();
+    uploadFileName.value = '';
     cellStatusForm.reset();
     cellStatusForm.status = cellStatusOptions.some(
         (option) => option.value === cell.status,
@@ -179,6 +182,9 @@ function closeCellDetail() {
     cellModalData.value = null;
     cellModalRow.value = null;
     cellModalCol.value = null;
+    uploadForm.reset();
+    uploadForm.clearErrors();
+    uploadFileName.value = '';
 }
 
 function openDepartmentReview(row) {
@@ -208,6 +214,14 @@ const cellStatusForm = useForm({
     status: 'PA',
     comments: '',
 });
+
+const uploadForm = useForm({
+    teaching_load_id: null,
+    evidence_item_id: null,
+    file: null,
+});
+const uploadFileName = ref('');
+const uploadAccept = '.docx,.pdf,.jpg,.jpeg,.png,.webp';
 
 const departmentReviewForm = useForm({
     decision: 'APPROVE',
@@ -247,6 +261,26 @@ function updateCellStatus() {
     cellStatusForm.evidence_item_id = cellModalData.value.evidence_item_id;
 
     cellStatusForm.post('/asesorias/cells/status', {
+        preserveScroll: true,
+        onSuccess: closeCellDetail,
+    });
+}
+
+function handleCellUploadFile(event) {
+    const file = event.target.files?.[0] || null;
+
+    uploadForm.file = file;
+    uploadFileName.value = file?.name || '';
+}
+
+function submitCellUpload() {
+    if (!cellModalData.value || !uploadForm.file) return;
+
+    uploadForm.teaching_load_id = cellModalData.value.teaching_load_id;
+    uploadForm.evidence_item_id = cellModalData.value.evidence_item_id;
+
+    uploadForm.post('/asesorias/cells/upload', {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: closeCellDetail,
     });
@@ -928,6 +962,51 @@ function formatBytes(bytes) {
                                 </a>
                             </li>
                         </ul>
+                    </div>
+
+                    <div
+                        v-if="cellModalData.can_upload"
+                        class="rounded-lg border border-slate-100 p-3"
+                    >
+                        <h3
+                            class="mb-2 text-xs font-semibold text-slate-500 uppercase"
+                        >
+                            Subir archivo
+                        </h3>
+                        <div class="flex flex-col gap-3 sm:flex-row">
+                            <label
+                                class="flex min-h-10 flex-1 cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                                <input
+                                    type="file"
+                                    class="sr-only"
+                                    :accept="uploadAccept"
+                                    @change="handleCellUploadFile"
+                                />
+                                <span class="w-full truncate text-center">
+                                    {{
+                                        uploadFileName ||
+                                        'Seleccionar archivo'
+                                    }}
+                                </span>
+                            </label>
+                            <button
+                                type="button"
+                                class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
+                                :disabled="
+                                    !uploadForm.file || uploadForm.processing
+                                "
+                                @click="submitCellUpload"
+                            >
+                                Subir archivo
+                            </button>
+                        </div>
+                        <p
+                            v-if="uploadForm.errors.file"
+                            class="mt-2 text-sm text-red-600"
+                        >
+                            {{ uploadForm.errors.file }}
+                        </p>
                     </div>
 
                     <div

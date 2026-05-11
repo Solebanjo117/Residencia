@@ -83,6 +83,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/{submission}/final-approval', [\App\Http\Controllers\Admin\AdvisoryController::class, 'finalApprove'])
         ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.final-approval');
+    Route::post('asesorias/cells/upload', [\App\Http\Controllers\Admin\AdvisoryController::class, 'uploadCellFile'])
+        ->middleware(['role:'.\App\Models\Role::DOCENTE])
+        ->name('asesorias.cells.upload');
     Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.cells.status');
