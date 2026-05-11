@@ -206,7 +206,35 @@ sudo systemctl enable --now residencia-queue
 sudo systemctl status residencia-queue
 ```
 
-## 8. Crear usuario administrativo inicial
+## 8. Configurar correo real
+
+El registro con verificacion de correo y la recuperacion de contrasena usan el mailer de Laravel/Fortify. En produccion debes configurar SMTP en `.env`; no guardes estas credenciales en Git.
+
+Ejemplo con un proveedor SMTP:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=tls
+MAIL_HOST=smtp.tu-proveedor.com
+MAIL_PORT=587
+MAIL_USERNAME=usuario-smtp
+MAIL_PASSWORD=password-smtp
+MAIL_FROM_ADDRESS="correo-verificado@tu-proveedor.com"
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+Si aun no tienes dominio, puedes usar temporalmente un proveedor que permita enviar desde una cuenta verificada, por ejemplo una cuenta Gmail/Google Workspace con app password, Brevo, Mailgun, Resend, SendGrid o Mailtrap. El correo remitente debe ser una direccion permitida por el proveedor; `noreply@162.19.226.144` normalmente no sera aceptado.
+
+Despues de cambiar `.env` en la VPS:
+
+```bash
+php artisan optimize:clear
+php artisan config:cache
+```
+
+Puedes probar el envio creando un usuario desde `/register`, o solicitando recuperacion desde `/forgot-password`.
+
+## 9. Crear usuario administrativo inicial
 
 No uses `db:seed` en produccion sin revisar, porque `database/seeders/DatabaseSeeder.php` crea usuarios demo con password por defecto.
 
@@ -225,7 +253,7 @@ unset ADMIN_PASSWORD
 
 Cambia el email y password directamente en el servidor. No guardes esos valores en Git.
 
-## 9. Verificaciones utiles
+## 10. Verificaciones utiles
 
 ```bash
 php artisan about
@@ -237,7 +265,7 @@ tail -f storage/logs/laravel.log
 sudo tail -f /var/log/nginx/residencia-error.log
 ```
 
-## 10. Riesgos o puntos a revisar
+## 11. Riesgos o puntos a revisar
 
 - `public/hot`: si existe en produccion, Laravel intentara cargar Vite dev. El script `deploy.sh` lo borra. Revisa que no exista despues del deploy.
 - `config/inertia.php:19`: SSR esta marcado como `enabled => true`. Con `npm run build` normal no se genera bundle SSR, asi que Inertia cae al render cliente. Si decides usar SSR real, cambia el deploy a `npm run build:ssr` y crea un servicio para `php artisan inertia:start-ssr`.
@@ -245,8 +273,10 @@ sudo tail -f /var/log/nginx/residencia-error.log
 - `database/seeders/DatabaseSeeder.php:16` y `database/seeders/DatabaseSeeder.php:32-53`: crea usuarios demo con password default si corres `php artisan db:seed`. Para produccion usa `residencia:bootstrap`.
 - `app/Services/DocxEditorService.php:7` y `app/Services/DocxEditorService.php:14`: el editor DOCX necesita extensiones PHP `dom/xml` y `zip`. Instala `php8.3-xml` y `php8.3-zip`.
 - `config/database.php:37`: si `DB_DATABASE` no esta definido, Laravel usa `database/database.sqlite`. En produccion conviene dejar la ruta absoluta `/var/www/residencia/database/database.sqlite`.
+- `app/Models/User.php:8`: el modelo implementa `MustVerifyEmail`; si se quita, Laravel dejara de enviar/verificar correos de registro.
+- `.env`: si `MAIL_MAILER=log`, los correos no salen al usuario; se guardan en `storage/logs/laravel.log`.
 
-## 11. Actualizaciones futuras
+## 12. Actualizaciones futuras
 
 Para actualizar despues de nuevos commits:
 
