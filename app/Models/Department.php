@@ -12,6 +12,7 @@ class Department extends Model
     use HasFactory;
 
     protected $fillable = ['name'];
+
     public $timestamps = false; // Based on migration
 
     public function users()

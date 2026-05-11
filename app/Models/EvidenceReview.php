@@ -16,7 +16,7 @@ class EvidenceReview extends Model
         'decision',
         'stage',
         'comments',
-        'reviewed_at'
+        'reviewed_at',
     ];
 
     protected $casts = [
@@ -27,6 +27,7 @@ class EvidenceReview extends Model
     public $timestamps = false;
 
     public const STAGE_OFFICE = 'OFFICE';
+
     public const STAGE_FINAL = 'FINAL';
 
     public function submission()

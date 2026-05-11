@@ -10,11 +10,14 @@ class Role extends Model
     use HasFactory;
 
     protected $fillable = ['name'];
+
     public $timestamps = false; // Based on migration
 
     // Constants for role names
     const DOCENTE = 'DOCENTE';
+
     const JEFE_OFICINA = 'JEFE_OFICINA';
+
     const JEFE_DEPTO = 'JEFE_DEPTO';
 
     public function users()

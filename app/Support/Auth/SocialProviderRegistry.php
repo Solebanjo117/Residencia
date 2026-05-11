@@ -40,16 +40,16 @@ final class SocialProviderRegistry
 
     public static function isEnabled(string $provider): bool
     {
-        if (!self::has($provider)) {
+        if (! self::has($provider)) {
             return false;
         }
 
         $enabledProviders = config('services.social_auth.enabled_providers', []);
-        if (!in_array($provider, $enabledProviders, true)) {
+        if (! in_array($provider, $enabledProviders, true)) {
             return false;
         }
 
-        $config = config('services.' . $provider, []);
+        $config = config('services.'.$provider, []);
 
         return filled($config['client_id'] ?? null)
             && filled($config['client_secret'] ?? null)
@@ -64,7 +64,7 @@ final class SocialProviderRegistry
         $providers = [];
 
         foreach (self::supported() as $name => $meta) {
-            if (!self::isEnabled($name)) {
+            if (! self::isEnabled($name)) {
                 continue;
             }
 

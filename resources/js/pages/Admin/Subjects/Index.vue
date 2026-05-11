@@ -94,20 +94,21 @@ const deleteSubject = (subject: Subject) => {
         <div class="mx-auto max-w-7xl px-6 py-8">
             <div class="mb-6 flex items-center justify-between gap-4">
                 <div>
-                    <p class="text-sm font-semibold uppercase tracking-wide text-blue-600">
+                    <p
+                        class="text-sm font-semibold tracking-wide text-blue-600 uppercase"
+                    >
                         Agregar
                     </p>
-                    <h1 class="text-2xl font-bold text-gray-900">
-                        Materias
-                    </h1>
+                    <h1 class="text-2xl font-bold text-gray-900">Materias</h1>
                     <p class="mt-1 text-sm text-gray-500">
-                        Alta, edicion y control de materias disponibles para cargas academicas.
+                        Alta, edicion y control de materias disponibles para
+                        cargas academicas.
                     </p>
                 </div>
 
                 <button
                     type="button"
-                    class="inline-flex items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    class="inline-flex items-center rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none"
                     @click="openCreateModal"
                 >
                     <Plus class="mr-2 h-5 w-5" />
@@ -122,20 +123,30 @@ const deleteSubject = (subject: Subject) => {
                 {{ $page.props.errors.error }}
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div
+                class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+            >
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Clave
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Nombre
                             </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Cargas asociadas
                             </th>
-                            <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Acciones
                             </th>
                         </tr>
@@ -146,18 +157,24 @@ const deleteSubject = (subject: Subject) => {
                             :key="subject.id"
                             class="transition-colors hover:bg-gray-50"
                         >
-                            <td class="whitespace-nowrap px-6 py-4 text-sm font-semibold text-gray-900">
+                            <td
+                                class="px-6 py-4 text-sm font-semibold whitespace-nowrap text-gray-900"
+                            >
                                 {{ subject.code }}
                             </td>
                             <td class="px-6 py-4 text-sm text-gray-700">
                                 {{ subject.name }}
                             </td>
-                            <td class="whitespace-nowrap px-6 py-4">
-                                <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span
+                                    class="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                                >
                                     {{ subject.teaching_loads_count }}
                                 </span>
                             </td>
-                            <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                            <td
+                                class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
+                            >
                                 <div class="flex justify-end gap-3">
                                     <button
                                         type="button"
@@ -171,7 +188,9 @@ const deleteSubject = (subject: Subject) => {
                                         type="button"
                                         class="text-red-600 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-40"
                                         title="Eliminar"
-                                        :disabled="subject.teaching_loads_count > 0"
+                                        :disabled="
+                                            subject.teaching_loads_count > 0
+                                        "
                                         @click="deleteSubject(subject)"
                                     >
                                         <Trash2 class="h-4 w-4" />
@@ -181,8 +200,12 @@ const deleteSubject = (subject: Subject) => {
                         </tr>
 
                         <tr v-if="props.subjects.data.length === 0">
-                            <td colspan="4" class="bg-gray-50 px-6 py-12 text-center text-gray-500">
-                                No hay materias registradas. Comienza agregando una.
+                            <td
+                                colspan="4"
+                                class="bg-gray-50 px-6 py-12 text-center text-gray-500"
+                            >
+                                No hay materias registradas. Comienza agregando
+                                una.
                             </td>
                         </tr>
                     </tbody>
@@ -198,7 +221,11 @@ const deleteSubject = (subject: Subject) => {
                         v-if="link.url"
                         :href="link.url"
                         class="rounded px-3 py-1 text-sm"
-                        :class="link.active ? 'bg-blue-600 font-semibold text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'"
+                        :class="
+                            link.active
+                                ? 'bg-blue-600 font-semibold text-white'
+                                : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        "
                         preserve-state
                     >
                         <span v-html="link.label" />
@@ -218,25 +245,39 @@ const deleteSubject = (subject: Subject) => {
                 role="dialog"
                 aria-modal="true"
             >
-                <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+                <div
+                    class="flex min-h-full items-center justify-center p-4 text-center sm:p-0"
+                >
                     <div
-                        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                        class="bg-opacity-75 fixed inset-0 bg-gray-500 transition-opacity"
                         aria-hidden="true"
                         @click="closeModal"
                     ></div>
 
-                    <div class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div
+                        class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
+                    >
                         <form @submit.prevent="submitForm">
                             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div class="mb-4">
-                                    <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title">
-                                        {{ editingSubject ? 'Editar materia' : 'Agregar materia' }}
+                                    <h3
+                                        class="text-lg leading-6 font-medium text-gray-900"
+                                        id="modal-title"
+                                    >
+                                        {{
+                                            editingSubject
+                                                ? 'Editar materia'
+                                                : 'Agregar materia'
+                                        }}
                                     </h3>
                                 </div>
 
                                 <div class="space-y-4">
                                     <div>
-                                        <label for="code" class="block text-sm font-medium text-gray-700">
+                                        <label
+                                            for="code"
+                                            class="block text-sm font-medium text-gray-700"
+                                        >
                                             Clave
                                         </label>
                                         <input
@@ -246,13 +287,19 @@ const deleteSubject = (subject: Subject) => {
                                             class="mt-1 block w-full rounded-md border-gray-300 uppercase focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                                             required
                                         />
-                                        <div v-if="form.errors.code" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.code"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.code }}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label for="name" class="block text-sm font-medium text-gray-700">
+                                        <label
+                                            for="name"
+                                            class="block text-sm font-medium text-gray-700"
+                                        >
                                             Nombre de la materia
                                         </label>
                                         <input
@@ -262,24 +309,33 @@ const deleteSubject = (subject: Subject) => {
                                             class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                                             required
                                         />
-                                        <div v-if="form.errors.name" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.name"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.name }}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <div
+                                class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"
+                            >
                                 <button
                                     type="submit"
                                     :disabled="form.processing"
-                                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
+                                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    {{ editingSubject ? 'Guardar cambios' : 'Agregar' }}
+                                    {{
+                                        editingSubject
+                                            ? 'Guardar cambios'
+                                            : 'Agregar'
+                                    }}
                                 </button>
                                 <button
                                     type="button"
-                                    class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                     @click="closeModal"
                                 >
                                     Cancelar

@@ -12,15 +12,16 @@ use Illuminate\Support\Str;
 function createAdminForDepartmentTests(): User
 {
     $roleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+
     return User::factory()->create(['role_id' => $roleId]);
 }
 
 it('blocks department deletion when requirements exist', function () {
     $admin = createAdminForDepartmentTests();
 
-    $department = Department::create(['name' => 'Dept Req ' . Str::upper(Str::random(6))]);
+    $department = Department::create(['name' => 'Dept Req '.Str::upper(Str::random(6))]);
     $semester = Semester::create([
-        'name' => 'SEM-DEP-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-DEP-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
@@ -29,7 +30,7 @@ it('blocks department deletion when requirements exist', function () {
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-DEP-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-DEP-'.Str::upper(Str::random(8)),
         'description' => 'Item department guard',
         'requires_subject' => true,
         'active' => true,
@@ -55,7 +56,7 @@ it('blocks department deletion when requirements exist', function () {
 it('blocks department deletion when teachers are assigned', function () {
     $admin = createAdminForDepartmentTests();
 
-    $department = Department::create(['name' => 'Dept Teach ' . Str::upper(Str::random(6))]);
+    $department = Department::create(['name' => 'Dept Teach '.Str::upper(Str::random(6))]);
 
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
@@ -74,7 +75,7 @@ it('blocks department deletion when teachers are assigned', function () {
 it('deletes department when no requirements and no teachers exist', function () {
     $admin = createAdminForDepartmentTests();
 
-    $department = Department::create(['name' => 'Dept Free ' . Str::upper(Str::random(6))]);
+    $department = Department::create(['name' => 'Dept Free '.Str::upper(Str::random(6))]);
 
     $response = $this
         ->from('/admin/departments')

@@ -10,6 +10,7 @@ class EvidenceCategory extends Model
     use HasFactory;
 
     protected $fillable = ['name', 'description'];
+
     public $timestamps = false;
 
     public function items()

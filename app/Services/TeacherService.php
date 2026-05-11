@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\User;
 use App\Models\Role;
-use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class TeacherService
@@ -45,7 +45,7 @@ class TeacherService
                 'is_active' => $data['is_active'] ?? $teacher->is_active,
             ];
 
-            if (!empty($data['password'])) {
+            if (! empty($data['password'])) {
                 $updateData['password'] = Hash::make($data['password']);
             }
 

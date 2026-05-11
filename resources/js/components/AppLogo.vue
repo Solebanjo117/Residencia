@@ -12,7 +12,9 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
         <span class="mb-0.5 truncate leading-tight font-semibold">
             Seguimiento Docente
         </span>
-        <span class="truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span
+            class="truncate text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
+        >
             Tecnológico de Piedras Negras
         </span>
     </div>

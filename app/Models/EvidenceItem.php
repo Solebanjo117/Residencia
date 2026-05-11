@@ -14,8 +14,9 @@ class EvidenceItem extends Model
         'name',
         'description',
         'requires_subject',
-        'active'
+        'active',
     ];
+
     public $timestamps = false;
 
     protected $casts = [

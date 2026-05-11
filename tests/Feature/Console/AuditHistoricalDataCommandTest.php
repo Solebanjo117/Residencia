@@ -26,15 +26,15 @@ function createHistoricalAuditBase(): array
     $office = User::factory()->create(['role_id' => $officeRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-HIST-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-HIST-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonths(2)->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-HIST-' . Str::upper(Str::random(6)),
-        'name' => 'Materia Hist ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-HIST-'.Str::upper(Str::random(6)),
+        'name' => 'Materia Hist '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -46,7 +46,7 @@ function createHistoricalAuditBase(): array
     ]);
 
     $category = EvidenceCategory::create([
-        'name' => 'CAT-HIST-' . Str::upper(Str::random(6)),
+        'name' => 'CAT-HIST-'.Str::upper(Str::random(6)),
         'description' => 'Categoria para pruebas de saneamiento historico',
     ]);
 
@@ -57,8 +57,8 @@ function createEvidenceItem(EvidenceCategory $category, string $suffix): Evidenc
 {
     return EvidenceItem::create([
         'category_id' => $category->id,
-        'name' => 'ITEM-HIST-' . $suffix . '-' . Str::upper(Str::random(4)),
-        'description' => 'Item de prueba historica ' . $suffix,
+        'name' => 'ITEM-HIST-'.$suffix.'-'.Str::upper(Str::random(4)),
+        'description' => 'Item de prueba historica '.$suffix,
         'requires_subject' => true,
         'active' => true,
     ]);
@@ -115,7 +115,7 @@ it('fails audit when historical inconsistencies are found', function () {
     ]);
 
     StorageRoot::create([
-        'name' => 'ROOT-HIST-' . Str::upper(Str::random(4)),
+        'name' => 'ROOT-HIST-'.Str::upper(Str::random(4)),
         'base_path' => storage_path('app/private'),
         'is_active' => true,
     ]);
@@ -246,7 +246,7 @@ it('applies safe fixes with --fix and leaves data consistent', function () {
     ]);
 
     $root = StorageRoot::create([
-        'name' => 'ROOT-HIST-' . Str::upper(Str::random(4)),
+        'name' => 'ROOT-HIST-'.Str::upper(Str::random(4)),
         'base_path' => storage_path('app/private'),
         'is_active' => true,
     ]);
@@ -254,7 +254,7 @@ it('applies safe fixes with --fix and leaves data consistent', function () {
     $folder = \App\Models\FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'Carpeta Evidencia',
-        'relative_path' => 'sem_' . $ctx['semester']->id . '/docente_' . $ctx['teacher']->id,
+        'relative_path' => 'sem_'.$ctx['semester']->id.'/docente_'.$ctx['teacher']->id,
         'owner_user_id' => $ctx['teacher']->id,
         'semester_id' => $ctx['semester']->id,
         'parent_id' => null,
@@ -300,7 +300,7 @@ it('applies safe fixes with --fix and leaves data consistent', function () {
     expect($scheduleDuplicate->fresh()->is_sent)->toBeTrue();
 
     $updatedFile = $file->fresh();
-    expect($updatedFile->stored_relative_path)->toBe($folder->relative_path . '/prueba.pdf');
+    expect($updatedFile->stored_relative_path)->toBe($folder->relative_path.'/prueba.pdf');
     expect(Storage::disk('local')->exists($updatedFile->stored_relative_path))->toBeTrue();
     expect(Storage::disk('local')->exists($originalPath))->toBeFalse();
 });

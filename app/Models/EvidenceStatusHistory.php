@@ -11,6 +11,7 @@ class EvidenceStatusHistory extends Model
     use HasFactory;
 
     protected $table = 'evidence_status_history';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -19,7 +20,7 @@ class EvidenceStatusHistory extends Model
         'new_status',
         'changed_by_user_id',
         'change_reason',
-        'changed_at'
+        'changed_at',
     ];
 
     protected $casts = [

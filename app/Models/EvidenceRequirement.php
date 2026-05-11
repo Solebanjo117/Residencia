@@ -16,7 +16,7 @@ class EvidenceRequirement extends Model
         'department_id',
         'evidence_item_id',
         'is_mandatory',
-        'applies_condition'
+        'applies_condition',
     ];
 
     protected $casts = [

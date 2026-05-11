@@ -12,8 +12,9 @@ class DepartmentController extends Controller
     public function index()
     {
         $departments = Department::orderBy('name')->get();
+
         return Inertia::render('Admin/Departments/Index', [
-            'departments' => $departments
+            'departments' => $departments,
         ]);
     }
 
@@ -31,7 +32,7 @@ class DepartmentController extends Controller
     public function update(Request $request, Department $department)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:100|unique:departments,name,' . $department->id,
+            'name' => 'required|string|max:100|unique:departments,name,'.$department->id,
         ]);
 
         $department->update($validated);
@@ -47,6 +48,7 @@ class DepartmentController extends Controller
         }
 
         $department->delete();
+
         return back()->with('success', 'Departamento eliminado exitosamente.');
     }
 }

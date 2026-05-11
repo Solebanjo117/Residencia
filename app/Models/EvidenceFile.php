@@ -30,7 +30,7 @@ class EvidenceFile extends Model
         'is_current_version',
         'uploaded_by_user_id',
         'deleted_by_user_id',
-        'deleted_at'
+        'deleted_at',
     ];
 
     protected $casts = [
@@ -74,7 +74,7 @@ class EvidenceFile extends Model
     {
         return $this->belongsTo(User::class, 'last_edited_by_user_id');
     }
-    
+
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by_user_id');

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import { Save, Filter, Info, AlertTriangle, ChevronDown } from 'lucide-vue-next';
+import {
+    Save,
+    Filter,
+    Info,
+    AlertTriangle,
+    ChevronDown,
+} from 'lucide-vue-next';
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -44,9 +50,12 @@ const form = useForm({
 
 const initialRequirementsJson = ref('');
 
-watch(() => page.props.flash?.success, (val) => {
-    if (val) toast.success(val as string);
-});
+watch(
+    () => page.props.flash?.success,
+    (val) => {
+        if (val) toast.success(val as string);
+    },
+);
 
 const pendingSemesterChange = ref<string | null>(null);
 const showSemesterConfirm = ref(false);
@@ -93,9 +102,14 @@ const normalizeReqs = (reqs: any[]) =>
                 evidence_item_id: r.evidence_item_id,
                 is_mandatory: r.is_mandatory,
             }))
-            .sort((a: any, b: any) =>
-                String(a.evidence_item_id).localeCompare(String(b.evidence_item_id)) ||
-                String(a.department_id ?? 'null').localeCompare(String(b.department_id ?? 'null')),
+            .sort(
+                (a: any, b: any) =>
+                    String(a.evidence_item_id).localeCompare(
+                        String(b.evidence_item_id),
+                    ) ||
+                    String(a.department_id ?? 'null').localeCompare(
+                        String(b.department_id ?? 'null'),
+                    ),
             ),
     );
 
@@ -229,7 +243,8 @@ const applyGlobalCategory = (category: any) => {
             });
         }
         form.requirements = form.requirements.filter(
-            (r) => !(r.evidence_item_id === item.id && r.department_id !== null),
+            (r) =>
+                !(r.evidence_item_id === item.id && r.department_id !== null),
         );
     });
 };
@@ -312,11 +327,13 @@ const semesterSummary = computed(() => {
                         Cambios sin guardar
                     </Badge>
                     <div class="relative">
-                        <Label for="semester-select" class="sr-only">Semestre</Label>
+                        <Label for="semester-select" class="sr-only"
+                            >Semestre</Label
+                        >
                         <select
                             id="semester-select"
                             v-model="filterSemester"
-                            class="appearance-none rounded-lg border border-input bg-background py-2 pr-10 pl-4 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                            class="appearance-none rounded-lg border border-input bg-background py-2 pr-10 pl-4 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         >
                             <option value="" disabled>
                                 Selecciona un semestre...
@@ -381,9 +398,12 @@ const semesterSummary = computed(() => {
                 v-else-if="categories.length === 0"
                 class="rounded-xl border border-border bg-card p-12 text-center shadow-sm"
             >
-                <p class="text-muted-foreground">No hay rubros de evidencia configurados.</p>
+                <p class="text-muted-foreground">
+                    No hay rubros de evidencia configurados.
+                </p>
                 <p class="mt-1 text-sm text-muted-foreground/70">
-                    Agrega rubros de evidencia primero antes de configurar la matriz.
+                    Agrega rubros de evidencia primero antes de configurar la
+                    matriz.
                 </p>
             </div>
 
@@ -424,43 +444,62 @@ const semesterSummary = computed(() => {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody
-                                class="divide-y divide-border bg-background"
-                            >
+                            <tbody class="divide-y divide-border bg-background">
                                 <template
                                     v-for="category in categories"
                                     :key="'cat-' + category.id"
                                 >
                                     <tr class="bg-muted/70">
                                         <td
-                                            :colspan="
-                                                2 + departments.length
-                                            "
+                                            :colspan="2 + departments.length"
                                             class="sticky left-0 z-[5] bg-muted/70 px-6 py-2 text-sm font-semibold text-foreground shadow-[inset_-1px_0_0_var(--color-border)]"
                                         >
                                             <div
                                                 class="flex flex-wrap items-center justify-between gap-2"
                                             >
-                                                <span>{{
-                                                    category.name
-                                                }}</span>
+                                                <span>{{ category.name }}</span>
                                                 <DropdownMenu>
-                                                    <DropdownMenuTrigger as-child>
-                                                        <Button variant="outline" size="sm">
+                                                    <DropdownMenuTrigger
+                                                        as-child
+                                                    >
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                        >
                                                             Acciones
-                                                            <ChevronDown class="ml-1 h-3 w-3" />
+                                                            <ChevronDown
+                                                                class="ml-1 h-3 w-3"
+                                                            />
                                                         </Button>
                                                     </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem @click="applyGlobalCategory(category)">
+                                                    <DropdownMenuContent
+                                                        align="end"
+                                                    >
+                                                        <DropdownMenuItem
+                                                            @click="
+                                                                applyGlobalCategory(
+                                                                    category,
+                                                                )
+                                                            "
+                                                        >
                                                             Aplicar global
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem @click="allMandatoryCategory(category)">
+                                                        <DropdownMenuItem
+                                                            @click="
+                                                                allMandatoryCategory(
+                                                                    category,
+                                                                )
+                                                            "
+                                                        >
                                                             Todo obligatorio
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             class="text-destructive focus:text-destructive"
-                                                            @click="requestClearCategory(category)"
+                                                            @click="
+                                                                requestClearCategory(
+                                                                    category,
+                                                                )
+                                                            "
                                                         >
                                                             Limpiar
                                                         </DropdownMenuItem>
@@ -494,32 +533,58 @@ const semesterSummary = computed(() => {
                                                 class="flex flex-col items-center gap-1"
                                             >
                                                 <Checkbox
-                                                    :model-value="isChecked(item.id, null)"
-                                                    @update:model-value="toggleRequirement(item.id, null)"
+                                                    :model-value="
+                                                        isChecked(item.id, null)
+                                                    "
+                                                    @update:model-value="
+                                                        toggleRequirement(
+                                                            item.id,
+                                                            null,
+                                                        )
+                                                    "
                                                 />
                                                 <button
-                                                    v-if="isChecked(item.id, null)"
+                                                    v-if="
+                                                        isChecked(item.id, null)
+                                                    "
                                                     type="button"
-                                                    class="mt-1 cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                                                    class="mt-1 cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                                     :class="
-                                                        isMandatory(item.id, null)
+                                                        isMandatory(
+                                                            item.id,
+                                                            null,
+                                                        )
                                                             ? 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
                                                             : 'border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-200'
                                                     "
                                                     :aria-label="
-                                                        isMandatory(item.id, null)
+                                                        isMandatory(
+                                                            item.id,
+                                                            null,
+                                                        )
                                                             ? 'Cambiar a opcional'
                                                             : 'Cambiar a obligatorio'
                                                     "
                                                     :title="
-                                                        isMandatory(item.id, null)
+                                                        isMandatory(
+                                                            item.id,
+                                                            null,
+                                                        )
                                                             ? 'Clic para cambiar a Opcional'
                                                             : 'Clic para cambiar a Obligatorio'
                                                     "
-                                                    @click="toggleMandatory(item.id, null)"
+                                                    @click="
+                                                        toggleMandatory(
+                                                            item.id,
+                                                            null,
+                                                        )
+                                                    "
                                                 >
                                                     {{
-                                                        isMandatory(item.id, null)
+                                                        isMandatory(
+                                                            item.id,
+                                                            null,
+                                                        )
                                                             ? 'Obligatorio'
                                                             : 'Opcional'
                                                     }}
@@ -535,53 +600,114 @@ const semesterSummary = computed(() => {
                                             <div
                                                 class="flex flex-col items-center gap-1"
                                             >
-                                                <TooltipProvider :delay-duration="300">
-                                                    <Tooltip v-if="isChecked(item.id, null)">
-                                                        <TooltipTrigger as-child>
+                                                <TooltipProvider
+                                                    :delay-duration="300"
+                                                >
+                                                    <Tooltip
+                                                        v-if="
+                                                            isChecked(
+                                                                item.id,
+                                                                null,
+                                                            )
+                                                        "
+                                                    >
+                                                        <TooltipTrigger
+                                                            as-child
+                                                        >
                                                             <span>
                                                                 <Checkbox
-                                                                    :model-value="isChecked(item.id, dept.id)"
-                                                                    :disabled="isChecked(item.id, null)"
-                                                                    @update:model-value="toggleRequirement(item.id, dept.id)"
+                                                                    :model-value="
+                                                                        isChecked(
+                                                                            item.id,
+                                                                            dept.id,
+                                                                        )
+                                                                    "
+                                                                    :disabled="
+                                                                        isChecked(
+                                                                            item.id,
+                                                                            null,
+                                                                        )
+                                                                    "
+                                                                    @update:model-value="
+                                                                        toggleRequirement(
+                                                                            item.id,
+                                                                            dept.id,
+                                                                        )
+                                                                    "
                                                                 />
                                                             </span>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            Desactiva la selección global primero
+                                                            Desactiva la
+                                                            selección global
+                                                            primero
                                                         </TooltipContent>
                                                     </Tooltip>
                                                     <Checkbox
                                                         v-else
-                                                        :model-value="isChecked(item.id, dept.id)"
-                                                        @update:model-value="toggleRequirement(item.id, dept.id)"
+                                                        :model-value="
+                                                            isChecked(
+                                                                item.id,
+                                                                dept.id,
+                                                            )
+                                                        "
+                                                        @update:model-value="
+                                                            toggleRequirement(
+                                                                item.id,
+                                                                dept.id,
+                                                            )
+                                                        "
                                                     />
                                                 </TooltipProvider>
                                                 <button
                                                     v-if="
-                                                        isChecked(item.id, dept.id) &&
-                                                        !isChecked(item.id, null)
+                                                        isChecked(
+                                                            item.id,
+                                                            dept.id,
+                                                        ) &&
+                                                        !isChecked(
+                                                            item.id,
+                                                            null,
+                                                        )
                                                     "
                                                     type="button"
-                                                    class="mt-1 cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                                                    class="mt-1 cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                                     :class="
-                                                        isMandatory(item.id, dept.id)
+                                                        isMandatory(
+                                                            item.id,
+                                                            dept.id,
+                                                        )
                                                             ? 'border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200'
                                                             : 'border-blue-300 bg-blue-100 text-blue-800 hover:bg-blue-200'
                                                     "
                                                     :aria-label="
-                                                        isMandatory(item.id, dept.id)
+                                                        isMandatory(
+                                                            item.id,
+                                                            dept.id,
+                                                        )
                                                             ? 'Cambiar a opcional'
                                                             : 'Cambiar a obligatorio'
                                                     "
                                                     :title="
-                                                        isMandatory(item.id, dept.id)
+                                                        isMandatory(
+                                                            item.id,
+                                                            dept.id,
+                                                        )
                                                             ? 'Clic para cambiar a Opcional'
                                                             : 'Clic para cambiar a Obligatorio'
                                                     "
-                                                    @click="toggleMandatory(item.id, dept.id)"
+                                                    @click="
+                                                        toggleMandatory(
+                                                            item.id,
+                                                            dept.id,
+                                                        )
+                                                    "
                                                 >
                                                     {{
-                                                        isMandatory(item.id, dept.id)
+                                                        isMandatory(
+                                                            item.id,
+                                                            dept.id,
+                                                        )
                                                             ? 'Obligatorio'
                                                             : 'Opcional'
                                                     }}
@@ -604,7 +730,7 @@ const semesterSummary = computed(() => {
                         <button
                             type="submit"
                             :disabled="form.processing || !filterSemester"
-                            class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                            class="inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                         >
                             <Save class="mr-2 h-4 w-4" />
                             Guardar matriz
@@ -622,7 +748,11 @@ const semesterSummary = computed(() => {
         confirm-label="Continuar sin guardar"
         cancel-label="Permanecer"
         variant="warning"
-        @update:open="(val: boolean) => { if (!val) cancelSemesterChange() }"
+        @update:open="
+            (val: boolean) => {
+                if (!val) cancelSemesterChange();
+            }
+        "
         @confirm="confirmSemesterChange"
     />
 
@@ -633,7 +763,14 @@ const semesterSummary = computed(() => {
         confirm-label="Limpiar"
         cancel-label="Cancelar"
         variant="destructive"
-        @update:open="(val: boolean) => { if (!val) { showClearConfirm = false; categoryToClear = null; } }"
+        @update:open="
+            (val: boolean) => {
+                if (!val) {
+                    showClearConfirm = false;
+                    categoryToClear = null;
+                }
+            }
+        "
         @confirm="confirmClearCategory"
     />
 </template>

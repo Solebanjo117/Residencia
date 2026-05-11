@@ -139,7 +139,7 @@ it('rejects a social callback without a trusted email', function () {
 
 function socialiteGoogleUser(array $attributes): SocialiteUser
 {
-    return (new SocialiteUser())
+    return (new SocialiteUser)
         ->setRaw([
             'sub' => $attributes['id'],
             'name' => $attributes['name'],

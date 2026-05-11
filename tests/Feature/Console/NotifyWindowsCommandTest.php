@@ -16,15 +16,15 @@ it('dispatches pending window notifications to teachers using teacher_user_id', 
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-NW-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-NW-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-NW-' . Str::upper(Str::random(6)),
-        'name' => 'Materia NW ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-NW-'.Str::upper(Str::random(6)),
+        'name' => 'Materia NW '.Str::upper(Str::random(4)),
     ]);
 
     TeachingLoad::create([
@@ -38,7 +38,7 @@ it('dispatches pending window notifications to teachers using teacher_user_id', 
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-NW-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-NW-'.Str::upper(Str::random(8)),
         'description' => 'Item notify windows test',
         'requires_subject' => true,
         'active' => true,

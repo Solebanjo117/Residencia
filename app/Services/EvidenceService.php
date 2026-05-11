@@ -47,8 +47,7 @@ class EvidenceService
         User $user,
         ?string $reason = null,
         bool $enforceTransition = true
-    )
-    {
+    ) {
         $startedAt = microtime(true);
         $oldStatus = $submission->status;
 

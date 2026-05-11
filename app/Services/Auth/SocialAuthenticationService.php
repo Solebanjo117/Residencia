@@ -21,11 +21,11 @@ class SocialAuthenticationService
 
         $email = $this->normalizedEmail($providerUser->getEmail());
         if ($email === null) {
-            throw new RuntimeException('La cuenta de ' . ucfirst($provider) . ' no devolvio un correo electronico valido.');
+            throw new RuntimeException('La cuenta de '.ucfirst($provider).' no devolvio un correo electronico valido.');
         }
 
-        if (!$this->isTrustedEmail($providerUser)) {
-            throw new RuntimeException('El correo devuelto por ' . ucfirst($provider) . ' no pudo verificarse de forma segura.');
+        if (! $this->isTrustedEmail($providerUser)) {
+            throw new RuntimeException('El correo devuelto por '.ucfirst($provider).' no pudo verificarse de forma segura.');
         }
 
         $socialAccount = SocialAccount::query()
@@ -56,7 +56,7 @@ class SocialAuthenticationService
                 ->first();
 
             if ($existingLink && $existingLink->provider_user_id !== $providerUserId) {
-                throw new RuntimeException('Esta cuenta local ya esta vinculada a otra cuenta de ' . ucfirst($provider) . '.');
+                throw new RuntimeException('Esta cuenta local ya esta vinculada a otra cuenta de '.ucfirst($provider).'.');
             }
 
             $this->linkSocialAccount($user, $provider, $providerUser, $email, $existingLink);
@@ -100,7 +100,7 @@ class SocialAuthenticationService
 
     private function syncSocialAccount(SocialAccount $socialAccount, ProviderUser $providerUser, string $email): void
     {
-        if (!$socialAccount->exists && !$socialAccount->linked_at) {
+        if (! $socialAccount->exists && ! $socialAccount->linked_at) {
             $socialAccount->linked_at = now();
         }
 
@@ -133,7 +133,7 @@ class SocialAuthenticationService
 
     private function assertActiveUser(User $user): void
     {
-        if (!$user->is_active) {
+        if (! $user->is_active) {
             throw new RuntimeException('Tu cuenta esta desactivada. Contacta al administrador.');
         }
     }

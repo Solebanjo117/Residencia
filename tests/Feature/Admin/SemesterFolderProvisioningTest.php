@@ -19,29 +19,29 @@ it('generates folder structures for active teachers when a semester is opened', 
     $activeTeacher = User::factory()->create([
         'role_id' => $teacherRoleId,
         'is_active' => true,
-        'name' => 'Docente Activo ' . Str::upper(Str::random(4)),
+        'name' => 'Docente Activo '.Str::upper(Str::random(4)),
     ]);
     $inactiveTeacher = User::factory()->create([
         'role_id' => $teacherRoleId,
         'is_active' => false,
-        'name' => 'Docente Inactivo ' . Str::upper(Str::random(4)),
+        'name' => 'Docente Inactivo '.Str::upper(Str::random(4)),
     ]);
 
     $semester = Semester::create([
-        'name' => 'SEM-PROVISION-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-PROVISION-'.Str::upper(Str::random(6)),
         'start_date' => now()->toDateString(),
         'end_date' => now()->addMonths(4)->toDateString(),
         'status' => 'CLOSED',
     ]);
 
     $activeSubject = Subject::create([
-        'code' => 'SUB-ACT-' . Str::upper(Str::random(6)),
-        'name' => 'Materia Activa ' . Str::upper(Str::random(4)),
+        'code' => 'SUB-ACT-'.Str::upper(Str::random(6)),
+        'name' => 'Materia Activa '.Str::upper(Str::random(4)),
     ]);
 
     $inactiveSubject = Subject::create([
-        'code' => 'SUB-INACT-' . Str::upper(Str::random(6)),
-        'name' => 'Materia Inactiva ' . Str::upper(Str::random(4)),
+        'code' => 'SUB-INACT-'.Str::upper(Str::random(6)),
+        'name' => 'Materia Inactiva '.Str::upper(Str::random(4)),
     ]);
 
     TeachingLoad::create([
@@ -118,13 +118,13 @@ it('creates the base evidence tree for active teachers when an open semester is 
     $activeTeacher = User::factory()->create([
         'role_id' => $teacherRoleId,
         'is_active' => true,
-        'name' => 'Docente Base ' . Str::upper(Str::random(4)),
+        'name' => 'Docente Base '.Str::upper(Str::random(4)),
     ]);
 
     $this
         ->actingAs($admin)
         ->post(route('admin.semesters.store'), [
-            'name' => 'SEM-BASE-' . Str::upper(Str::random(6)),
+            'name' => 'SEM-BASE-'.Str::upper(Str::random(6)),
             'start_date' => now()->toDateString(),
             'end_date' => now()->addMonths(4)->toDateString(),
             'status' => 'OPEN',
@@ -176,25 +176,25 @@ it('clones requirements and teaching loads from the latest semester with data wh
         'is_active' => true,
     ]);
 
-    $department = Department::create(['name' => 'DEP-CLONE-' . Str::upper(Str::random(5))]);
+    $department = Department::create(['name' => 'DEP-CLONE-'.Str::upper(Str::random(5))]);
     $teacher->departments()->attach($department->id);
 
     $sourceSemester = Semester::create([
-        'name' => 'SEM-SOURCE-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-SOURCE-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonths(5)->toDateString(),
         'end_date' => now()->subMonth()->toDateString(),
         'status' => 'CLOSED',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUB-CLONE-' . Str::upper(Str::random(6)),
-        'name' => 'Materia Clon ' . Str::upper(Str::random(4)),
+        'code' => 'SUB-CLONE-'.Str::upper(Str::random(6)),
+        'name' => 'Materia Clon '.Str::upper(Str::random(4)),
     ]);
 
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'INSTRUM CLONE ' . Str::upper(Str::random(4)),
+        'name' => 'INSTRUM CLONE '.Str::upper(Str::random(4)),
         'description' => 'Evidencia clonada',
         'requires_subject' => true,
         'active' => true,
@@ -218,7 +218,7 @@ it('clones requirements and teaching loads from the latest semester with data wh
     $this
         ->actingAs($admin)
         ->post(route('admin.semesters.store'), [
-            'name' => 'SEM-TARGET-' . Str::upper(Str::random(6)),
+            'name' => 'SEM-TARGET-'.Str::upper(Str::random(6)),
             'start_date' => now()->toDateString(),
             'end_date' => now()->addMonths(4)->toDateString(),
             'status' => 'CLOSED',

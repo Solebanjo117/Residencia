@@ -323,62 +323,74 @@ const resetFilters = () => {
                     <table class="min-w-full divide-y divide-slate-200">
                         <thead class="bg-slate-50">
                             <tr>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Docente
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Cargas
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Entregas
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Borrador
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Revisión
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Aprobadas
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Liberadas
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Rechazadas
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     NA
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Ext.
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Atraso
                                 </th>
-                                <th scope="col"
+                                <th
+                                    scope="col"
                                     class="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-600 uppercase"
                                 >
                                     Cumplimiento

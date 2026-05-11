@@ -14,8 +14,8 @@ function createJefeDeptoScopeContext(): array
     $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
 
-    $deptoA = Department::create(['name' => 'DEP-A-' . Str::upper(Str::random(6))]);
-    $deptoB = Department::create(['name' => 'DEP-B-' . Str::upper(Str::random(6))]);
+    $deptoA = Department::create(['name' => 'DEP-A-'.Str::upper(Str::random(6))]);
+    $deptoB = Department::create(['name' => 'DEP-B-'.Str::upper(Str::random(6))]);
 
     $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
     $jefeDepto->departments()->attach($deptoA->id);
@@ -27,13 +27,13 @@ function createJefeDeptoScopeContext(): array
     $teacherB->departments()->attach($deptoB->id);
 
     $root = StorageRoot::create([
-        'name' => 'root-scope-' . Str::lower(Str::random(8)),
+        'name' => 'root-scope-'.Str::lower(Str::random(8)),
         'base_path' => 'storage_root',
         'is_active' => true,
     ]);
 
     $semester = Semester::create([
-        'name' => 'SEMESTRE SCOPE ' . Str::upper(Str::random(4)),
+        'name' => 'SEMESTRE SCOPE '.Str::upper(Str::random(4)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
@@ -42,7 +42,7 @@ function createJefeDeptoScopeContext(): array
     $semesterFolder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'SEMESTRE SCOPE',
-        'relative_path' => 'sem_scope_' . Str::lower(Str::random(6)),
+        'relative_path' => 'sem_scope_'.Str::lower(Str::random(6)),
         'owner_user_id' => null,
         'semester_id' => $semester->id,
         'parent_id' => null,
@@ -51,7 +51,7 @@ function createJefeDeptoScopeContext(): array
     $allowedFolder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'Docente Depto A',
-        'relative_path' => $semesterFolder->relative_path . '/docente_' . $teacherA->id,
+        'relative_path' => $semesterFolder->relative_path.'/docente_'.$teacherA->id,
         'owner_user_id' => $teacherA->id,
         'semester_id' => null,
         'parent_id' => $semesterFolder->id,
@@ -60,7 +60,7 @@ function createJefeDeptoScopeContext(): array
     $forbiddenFolder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'Docente Depto B',
-        'relative_path' => $semesterFolder->relative_path . '/docente_' . $teacherB->id,
+        'relative_path' => $semesterFolder->relative_path.'/docente_'.$teacherB->id,
         'owner_user_id' => $teacherB->id,
         'semester_id' => null,
         'parent_id' => $semesterFolder->id,
@@ -118,7 +118,7 @@ it('moves semester folders between active and inactive groups when the active se
     $ctx = createJefeDeptoScopeContext();
 
     $newSemester = Semester::create([
-        'name' => 'SEMESTRE NUEVO ' . Str::upper(Str::random(4)),
+        'name' => 'SEMESTRE NUEVO '.Str::upper(Str::random(4)),
         'start_date' => now()->addMonth()->toDateString(),
         'end_date' => now()->addMonths(4)->toDateString(),
         'status' => 'CLOSED',

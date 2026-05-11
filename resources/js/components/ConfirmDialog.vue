@@ -47,7 +47,13 @@ const handleCancel = () => {
     emit('cancel');
 };
 
-const variantConfig: Record<ConfirmVariant, { icon: typeof AlertTriangle; buttonVariant: 'destructive' | 'default' | 'secondary' }> = {
+const variantConfig: Record<
+    ConfirmVariant,
+    {
+        icon: typeof AlertTriangle;
+        buttonVariant: 'destructive' | 'default' | 'secondary';
+    }
+> = {
     destructive: { icon: Trash2, buttonVariant: 'destructive' },
     warning: { icon: AlertTriangle, buttonVariant: 'secondary' },
     default: { icon: AlertTriangle, buttonVariant: 'default' },
@@ -61,7 +67,15 @@ const config = variantConfig[props.variant];
         <DialogContent>
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
-                    <component :is="config.icon" class="h-5 w-5" :class="variant === 'destructive' ? 'text-destructive' : 'text-warning'" />
+                    <component
+                        :is="config.icon"
+                        class="h-5 w-5"
+                        :class="
+                            variant === 'destructive'
+                                ? 'text-destructive'
+                                : 'text-warning'
+                        "
+                    />
                     {{ title }}
                 </DialogTitle>
                 <DialogDescription v-if="description">

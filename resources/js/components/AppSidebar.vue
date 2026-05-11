@@ -12,10 +12,10 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import AppLogo from './AppLogo.vue';
-import { dashboard } from '@/routes';
 import { useAuth } from '@/composables/useAuth';
 import { getNavItemsByRole } from '@/config/menu';
+import { dashboard } from '@/routes';
+import AppLogo from './AppLogo.vue';
 
 const { user } = useAuth();
 
@@ -27,7 +27,6 @@ const mainNavItems = computed(() => {
     // Ensure dashboard link is correct if necessary
     return items;
 });
-
 </script>
 
 <template>

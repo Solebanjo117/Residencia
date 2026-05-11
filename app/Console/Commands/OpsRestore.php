@@ -30,33 +30,37 @@ class OpsRestore extends Command
         $startedAt = microtime(true);
 
         $snapshotName = trim((string) $this->argument('snapshot'));
-        $snapshotPath = storage_path('app/backups') . DIRECTORY_SEPARATOR . $snapshotName;
+        $snapshotPath = storage_path('app/backups').DIRECTORY_SEPARATOR.$snapshotName;
         $only = strtolower((string) $this->option('only'));
 
-        if (!in_array($only, ['all', 'db', 'files'], true)) {
+        if (! in_array($only, ['all', 'db', 'files'], true)) {
             $this->error('El valor de --only debe ser all, db o files.');
+
             return self::FAILURE;
         }
 
-        if (!File::isDirectory($snapshotPath)) {
+        if (! File::isDirectory($snapshotPath)) {
             $this->error("Snapshot no encontrado: {$snapshotName}");
+
             return self::FAILURE;
         }
 
-        $manifestPath = $snapshotPath . DIRECTORY_SEPARATOR . 'manifest.json';
-        if (!File::exists($manifestPath)) {
+        $manifestPath = $snapshotPath.DIRECTORY_SEPARATOR.'manifest.json';
+        if (! File::exists($manifestPath)) {
             $this->error('El snapshot no contiene manifest.json');
+
             return self::FAILURE;
         }
 
-        if (!$this->option('force')) {
+        if (! $this->option('force')) {
             $confirmed = $this->confirm(
                 "Se restaurara el snapshot {$snapshotName} (only={$only}). Esta accion sobrescribe datos. Continuar?",
                 false
             );
 
-            if (!$confirmed) {
+            if (! $confirmed) {
                 $this->warn('Restauracion cancelada por el usuario.');
+
                 return self::FAILURE;
             }
         }
@@ -95,7 +99,7 @@ class OpsRestore extends Command
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            $this->error('Error durante restauracion: ' . $exception->getMessage());
+            $this->error('Error durante restauracion: '.$exception->getMessage());
 
             return self::FAILURE;
         }
@@ -103,9 +107,9 @@ class OpsRestore extends Command
 
     private function restoreDatabase(string $snapshotPath): void
     {
-        $snapshotDbPath = $snapshotPath . DIRECTORY_SEPARATOR . 'database.sqlite';
+        $snapshotDbPath = $snapshotPath.DIRECTORY_SEPARATOR.'database.sqlite';
 
-        if (!File::exists($snapshotDbPath)) {
+        if (! File::exists($snapshotDbPath)) {
             throw new \RuntimeException('No existe database.sqlite en el snapshot.');
         }
 
@@ -124,7 +128,7 @@ class OpsRestore extends Command
         File::ensureDirectoryExists(dirname($targetDbPath));
 
         if (File::exists($targetDbPath)) {
-            File::copy($targetDbPath, $snapshotPath . DIRECTORY_SEPARATOR . 'pre_restore_current_database.sqlite');
+            File::copy($targetDbPath, $snapshotPath.DIRECTORY_SEPARATOR.'pre_restore_current_database.sqlite');
         }
 
         File::copy($snapshotDbPath, $targetDbPath);
@@ -132,9 +136,9 @@ class OpsRestore extends Command
 
     private function restoreFiles(string $snapshotPath): void
     {
-        $snapshotFilesPath = $snapshotPath . DIRECTORY_SEPARATOR . 'storage_app';
+        $snapshotFilesPath = $snapshotPath.DIRECTORY_SEPARATOR.'storage_app';
 
-        if (!File::isDirectory($snapshotFilesPath)) {
+        if (! File::isDirectory($snapshotFilesPath)) {
             throw new \RuntimeException('No existe storage_app en el snapshot.');
         }
 
@@ -161,7 +165,7 @@ class OpsRestore extends Command
     {
         $configuredPath = config("database.connections.{$connection}.database");
 
-        if (!is_string($configuredPath) || $configuredPath === '' || $configuredPath === ':memory:') {
+        if (! is_string($configuredPath) || $configuredPath === '' || $configuredPath === ':memory:') {
             return null;
         }
 
@@ -178,11 +182,11 @@ class OpsRestore extends Command
 
         foreach (File::directories($source) as $directory) {
             $name = basename($directory);
-            $this->copyDirectoryContents($directory, $destination . DIRECTORY_SEPARATOR . $name);
+            $this->copyDirectoryContents($directory, $destination.DIRECTORY_SEPARATOR.$name);
         }
 
         foreach (File::files($source) as $file) {
-            File::copy($file->getPathname(), $destination . DIRECTORY_SEPARATOR . $file->getFilename());
+            File::copy($file->getPathname(), $destination.DIRECTORY_SEPARATOR.$file->getFilename());
         }
     }
 

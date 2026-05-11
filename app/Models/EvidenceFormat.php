@@ -10,6 +10,7 @@ class EvidenceFormat extends Model
     use HasFactory;
 
     protected $fillable = ['name', 'template_url', 'active'];
+
     public $timestamps = false;
 
     public function items()

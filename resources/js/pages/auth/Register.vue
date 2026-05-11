@@ -69,7 +69,9 @@ import { store } from '@/routes/register';
                 </div>
 
                 <div class="grid gap-2">
-                    <Label for="password_confirmation">Confirmar contraseña</Label>
+                    <Label for="password_confirmation"
+                        >Confirmar contraseña</Label
+                    >
                     <Input
                         id="password_confirmation"
                         type="password"

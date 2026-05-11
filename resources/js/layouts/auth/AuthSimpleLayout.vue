@@ -23,11 +23,11 @@ defineProps<{
                         <div
                             class="mb-1 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-border"
                         >
-                            <AppLogoIcon
-                                class="size-20 object-contain"
-                            />
+                            <AppLogoIcon class="size-20 object-contain" />
                         </div>
-                        <span class="text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        <span
+                            class="text-center text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase"
+                        >
                             Tecnológico de Piedras Negras
                         </span>
                         <span class="sr-only">{{ title }}</span>

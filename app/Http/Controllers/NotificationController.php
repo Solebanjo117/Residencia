@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Notification;
 
 class NotificationController extends Controller
 {
@@ -27,7 +27,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'count' => $unreadCount,
-            'notifications' => $notifications
+            'notifications' => $notifications,
         ]);
     }
 
@@ -43,7 +43,7 @@ class NotificationController extends Controller
                 ->where('user_id', $user->id)
                 ->update([
                     'is_read' => true,
-                    'read_at' => now()
+                    'read_at' => now(),
                 ]);
         } else {
             // Mark all
@@ -51,7 +51,7 @@ class NotificationController extends Controller
                 ->where('is_read', false)
                 ->update([
                     'is_read' => true,
-                    'read_at' => now()
+                    'read_at' => now(),
                 ]);
         }
 

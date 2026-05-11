@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import {
     AlertTriangle,
     ArrowLeft,
@@ -19,6 +17,8 @@ import {
     User,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { type BreadcrumbItem } from '@/types';
 
 const props = defineProps<{
     file: {
@@ -91,7 +91,9 @@ const saveForm = useForm({
     save_mode: 'replace_current',
 });
 
-const readOnly = computed(() => !props.capabilities.can_edit || Boolean(props.document.load_error));
+const readOnly = computed(
+    () => !props.capabilities.can_edit || Boolean(props.document.load_error),
+);
 
 const compatibilityNotice = computed(() => [
     'Esta fase conserva mejor la tipografia explicita del DOCX: fuente, tamano, color, negritas, cursivas y subrayado.',
@@ -100,8 +102,12 @@ const compatibilityNotice = computed(() => [
     'Guardar crea una revision segura; el archivo base no se pierde.',
 ]);
 
-const formattedUploadedAt = computed(() => formatDateTime(props.file.uploaded_at));
-const formattedEditedAt = computed(() => formatDateTime(props.file.last_edited_at));
+const formattedUploadedAt = computed(() =>
+    formatDateTime(props.file.uploaded_at),
+);
+const formattedEditedAt = computed(() =>
+    formatDateTime(props.file.last_edited_at),
+);
 
 function initializeEditor() {
     nextTick(() => {
@@ -119,7 +125,9 @@ function initializeEditor() {
     });
 }
 
-function syncEditorHtml(section: 'header' | 'body' | 'footer' = activeSection.value) {
+function syncEditorHtml(
+    section: 'header' | 'body' | 'footer' = activeSection.value,
+) {
     if (section === 'header') {
         headerHtml.value = headerEditorRef.value?.innerHTML || '';
     } else if (section === 'footer') {
@@ -204,7 +212,12 @@ function formatDateTime(value: string | null) {
 }
 
 watch(
-    () => [props.document.html, props.document.header_html, props.document.footer_html] as const,
+    () =>
+        [
+            props.document.html,
+            props.document.header_html,
+            props.document.footer_html,
+        ] as const,
     ([bodyValue, headerValue, footerValue]) => {
         editorHtml.value = bodyValue || '<p><br></p>';
         headerHtml.value = headerValue || '<p><br></p>';
@@ -225,10 +238,14 @@ onMounted(() => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="min-h-screen bg-slate-50">
             <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div
+                    class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                >
                     <div>
                         <div class="mb-2 flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                            <span
+                                class="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700"
+                            >
                                 DOCX Editor MVP
                             </span>
                             <span
@@ -244,9 +261,12 @@ onMounted(() => {
                                 Cambios sin guardar
                             </span>
                         </div>
-                        <h1 class="text-2xl font-semibold text-slate-900">{{ file.name }}</h1>
+                        <h1 class="text-2xl font-semibold text-slate-900">
+                            {{ file.name }}
+                        </h1>
                         <p class="mt-1 text-sm text-slate-500">
-                            Primera fase de edicion textual para documentos .docx dentro del gestor de archivos.
+                            Primera fase de edicion textual para documentos
+                            .docx dentro del gestor de archivos.
                         </p>
                     </div>
 
@@ -290,11 +310,18 @@ onMounted(() => {
 
                 <div class="mb-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                     <div class="space-y-4">
-                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div class="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                        <div
+                            class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                            <div
+                                class="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-600"
+                            >
                                 <span class="inline-flex items-center gap-2">
                                     <FileText class="h-4 w-4 text-slate-400" />
-                                    {{ file.mime_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }}
+                                    {{
+                                        file.mime_type ||
+                                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                                    }}
                                 </span>
                                 <span class="inline-flex items-center gap-2">
                                     <Clock3 class="h-4 w-4 text-slate-400" />
@@ -306,16 +333,32 @@ onMounted(() => {
                                 </span>
                             </div>
 
-                            <div v-if="file.last_edited_at" class="text-xs text-slate-500">
-                                Ultima edicion: {{ formattedEditedAt }} por {{ file.last_edited_by || 'Sin usuario' }}
+                            <div
+                                v-if="file.last_edited_at"
+                                class="text-xs text-slate-500"
+                            >
+                                Ultima edicion: {{ formattedEditedAt }} por
+                                {{ file.last_edited_by || 'Sin usuario' }}
                             </div>
                         </div>
 
-                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Compatibilidad real de esta fase</h2>
+                        <div
+                            class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                            <h2
+                                class="mb-3 text-sm font-semibold tracking-wider text-slate-500 uppercase"
+                            >
+                                Compatibilidad real de esta fase
+                            </h2>
                             <ul class="space-y-2 text-sm text-slate-700">
-                                <li v-for="notice in compatibilityNotice" :key="notice" class="flex items-start gap-2">
-                                    <span class="mt-1 h-1.5 w-1.5 rounded-full bg-slate-400"></span>
+                                <li
+                                    v-for="notice in compatibilityNotice"
+                                    :key="notice"
+                                    class="flex items-start gap-2"
+                                >
+                                    <span
+                                        class="mt-1 h-1.5 w-1.5 rounded-full bg-slate-400"
+                                    ></span>
                                     <span>{{ notice }}</span>
                                 </li>
                             </ul>
@@ -325,13 +368,21 @@ onMounted(() => {
                             v-if="document.warnings.length > 0"
                             class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm"
                         >
-                            <div class="mb-2 flex items-center gap-2 font-semibold">
+                            <div
+                                class="mb-2 flex items-center gap-2 font-semibold"
+                            >
                                 <AlertTriangle class="h-4 w-4" />
                                 Advertencias de compatibilidad detectadas
                             </div>
                             <ul class="space-y-2">
-                                <li v-for="warning in document.warnings" :key="warning" class="flex items-start gap-2">
-                                    <span class="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+                                <li
+                                    v-for="warning in document.warnings"
+                                    :key="warning"
+                                    class="flex items-start gap-2"
+                                >
+                                    <span
+                                        class="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500"
+                                    ></span>
                                     <span>{{ warning }}</span>
                                 </li>
                             </ul>
@@ -341,58 +392,186 @@ onMounted(() => {
                             v-if="saveForm.errors.docx"
                             class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm"
                         >
-                            <div class="mb-2 flex items-center gap-2 font-semibold">
+                            <div
+                                class="mb-2 flex items-center gap-2 font-semibold"
+                            >
                                 <AlertTriangle class="h-4 w-4" />
                                 No se pudieron guardar los cambios
                             </div>
                             <p>{{ saveForm.errors.docx }}</p>
                         </div>
 
-                        <div v-if="document.load_error" class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800 shadow-sm">
-                            <div class="mb-2 flex items-center gap-2 font-semibold">
+                        <div
+                            v-if="document.load_error"
+                            class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800 shadow-sm"
+                        >
+                            <div
+                                class="mb-2 flex items-center gap-2 font-semibold"
+                            >
                                 <AlertTriangle class="h-4 w-4" />
                                 No se pudo abrir el documento en el editor
                             </div>
                             <p>{{ document.load_error }}</p>
                             <p class="mt-2 text-rose-700">
-                                Puedes descargar el archivo original o reemplazarlo desde el gestor. No se modifico nada automaticamente.
+                                Puedes descargar el archivo original o
+                                reemplazarlo desde el gestor. No se modifico
+                                nada automaticamente.
                             </p>
                         </div>
 
-                        <div v-else class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div
+                            v-else
+                            class="rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        >
                             <div class="border-b border-slate-200 px-4 py-3">
-                                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                <div
+                                    class="mb-3 flex flex-wrap items-center justify-between gap-3"
+                                >
                                     <div>
-                                        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Editor</h2>
+                                        <h2
+                                            class="text-sm font-semibold tracking-wider text-slate-500 uppercase"
+                                        >
+                                            Editor
+                                        </h2>
                                         <p class="mt-1 text-xs text-slate-500">
-                                            Edicion textual por secciones. El toolbar actua sobre la seccion que tenga el cursor activo.
+                                            Edicion textual por secciones. El
+                                            toolbar actua sobre la seccion que
+                                            tenga el cursor activo.
                                         </p>
                                     </div>
                                     <div
                                         v-if="document.stats"
                                         class="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500"
                                     >
-                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Parrafos: {{ document.stats.paragraphs }}</span>
-                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Titulos: {{ document.stats.headings }}</span>
-                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Listas: {{ document.stats.list_items }}</span>
-                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Imagenes: {{ document.stats.images }}</span>
-                                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Tablas: {{ document.stats.tables }}</span>
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                            >Parrafos:
+                                            {{
+                                                document.stats.paragraphs
+                                            }}</span
+                                        >
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                            >Titulos:
+                                            {{ document.stats.headings }}</span
+                                        >
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                            >Listas:
+                                            {{
+                                                document.stats.list_items
+                                            }}</span
+                                        >
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                            >Imagenes:
+                                            {{ document.stats.images }}</span
+                                        >
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                                            >Tablas:
+                                            {{ document.stats.tables }}</span
+                                        >
                                     </div>
                                 </div>
 
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('bold')">B</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm italic text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('italic')">I</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm underline text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('underline')">U</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('formatBlock', '<H1>')">H1</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('formatBlock', '<H2>')">H2</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('formatBlock', '<P>')">P</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('justifyLeft')"><AlignLeft class="h-4 w-4" /> Izq</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('justifyCenter')"><AlignCenter class="h-4 w-4" /> Centro</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('justifyRight')"><AlignRight class="h-4 w-4" /> Der</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('insertUnorderedList')"><List class="h-4 w-4" /> UL</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="exec('insertOrderedList')"><ListOrdered class="h-4 w-4" /> OL</button>
-                                    <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" :disabled="readOnly" @click="insertSimpleTable"><Table2 class="h-4 w-4" /> Tabla</button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('bold')"
+                                    >
+                                        B
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 italic hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('italic')"
+                                    >
+                                        I
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 underline hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('underline')"
+                                    >
+                                        U
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('formatBlock', '<H1>')"
+                                    >
+                                        H1
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('formatBlock', '<H2>')"
+                                    >
+                                        H2
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('formatBlock', '<P>')"
+                                    >
+                                        P
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('justifyLeft')"
+                                    >
+                                        <AlignLeft class="h-4 w-4" /> Izq
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('justifyCenter')"
+                                    >
+                                        <AlignCenter class="h-4 w-4" /> Centro
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('justifyRight')"
+                                    >
+                                        <AlignRight class="h-4 w-4" /> Der
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('insertUnorderedList')"
+                                    >
+                                        <List class="h-4 w-4" /> UL
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="exec('insertOrderedList')"
+                                    >
+                                        <ListOrdered class="h-4 w-4" /> OL
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="insertSimpleTable"
+                                    >
+                                        <Table2 class="h-4 w-4" /> Tabla
+                                    </button>
                                 </div>
                             </div>
 
@@ -401,17 +580,33 @@ onMounted(() => {
                                     v-if="document.sections.has_header"
                                     class="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
                                 >
-                                    <div class="mb-2 flex items-center justify-between gap-3">
+                                    <div
+                                        class="mb-2 flex items-center justify-between gap-3"
+                                    >
                                         <div>
-                                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Encabezado</h3>
-                                            <p class="mt-1 text-xs text-slate-500">Edita el encabezado actual del documento.</p>
+                                            <h3
+                                                class="text-xs font-semibold tracking-wider text-slate-500 uppercase"
+                                            >
+                                                Encabezado
+                                            </h3>
+                                            <p
+                                                class="mt-1 text-xs text-slate-500"
+                                            >
+                                                Edita el encabezado actual del
+                                                documento.
+                                            </p>
                                         </div>
-                                        <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600">Seccion</span>
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600"
+                                            >Seccion</span
+                                        >
                                     </div>
                                     <div
                                         ref="headerEditorRef"
                                         class="docx-editor min-h-[140px] rounded-xl border border-slate-200 bg-white px-5 py-4 text-[15px] leading-7 text-slate-800 outline-none"
-                                        :contenteditable="readOnly ? 'false' : 'true'"
+                                        :contenteditable="
+                                            readOnly ? 'false' : 'true'
+                                        "
                                         spellcheck="true"
                                         @focus="activeSection = 'header'"
                                         @input="syncEditorHtml('header')"
@@ -421,7 +616,9 @@ onMounted(() => {
                                 <div
                                     ref="editorRef"
                                     class="docx-editor min-h-[560px] rounded-xl border border-slate-200 bg-white px-6 py-5 text-[15px] leading-7 text-slate-800 outline-none"
-                                    :contenteditable="readOnly ? 'false' : 'true'"
+                                    :contenteditable="
+                                        readOnly ? 'false' : 'true'
+                                    "
                                     spellcheck="true"
                                     @focus="activeSection = 'body'"
                                     @input="syncEditorHtml('body')"
@@ -431,17 +628,33 @@ onMounted(() => {
                                     v-if="document.sections.has_footer"
                                     class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
                                 >
-                                    <div class="mb-2 flex items-center justify-between gap-3">
+                                    <div
+                                        class="mb-2 flex items-center justify-between gap-3"
+                                    >
                                         <div>
-                                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Pie de Pagina</h3>
-                                            <p class="mt-1 text-xs text-slate-500">Edita el pie de pagina actual del documento.</p>
+                                            <h3
+                                                class="text-xs font-semibold tracking-wider text-slate-500 uppercase"
+                                            >
+                                                Pie de Pagina
+                                            </h3>
+                                            <p
+                                                class="mt-1 text-xs text-slate-500"
+                                            >
+                                                Edita el pie de pagina actual
+                                                del documento.
+                                            </p>
                                         </div>
-                                        <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600">Seccion</span>
+                                        <span
+                                            class="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600"
+                                            >Seccion</span
+                                        >
                                     </div>
                                     <div
                                         ref="footerEditorRef"
                                         class="docx-editor min-h-[140px] rounded-xl border border-slate-200 bg-white px-5 py-4 text-[15px] leading-7 text-slate-800 outline-none"
-                                        :contenteditable="readOnly ? 'false' : 'true'"
+                                        :contenteditable="
+                                            readOnly ? 'false' : 'true'
+                                        "
                                         spellcheck="true"
                                         @focus="activeSection = 'footer'"
                                         @input="syncEditorHtml('footer')"
@@ -449,17 +662,38 @@ onMounted(() => {
                                 </div>
                             </div>
 
-                            <div class="border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-                                <span v-if="readOnly">Este documento esta en modo solo lectura. Puedes descargarlo o volver al gestor.</span>
-                                <span v-else>Guardar crea una revision segura del DOCX. Se intenta conservar la tipografia explicita, la alineacion del parrafo, las imagenes incrustadas, las listas simples, las tablas basicas y, cuando existen, el encabezado y pie de pagina editables.</span>
+                            <div
+                                class="border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500"
+                            >
+                                <span v-if="readOnly"
+                                    >Este documento esta en modo solo lectura.
+                                    Puedes descargarlo o volver al gestor.</span
+                                >
+                                <span v-else
+                                    >Guardar crea una revision segura del DOCX.
+                                    Se intenta conservar la tipografia
+                                    explicita, la alineacion del parrafo, las
+                                    imagenes incrustadas, las listas simples,
+                                    las tablas basicas y, cuando existen, el
+                                    encabezado y pie de pagina editables.</span
+                                >
                             </div>
                         </div>
                     </div>
 
                     <aside class="space-y-4">
-                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">Historial de versiones</h2>
-                            <div v-if="document.version_history.length === 0" class="text-sm text-slate-500">
+                        <div
+                            class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                            <h2
+                                class="mb-3 text-sm font-semibold tracking-wider text-slate-500 uppercase"
+                            >
+                                Historial de versiones
+                            </h2>
+                            <div
+                                v-if="document.version_history.length === 0"
+                                class="text-sm text-slate-500"
+                            >
                                 No hay versiones registradas todavia.
                             </div>
                             <ul v-else class="space-y-3">
@@ -467,25 +701,63 @@ onMounted(() => {
                                     v-for="version in document.version_history"
                                     :key="version.id"
                                     class="rounded-xl border p-3"
-                                    :class="version.is_current_version ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-white'"
+                                    :class="
+                                        version.is_current_version
+                                            ? 'border-indigo-200 bg-indigo-50/70'
+                                            : 'border-slate-200 bg-white'
+                                    "
                                 >
-                                    <div class="mb-2 flex items-start justify-between gap-3">
+                                    <div
+                                        class="mb-2 flex items-start justify-between gap-3"
+                                    >
                                         <div class="min-w-0">
-                                            <div class="truncate text-sm font-semibold text-slate-900">{{ version.file_name }}</div>
-                                            <div class="mt-1 text-xs text-slate-500">{{ formatDateTime(version.last_edited_at || version.uploaded_at) }}</div>
+                                            <div
+                                                class="truncate text-sm font-semibold text-slate-900"
+                                            >
+                                                {{ version.file_name }}
+                                            </div>
+                                            <div
+                                                class="mt-1 text-xs text-slate-500"
+                                            >
+                                                {{
+                                                    formatDateTime(
+                                                        version.last_edited_at ||
+                                                            version.uploaded_at,
+                                                    )
+                                                }}
+                                            </div>
                                         </div>
                                         <span
                                             class="inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold"
-                                            :class="version.is_current_version ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
+                                            :class="
+                                                version.is_current_version
+                                                    ? 'bg-indigo-100 text-indigo-700'
+                                                    : 'bg-slate-100 text-slate-600'
+                                            "
                                         >
-                                            {{ version.is_current_version ? 'Actual' : 'Revision' }}
+                                            {{
+                                                version.is_current_version
+                                                    ? 'Actual'
+                                                    : 'Revision'
+                                            }}
                                         </span>
                                     </div>
                                     <div class="text-xs text-slate-500">
-                                        <div>Subido por: {{ version.uploaded_by || 'Sin usuario' }}</div>
-                                        <div v-if="version.last_edited_by">Editado por: {{ version.last_edited_by }}</div>
+                                        <div>
+                                            Subido por:
+                                            {{
+                                                version.uploaded_by ||
+                                                'Sin usuario'
+                                            }}
+                                        </div>
+                                        <div v-if="version.last_edited_by">
+                                            Editado por:
+                                            {{ version.last_edited_by }}
+                                        </div>
                                     </div>
-                                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                                    <div
+                                        class="mt-3 flex flex-wrap items-center gap-2"
+                                    >
                                         <Link
                                             :href="version.editor_url"
                                             class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"

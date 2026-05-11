@@ -2,13 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SubmissionWindow;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\SubmissionWindow;
-use App\Models\TeachingLoad;
-use App\Models\User;
-use Carbon\Carbon;
 
 class NotifyWindows extends Command
 {
@@ -50,7 +48,7 @@ class NotifyWindows extends Command
         if ($schedules->isEmpty()) {
             $this->info('No pending notifications to resolve.');
 
-             Log::channel('operations')->info('notify_windows.completed', [
+            Log::channel('operations')->info('notify_windows.completed', [
                 'command' => $this->getName(),
                 'due_schedules' => 0,
                 'processed_schedules' => 0,
@@ -75,7 +73,7 @@ class NotifyWindows extends Command
                 ->where('status', 'ACTIVE')
                 ->first();
 
-            if (!$window) {
+            if (! $window) {
                 $this->markAsSent($schedule->id);
 
                 Log::channel('operations')->warning('notify_windows.window_not_found', [
@@ -95,11 +93,11 @@ class NotifyWindows extends Command
             $type = $schedule->notification_type; // 'WINDOW_OPEN' or 'WINDOW_CLOSING'
 
             if ($type === 'WINDOW_OPEN') {
-                $title = "Ventana de Recepción Abierta";
-                $message = "El periodo para subir '{$window->evidenceItem->name}' ha comenzado y finalizará el " . Carbon::parse($window->closes_at)->format('d/m/Y h:i A') . ".";
+                $title = 'Ventana de Recepción Abierta';
+                $message = "El periodo para subir '{$window->evidenceItem->name}' ha comenzado y finalizará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'.';
             } else {
-                $title = "Cierre de Ventana Próximo";
-                $message = "Urgente: La recepción para '{$window->evidenceItem->name}' terminará el " . Carbon::parse($window->closes_at)->format('d/m/Y h:i A') . ". Por favor, asegúrate de enviar tu evidencia.";
+                $title = 'Cierre de Ventana Próximo';
+                $message = "Urgente: La recepción para '{$window->evidenceItem->name}' terminará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Por favor, asegúrate de enviar tu evidencia.';
             }
 
             // Find all teachers associated with this semester
@@ -137,7 +135,7 @@ class NotifyWindows extends Command
                 ];
             }
 
-            if (!empty($insertData)) {
+            if (! empty($insertData)) {
                 DB::table('notifications')->insert($insertData);
             }
 
@@ -145,7 +143,7 @@ class NotifyWindows extends Command
             $processedSchedules++;
             $createdNotifications += count($insertData);
 
-            $this->info("Dispatched {$type} for Item #{$schedule->evidence_item_id} to " . count($insertData) . " teachers.");
+            $this->info("Dispatched {$type} for Item #{$schedule->evidence_item_id} to ".count($insertData).' teachers.');
 
             Log::channel('operations')->info('notify_windows.schedule_dispatched', [
                 'command' => $this->getName(),

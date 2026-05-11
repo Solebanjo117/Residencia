@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class AuditLog extends Model
 {
     use HasFactory;
-    
+
     protected $table = 'audit_log';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -18,7 +19,7 @@ class AuditLog extends Model
         'entity_type',
         'entity_id',
         'at',
-        'metadata'
+        'metadata',
     ];
 
     protected $casts = [

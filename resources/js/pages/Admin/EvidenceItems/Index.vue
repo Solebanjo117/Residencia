@@ -73,12 +73,17 @@ const filterUsage = ref(props.filters.usage);
 let debounceTimeout: ReturnType<typeof setTimeout>;
 
 const applyFilters = () => {
-    router.get('/admin/evidence-items', {
-        search: filterSearch.value || undefined,
-        category_id: filterCategory.value || undefined,
-        status: filterStatus.value !== 'all' ? filterStatus.value : undefined,
-        usage: filterUsage.value !== 'all' ? filterUsage.value : undefined,
-    }, { preserveState: true, replace: true });
+    router.get(
+        '/admin/evidence-items',
+        {
+            search: filterSearch.value || undefined,
+            category_id: filterCategory.value || undefined,
+            status:
+                filterStatus.value !== 'all' ? filterStatus.value : undefined,
+            usage: filterUsage.value !== 'all' ? filterUsage.value : undefined,
+        },
+        { preserveState: true, replace: true },
+    );
 };
 
 watch(filterSearch, () => {
@@ -100,7 +105,9 @@ const form = useForm({
 
 const canSubmit = computed(() => props.categories.length > 0);
 
-const flashSuccess = computed(() => page.props.flash?.success as string | undefined);
+const flashSuccess = computed(
+    () => page.props.flash?.success as string | undefined,
+);
 watch(flashSuccess, (val) => {
     if (val) toast.success(val);
 });
@@ -205,10 +212,7 @@ const modalTitle = computed(() =>
                     </p>
                 </div>
 
-                <Button
-                    :disabled="!canSubmit"
-                    @click="openCreateModal"
-                >
+                <Button :disabled="!canSubmit" @click="openCreateModal">
                     <Plus class="mr-2 h-4 w-4" />
                     Agregar rubro
                 </Button>
@@ -232,11 +236,11 @@ const modalTitle = computed(() =>
             <div
                 class="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
             >
-                <div class="flex-1 min-w-[200px]">
+                <div class="min-w-[200px] flex-1">
                     <Label for="filter-search">Buscar</Label>
                     <div class="relative mt-1">
                         <Search
-                            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                            class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         />
                         <Input
                             id="filter-search"
@@ -252,7 +256,7 @@ const modalTitle = computed(() =>
                     <select
                         id="filter-category"
                         v-model="filterCategory"
-                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 rounded-md border-input bg-background py-2 pr-8 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         <option value="">Todas</option>
                         <option
@@ -269,7 +273,7 @@ const modalTitle = computed(() =>
                     <select
                         id="filter-status"
                         v-model="filterStatus"
-                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 rounded-md border-input bg-background py-2 pr-8 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         <option value="all">Todos</option>
                         <option value="active">Activo</option>
@@ -281,7 +285,7 @@ const modalTitle = computed(() =>
                     <select
                         id="filter-usage"
                         v-model="filterUsage"
-                        class="mt-1 rounded-md border-input bg-background py-2 pl-3 pr-8 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 rounded-md border-input bg-background py-2 pr-8 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
                         <option value="all">Todos</option>
                         <option value="used">En uso</option>
@@ -297,37 +301,37 @@ const modalTitle = computed(() =>
                             <tr>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Rubro
                                 </th>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Categoría
                                 </th>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Alcance
                                 </th>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Estado
                                 </th>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Uso
                                 </th>
                                 <th
                                     scope="col"
-                                    class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                                    class="px-6 py-3 text-right text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
                                     Acciones
                                 </th>
@@ -345,14 +349,17 @@ const modalTitle = computed(() =>
                                     </div>
                                     <div class="text-xs text-muted-foreground">
                                         {{
-                                            item.description || 'Sin descripción'
+                                            item.description ||
+                                            'Sin descripción'
                                         }}
                                     </div>
                                 </td>
-                                <td class="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                                <td
+                                    class="px-6 py-4 text-sm whitespace-nowrap text-muted-foreground"
+                                >
                                     {{ item.category?.name }}
                                 </td>
-                                <td class="whitespace-nowrap px-6 py-4">
+                                <td class="px-6 py-4 whitespace-nowrap">
                                     <Badge
                                         :variant="
                                             item.requires_subject
@@ -367,21 +374,25 @@ const modalTitle = computed(() =>
                                         }}
                                     </Badge>
                                 </td>
-                                <td class="whitespace-nowrap px-6 py-4">
+                                <td class="px-6 py-4 whitespace-nowrap">
                                     <Badge
                                         :variant="
                                             item.active ? 'success' : 'warning'
                                         "
                                     >
-                                        {{ item.active ? 'Activo' : 'Inactivo' }}
+                                        {{
+                                            item.active ? 'Activo' : 'Inactivo'
+                                        }}
                                     </Badge>
                                 </td>
-                                <td class="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                                <td
+                                    class="px-6 py-4 text-sm whitespace-nowrap text-muted-foreground"
+                                >
                                     {{ item.requirements_count }} matriz /
                                     {{ item.submissions_count }} evidencias
                                 </td>
                                 <td
-                                    class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium"
+                                    class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
                                 >
                                     <div class="flex justify-end gap-2">
                                         <Button
@@ -432,7 +443,14 @@ const modalTitle = computed(() =>
         </div>
     </AppLayout>
 
-    <Dialog :open="isModalOpen" @update:open="(val: boolean) => { if (!val) closeModal() }">
+    <Dialog
+        :open="isModalOpen"
+        @update:open="
+            (val: boolean) => {
+                if (!val) closeModal();
+            }
+        "
+    >
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle>{{ modalTitle }}</DialogTitle>
@@ -459,7 +477,7 @@ const modalTitle = computed(() =>
                     <select
                         id="evidence-category"
                         v-model="form.category_id"
-                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pl-3 pr-10 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pr-10 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         required
                     >
                         <option
@@ -470,7 +488,10 @@ const modalTitle = computed(() =>
                             {{ category.name }}
                         </option>
                     </select>
-                    <p v-if="form.errors.category_id" class="mt-1 text-xs text-destructive">
+                    <p
+                        v-if="form.errors.category_id"
+                        class="mt-1 text-xs text-destructive"
+                    >
                         {{ form.errors.category_id }}
                     </p>
                 </div>
@@ -484,7 +505,10 @@ const modalTitle = computed(() =>
                         class="mt-1"
                         required
                     />
-                    <p v-if="form.errors.name" class="mt-1 text-xs text-destructive">
+                    <p
+                        v-if="form.errors.name"
+                        class="mt-1 text-xs text-destructive"
+                    >
                         {{ form.errors.name }}
                     </p>
                 </div>
@@ -495,9 +519,12 @@ const modalTitle = computed(() =>
                         id="evidence-description"
                         v-model="form.description"
                         rows="3"
-                        class="mt-1 block w-full rounded-md border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 block w-full rounded-md border-input bg-background px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     ></textarea>
-                    <p v-if="form.errors.description" class="mt-1 text-xs text-destructive">
+                    <p
+                        v-if="form.errors.description"
+                        class="mt-1 text-xs text-destructive"
+                    >
                         {{ form.errors.description }}
                     </p>
                 </div>
@@ -514,9 +541,7 @@ const modalTitle = computed(() =>
 
                 <p
                     v-if="
-                        editingItem &&
-                        isUsed(editingItem) &&
-                        editingItem.active
+                        editingItem && isUsed(editingItem) && editingItem.active
                     "
                     class="text-xs text-muted-foreground"
                 >
@@ -529,17 +554,14 @@ const modalTitle = computed(() =>
                 <Button variant="outline" @click="closeModal">
                     Cancelar
                 </Button>
-                <Button
-                    :disabled="form.processing"
-                    @click="submitForm"
-                >
+                <Button :disabled="form.processing" @click="submitForm">
                     {{ editingItem ? 'Guardar cambios' : 'Agregar' }}
                 </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
 
-<ConfirmDialog
+    <ConfirmDialog
         :open="isConfirmOpen"
         title="Eliminar rubro"
         :description="'¿Deseas eliminar el rubro? Esta acción no se puede deshacer.'"

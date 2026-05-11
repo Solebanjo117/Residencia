@@ -19,7 +19,7 @@ return new class extends Migration
             $table->boolean('is_mandatory')->default(true);
             $table->json('applies_condition')->nullable();
             $table->timestamp('created_at')->useCurrent();
-            
+
             $table->foreign('department_id')->references('id')->on('departments');
             $table->unique(['semester_id', 'evidence_item_id', 'department_id'], 'uk_er_sem_item_dept');
         });
@@ -31,9 +31,9 @@ return new class extends Migration
             $table->dateTime('opens_at');
             $table->dateTime('closes_at');
             $table->foreignId('created_by_user_id')->constrained('users');
-            $table->enum('status', ['ACTIVE','INACTIVE'])->default('ACTIVE');
+            $table->enum('status', ['ACTIVE', 'INACTIVE'])->default('ACTIVE');
             $table->timestamp('created_at')->useCurrent();
-            
+
             $table->index(['semester_id', 'evidence_item_id']);
         });
 
@@ -53,7 +53,7 @@ return new class extends Migration
             $table->foreignId('owner_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('semester_id')->nullable()->constrained('semesters')->nullOnDelete();
             $table->timestamp('created_at')->useCurrent();
-            
+
             $table->foreign('parent_id')->references('id')->on('folder_nodes')->nullOnDelete();
             $table->foreign('storage_root_id')->references('id')->on('storage_roots');
             $table->unique(['storage_root_id', 'relative_path']);

@@ -17,15 +17,23 @@ withDefaults(
     <Head title="Seguimiento Docente" />
 
     <main class="min-h-screen bg-slate-50 text-slate-950">
-        <section class="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 lg:px-8">
+        <section
+            class="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8 lg:px-8"
+        >
             <header class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                    <div class="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200">
+                    <div
+                        class="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                    >
                         <AppLogoIcon class="h-14 w-14 object-contain" />
                     </div>
                     <div>
-                        <p class="text-base font-bold tracking-wide">Seguimiento Docente</p>
-                        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <p class="text-base font-bold tracking-wide">
+                            Seguimiento Docente
+                        </p>
+                        <p
+                            class="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase"
+                        >
                             Tecnológico de Piedras Negras
                         </p>
                     </div>
@@ -59,26 +67,37 @@ withDefaults(
 
             <div class="flex flex-1 items-center justify-center py-16">
                 <div class="w-full max-w-3xl text-center">
-                    <div class="mx-auto mb-8 flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200">
+                    <div
+                        class="mx-auto mb-8 flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                    >
                         <AppLogoIcon class="h-32 w-32 object-contain" />
                     </div>
 
-                    <p class="mb-4 text-sm font-bold uppercase tracking-[0.24em] text-blue-700">
+                    <p
+                        class="mb-4 text-sm font-bold tracking-[0.24em] text-blue-700 uppercase"
+                    >
                         Instituto Tecnológico de Piedras Negras
                     </p>
 
-                    <h1 class="text-4xl font-black tracking-tight text-slate-950 sm:text-6xl">
+                    <h1
+                        class="text-4xl font-black tracking-tight text-slate-950 sm:text-6xl"
+                    >
                         Sistema de seguimiento docente
                     </h1>
 
-                    <p class="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-                        Plataforma institucional para gestionar evidencias, asesorías,
-                        archivos, ventanas de entrega y revisión académica por roles.
+                    <p
+                        class="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600"
+                    >
+                        Plataforma institucional para gestionar evidencias,
+                        asesorías, archivos, ventanas de entrega y revisión
+                        académica por roles.
                     </p>
 
                     <div class="mt-10 flex justify-center">
                         <Link
-                            :href="$page.props.auth.user ? dashboard() : login()"
+                            :href="
+                                $page.props.auth.user ? dashboard() : login()
+                            "
                             class="rounded-xl bg-blue-700 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-800"
                         >
                             Entrar al sistema

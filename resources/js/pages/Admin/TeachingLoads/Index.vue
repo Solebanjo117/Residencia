@@ -21,7 +21,9 @@ const editingLoad = ref<any | null>(null);
 const filterSemester = ref(props.selectedSemester || '');
 
 const activeSemesterId = computed(() => {
-    const activeSemester = props.semesters.find((semester) => semester.status === 'OPEN');
+    const activeSemester = props.semesters.find(
+        (semester) => semester.status === 'OPEN',
+    );
 
     return activeSemester ? String(activeSemester.id) : null;
 });
@@ -34,7 +36,10 @@ const semesterFilterOptions = computed(() => [
     },
     ...props.semesters.map((semester) => ({
         value: String(semester.id),
-        label: semester.status === 'OPEN' ? `${semester.name} (Activo)` : semester.name,
+        label:
+            semester.status === 'OPEN'
+                ? `${semester.name} (Activo)`
+                : semester.name,
         keywords: [semester.name, semester.status],
     })),
 ]);
@@ -42,7 +47,10 @@ const semesterFilterOptions = computed(() => [
 const semesterOptions = computed(() =>
     props.semesters.map((semester) => ({
         value: String(semester.id),
-        label: semester.status === 'OPEN' ? `${semester.name} (Activo)` : semester.name,
+        label:
+            semester.status === 'OPEN'
+                ? `${semester.name} (Activo)`
+                : semester.name,
         keywords: [semester.name, semester.status],
     })),
 );
@@ -64,7 +72,11 @@ const subjectOptions = computed(() =>
 );
 
 watch(filterSemester, (newValue) => {
-    router.get('/admin/teaching-loads', newValue ? { semester_id: newValue } : {}, { preserveState: true, replace: true });
+    router.get(
+        '/admin/teaching-loads',
+        newValue ? { semester_id: newValue } : {},
+        { preserveState: true, replace: true },
+    );
 });
 
 const form = useForm({
@@ -112,7 +124,9 @@ const submitForm = () => {
 };
 
 const destroyLoad = (id: number) => {
-    if (confirm('¿Seguro que deseas eliminar esta asignación de carga docente?')) {
+    if (
+        confirm('¿Seguro que deseas eliminar esta asignación de carga docente?')
+    ) {
         router.delete(`/admin/teaching-loads/${id}`, { preserveScroll: true });
     }
 };
@@ -128,7 +142,9 @@ const destroyLoad = (id: number) => {
         ]"
     >
         <div class="mx-auto max-w-7xl px-6 py-8">
-            <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div
+                class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+            >
                 <div>
                     <h1 class="text-2xl font-bold text-gray-900">
                         Gestión de Cargas Académicas
@@ -164,29 +180,52 @@ const destroyLoad = (id: number) => {
                 {{ $page.props.errors.error }}
             </div>
 
-            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div
+                class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+            >
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Docente
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Semestre
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Materia
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Grupo
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Modalidad
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Horas
                             </th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                            <th
+                                scope="col"
+                                class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
+                            >
                                 Acciones
                             </th>
                         </tr>
@@ -199,10 +238,14 @@ const destroyLoad = (id: number) => {
                         >
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
-                                    <div class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                    <div
+                                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700"
+                                    >
                                         <GraduationCap class="h-5 w-5" />
                                     </div>
-                                    <div class="text-sm font-medium text-gray-900">
+                                    <div
+                                        class="text-sm font-medium text-gray-900"
+                                    >
                                         {{ load.teacher.name }}
                                     </div>
                                 </div>
@@ -213,7 +256,9 @@ const destroyLoad = (id: number) => {
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-semibold text-gray-900">
+                                <div
+                                    class="text-sm font-semibold text-gray-900"
+                                >
                                     {{ load.subject.name }}
                                 </div>
                                 <div class="text-xs text-gray-500">
@@ -221,16 +266,26 @@ const destroyLoad = (id: number) => {
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center rounded-full border border-purple-200 bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                                <span
+                                    class="inline-flex items-center rounded-full border border-purple-200 bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800"
+                                >
                                     {{ load.group_code }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span
                                     class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                    :class="load.modality === 'EN_LINEA' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'"
+                                    :class="
+                                        load.modality === 'EN_LINEA'
+                                            ? 'bg-cyan-100 text-cyan-800'
+                                            : 'bg-slate-100 text-slate-700'
+                                    "
                                 >
-                                    {{ load.modality === 'EN_LINEA' ? 'Materia en línea' : 'Presencial' }}
+                                    {{
+                                        load.modality === 'EN_LINEA'
+                                            ? 'Materia en línea'
+                                            : 'Presencial'
+                                    }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -238,7 +293,9 @@ const destroyLoad = (id: number) => {
                                     {{ load.hours_per_week || '-' }} hrs/sem
                                 </div>
                             </td>
-                            <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+                            <td
+                                class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
+                            >
                                 <button
                                     type="button"
                                     @click="openEditModal(load)"
@@ -258,26 +315,41 @@ const destroyLoad = (id: number) => {
                             </td>
                         </tr>
                         <tr v-if="teachingLoads.data.length === 0">
-                            <td colspan="7" class="bg-gray-50 px-6 py-12 text-center text-gray-500">
-                                No se encontraron cargas académicas para este filtro.
+                            <td
+                                colspan="7"
+                                class="bg-gray-50 px-6 py-12 text-center text-gray-500"
+                            >
+                                No se encontraron cargas académicas para este
+                                filtro.
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <div v-if="teachingLoads.links.length > 3" class="mt-4 flex items-center justify-center gap-1">
+            <div
+                v-if="teachingLoads.links.length > 3"
+                class="mt-4 flex items-center justify-center gap-1"
+            >
                 <template v-for="(link, i) in teachingLoads.links" :key="i">
                     <Link
                         v-if="link.url"
                         :href="link.url"
                         class="rounded px-3 py-1 text-sm"
-                        :class="link.active ? 'bg-blue-600 font-semibold text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'"
+                        :class="
+                            link.active
+                                ? 'bg-blue-600 font-semibold text-white'
+                                : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        "
                         preserve-state
                     >
                         <span v-html="link.label" />
                     </Link>
-                    <span v-else class="px-3 py-1 text-sm text-gray-400" v-html="link.label" />
+                    <span
+                        v-else
+                        class="px-3 py-1 text-sm text-gray-400"
+                        v-html="link.label"
+                    />
                 </template>
             </div>
 
@@ -288,25 +360,38 @@ const destroyLoad = (id: number) => {
                 role="dialog"
                 aria-modal="true"
             >
-                <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+                <div
+                    class="flex min-h-full items-center justify-center p-4 text-center sm:p-0"
+                >
                     <div
-                        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                        class="bg-opacity-75 fixed inset-0 bg-gray-500 transition-opacity"
                         aria-hidden="true"
                         @click="closeModal"
                     ></div>
 
-                    <div class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div
+                        class="relative transform overflow-hidden rounded-xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg"
+                    >
                         <form @submit.prevent="submitForm">
                             <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div class="mb-5">
-                                    <h3 class="border-b pb-2 text-xl font-bold leading-8 text-gray-900">
-                                        {{ editingLoad ? 'Editar Asignación' : 'Asignar Carga Académica' }}
+                                    <h3
+                                        class="border-b pb-2 text-xl leading-8 font-bold text-gray-900"
+                                    >
+                                        {{
+                                            editingLoad
+                                                ? 'Editar Asignación'
+                                                : 'Asignar Carga Académica'
+                                        }}
                                     </h3>
                                 </div>
 
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Docente</label>
+                                        <label
+                                            class="block text-sm font-medium text-gray-700"
+                                            >Docente</label
+                                        >
                                         <SearchableSelect
                                             v-model="form.teacher_user_id"
                                             :options="teacherOptions"
@@ -314,13 +399,19 @@ const destroyLoad = (id: number) => {
                                             search-placeholder="Buscar docente..."
                                             class="mt-1"
                                         />
-                                        <div v-if="form.errors.teacher_user_id" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.teacher_user_id"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.teacher_user_id }}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Semestre</label>
+                                        <label
+                                            class="block text-sm font-medium text-gray-700"
+                                            >Semestre</label
+                                        >
                                         <SearchableSelect
                                             v-model="form.semester_id"
                                             :options="semesterOptions"
@@ -328,13 +419,19 @@ const destroyLoad = (id: number) => {
                                             search-placeholder="Buscar semestre..."
                                             class="mt-1"
                                         />
-                                        <div v-if="form.errors.semester_id" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.semester_id"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.semester_id }}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-sm font-medium text-gray-700">Materia</label>
+                                        <label
+                                            class="block text-sm font-medium text-gray-700"
+                                            >Materia</label
+                                        >
                                         <SearchableSelect
                                             v-model="form.subject_id"
                                             :options="subjectOptions"
@@ -342,14 +439,21 @@ const destroyLoad = (id: number) => {
                                             search-placeholder="Buscar materia..."
                                             class="mt-1"
                                         />
-                                        <div v-if="form.errors.subject_id" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.subject_id"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.subject_id }}
                                         </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label for="load-group-code" class="block text-sm font-medium text-gray-700">Clave de Grupo</label>
+                                            <label
+                                                for="load-group-code"
+                                                class="block text-sm font-medium text-gray-700"
+                                                >Clave de Grupo</label
+                                            >
                                             <input
                                                 id="load-group-code"
                                                 v-model="form.group_code"
@@ -358,12 +462,20 @@ const destroyLoad = (id: number) => {
                                                 placeholder="ej. 5A"
                                                 required
                                             />
-                                            <div v-if="form.errors.group_code" class="mt-1 text-xs text-red-500">
+                                            <div
+                                                v-if="form.errors.group_code"
+                                                class="mt-1 text-xs text-red-500"
+                                            >
                                                 {{ form.errors.group_code }}
                                             </div>
                                         </div>
                                         <div>
-                                            <label for="load-hours" class="block text-sm font-medium text-gray-700">Horas por Semana (Opcional)</label>
+                                            <label
+                                                for="load-hours"
+                                                class="block text-sm font-medium text-gray-700"
+                                                >Horas por Semana
+                                                (Opcional)</label
+                                            >
                                             <input
                                                 id="load-hours"
                                                 v-model="form.hours_per_week"
@@ -372,44 +484,68 @@ const destroyLoad = (id: number) => {
                                                 min="1"
                                                 max="40"
                                             />
-                                            <div v-if="form.errors.hours_per_week" class="mt-1 text-xs text-red-500">
+                                            <div
+                                                v-if="
+                                                    form.errors.hours_per_week
+                                                "
+                                                class="mt-1 text-xs text-red-500"
+                                            >
                                                 {{ form.errors.hours_per_week }}
                                             </div>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label for="load-modality" class="block text-sm font-medium text-gray-700">Modalidad</label>
+                                        <label
+                                            for="load-modality"
+                                            class="block text-sm font-medium text-gray-700"
+                                            >Modalidad</label
+                                        >
                                         <select
                                             id="load-modality"
                                             v-model="form.modality"
                                             class="mt-1 block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                                             required
                                         >
-                                            <option value="PRESENCIAL">Presencial</option>
-                                            <option value="EN_LINEA">Materia en línea</option>
+                                            <option value="PRESENCIAL">
+                                                Presencial
+                                            </option>
+                                            <option value="EN_LINEA">
+                                                Materia en línea
+                                            </option>
                                         </select>
                                         <p class="mt-1 text-xs text-gray-500">
-                                            Las materias en línea pueden usar ventanas de entrega especiales más amplias.
+                                            Las materias en línea pueden usar
+                                            ventanas de entrega especiales más
+                                            amplias.
                                         </p>
-                                        <div v-if="form.errors.modality" class="mt-1 text-xs text-red-500">
+                                        <div
+                                            v-if="form.errors.modality"
+                                            class="mt-1 text-xs text-red-500"
+                                        >
                                             {{ form.errors.modality }}
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="border-t bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                            <div
+                                class="border-t bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"
+                            >
                                 <button
                                     type="submit"
                                     :disabled="form.processing"
-                                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
+                                    class="inline-flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
-                                    {{ editingLoad ? 'Guardar Cambios' : 'Asignar Carga' }}
+                                    {{
+                                        editingLoad
+                                            ? 'Guardar Cambios'
+                                            : 'Asignar Carga'
+                                    }}
                                 </button>
                                 <button
                                     type="button"
                                     @click="closeModal"
-                                    class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
                                     Cancelar
                                 </button>

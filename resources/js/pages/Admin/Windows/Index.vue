@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import { CalendarClock, Edit2, Trash2, Filter, AlertCircle } from 'lucide-vue-next';
+import {
+    CalendarClock,
+    Edit2,
+    Trash2,
+    Filter,
+    AlertCircle,
+} from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import AdminTable from '@/components/AdminTable.vue';
@@ -37,17 +43,27 @@ const isModalOpen = ref(false);
 const isConfirmOpen = ref(false);
 const windowToDelete = ref<number | null>(null);
 const editingWindow = ref<any | null>(null);
-const filterSemester = ref(props.selectedSemester || (props.semesters.length > 0 ? props.semesters[0].id : ''));
+const filterSemester = ref(
+    props.selectedSemester ||
+        (props.semesters.length > 0 ? props.semesters[0].id : ''),
+);
 
 watch(filterSemester, (newValue) => {
     if (newValue !== props.selectedSemester) {
-        router.get('/admin/windows', { semester_id: newValue }, { preserveState: true, replace: true });
+        router.get(
+            '/admin/windows',
+            { semester_id: newValue },
+            { preserveState: true, replace: true },
+        );
     }
 });
 
-watch(() => page.props.flash?.success, (val) => {
-    if (val) toast.success(val as string);
-});
+watch(
+    () => page.props.flash?.success,
+    (val) => {
+        if (val) toast.success(val as string);
+    },
+);
 
 const form = useForm({
     semester_id: filterSemester.value,
@@ -61,7 +77,9 @@ const form = useForm({
 const formatForInput = (dateString: string) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
 };
 
 const openCreateModal = () => {
@@ -156,32 +174,50 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
 <template>
     <Head title="Ventanas de Entrega" />
 
-    <AppLayout :breadcrumbs="[{ title: 'Admin', href: '#' }, { title: 'Ventanas de Entrega', href: '/admin/windows' }]">
+    <AppLayout
+        :breadcrumbs="[
+            { title: 'Admin', href: '#' },
+            { title: 'Ventanas de Entrega', href: '/admin/windows' },
+        ]"
+    >
         <div class="mx-auto max-w-7xl px-6 py-8">
-            <div class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div
+                class="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+            >
                 <div>
-                    <h1 class="text-2xl font-bold text-foreground">Ventanas de Entrega</h1>
-                    <p class="mt-1 text-sm text-muted-foreground">Configura las fechas límite para que los docentes suban sus documentos.</p>
+                    <h1 class="text-2xl font-bold text-foreground">
+                        Ventanas de Entrega
+                    </h1>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Configura las fechas límite para que los docentes suban
+                        sus documentos.
+                    </p>
                 </div>
-                <div class="flex gap-3 items-center">
+                <div class="flex items-center gap-3">
                     <div class="relative">
                         <select
                             v-model="filterSemester"
                             aria-label="Seleccionar semestre"
-                            class="appearance-none rounded-lg border border-input bg-background py-2 pr-10 pl-4 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                            class="appearance-none rounded-lg border border-input bg-background py-2 pr-10 pl-4 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         >
                             <option value="">Selecciona semestre...</option>
-                            <option v-for="sem in semesters" :key="sem.id" :value="sem.id">
+                            <option
+                                v-for="sem in semesters"
+                                :key="sem.id"
+                                :value="sem.id"
+                            >
                                 {{ sem.name }}
                             </option>
                         </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
-                            <Filter class="w-4 h-4" />
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+                        >
+                            <Filter class="h-4 w-4" />
                         </div>
                     </div>
 
                     <Button @click="openCreateModal">
-                        <CalendarClock class="w-4 h-4 mr-2" />
+                        <CalendarClock class="mr-2 h-4 w-4" />
                         Nueva Ventana
                     </Button>
                 </div>
@@ -192,53 +228,146 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     <table class="min-w-full divide-y divide-border">
                         <thead class="bg-muted/50">
                             <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Documento</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Modalidad</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Apertura</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Cierre</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">Estado</th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Acciones</th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Documento
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Modalidad
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Apertura
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Cierre
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Estado
+                                </th>
+                                <th
+                                    scope="col"
+                                    class="px-6 py-3 text-right text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Acciones
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-border bg-background">
-                            <tr v-for="win in windows.data" :key="win.id" class="transition-colors hover:bg-muted/50">
+                            <tr
+                                v-for="win in windows.data"
+                                :key="win.id"
+                                class="transition-colors hover:bg-muted/50"
+                            >
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-semibold text-foreground">{{ win.evidence_item.name }}</div>
-                                    <div class="text-xs text-muted-foreground">Semestre: {{ win.semester.name }}</div>
+                                    <div
+                                        class="text-sm font-semibold text-foreground"
+                                    >
+                                        {{ win.evidence_item.name }}
+                                    </div>
+                                    <div class="text-xs text-muted-foreground">
+                                        Semestre: {{ win.semester.name }}
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <Badge
-                                        :variant="win.modality === 'EN_LINEA' ? 'info' : 'secondary'"
+                                        :variant="
+                                            win.modality === 'EN_LINEA'
+                                                ? 'info'
+                                                : 'secondary'
+                                        "
                                     >
-                                        {{ win.modality === 'EN_LINEA' ? 'Materia en línea' : (win.modality === 'PRESENCIAL' ? 'Presencial' : 'General') }}
+                                        {{
+                                            win.modality === 'EN_LINEA'
+                                                ? 'Materia en línea'
+                                                : win.modality === 'PRESENCIAL'
+                                                  ? 'Presencial'
+                                                  : 'General'
+                                        }}
                                     </Badge>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-muted-foreground">{{ formatDate(win.opens_at) }}</div>
+                                    <div class="text-sm text-muted-foreground">
+                                        {{ formatDate(win.opens_at) }}
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-muted-foreground">{{ formatDate(win.closes_at) }}</div>
-                                    <div v-if="new Date(win.closes_at) < new Date()" class="text-[10px] font-bold uppercase text-destructive mt-0.5">Vencido</div>
+                                    <div
+                                        class="text-sm font-medium text-muted-foreground"
+                                    >
+                                        {{ formatDate(win.closes_at) }}
+                                    </div>
+                                    <div
+                                        v-if="
+                                            new Date(win.closes_at) < new Date()
+                                        "
+                                        class="mt-0.5 text-[10px] font-bold text-destructive uppercase"
+                                    >
+                                        Vencido
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <Badge :variant="getStatusVariant(win.status, win.closes_at)">
-                                        {{ getStatusText(win.status, win.opens_at, win.closes_at) }}
+                                    <Badge
+                                        :variant="
+                                            getStatusVariant(
+                                                win.status,
+                                                win.closes_at,
+                                            )
+                                        "
+                                    >
+                                        {{
+                                            getStatusText(
+                                                win.status,
+                                                win.opens_at,
+                                                win.closes_at,
+                                            )
+                                        }}
                                     </Badge>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <td
+                                    class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
+                                >
                                     <div class="flex justify-end gap-2">
-                                        <Button variant="ghost" size="icon-sm" aria-label="Editar ventana" @click="openEditModal(win)">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Editar ventana"
+                                            @click="openEditModal(win)"
+                                        >
                                             <Edit2 class="h-4 w-4" />
                                         </Button>
-                                        <Button variant="ghost" size="icon-sm" aria-label="Eliminar ventana" class="text-destructive hover:text-destructive/80" @click="requestDelete(win.id)">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="Eliminar ventana"
+                                            class="text-destructive hover:text-destructive/80"
+                                            @click="requestDelete(win.id)"
+                                        >
                                             <Trash2 class="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </td>
                             </tr>
                             <tr v-if="windows.data.length === 0">
-                                <td colspan="6" class="bg-muted/30 px-6 py-12 text-center text-muted-foreground">
-                                    No se han configurado ventanas de entrega para este semestre.
+                                <td
+                                    colspan="6"
+                                    class="bg-muted/30 px-6 py-12 text-center text-muted-foreground"
+                                >
+                                    No se han configurado ventanas de entrega
+                                    para este semestre.
                                 </td>
                             </tr>
                         </tbody>
@@ -250,19 +379,38 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
         </div>
     </AppLayout>
 
-    <Dialog :open="isModalOpen" @update:open="(val: boolean) => { if (!val) closeModal() }">
+    <Dialog
+        :open="isModalOpen"
+        @update:open="
+            (val: boolean) => {
+                if (!val) closeModal();
+            }
+        "
+    >
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
-                <DialogTitle>{{ editingWindow ? 'Editar Ventana de Entrega' : 'Nueva Ventana de Entrega' }}</DialogTitle>
+                <DialogTitle>{{
+                    editingWindow
+                        ? 'Editar Ventana de Entrega'
+                        : 'Nueva Ventana de Entrega'
+                }}</DialogTitle>
                 <DialogDescription>
-                    {{ editingWindow ? 'Modifica las fechas y datos de esta ventana.' : 'Define los plazos para que los docentes suban documentos.' }}
+                    {{
+                        editingWindow
+                            ? 'Modifica las fechas y datos de esta ventana.'
+                            : 'Define los plazos para que los docentes suban documentos.'
+                    }}
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="mb-4 flex items-start gap-3 rounded-lg border border-info/50 bg-info/10 px-3 py-2 text-sm text-primary">
+            <div
+                class="mb-4 flex items-start gap-3 rounded-lg border border-info/50 bg-info/10 px-3 py-2 text-sm text-primary"
+            >
                 <AlertCircle class="h-5 w-5 shrink-0 text-info" />
                 <span>
-                    Las ventanas definen cuándo los docentes pueden subir archivos para un documento en específico. Fuera de estas fechas, el sistema bloqueará la subida.
+                    Las ventanas definen cuándo los docentes pueden subir
+                    archivos para un documento en específico. Fuera de estas
+                    fechas, el sistema bloqueará la subida.
                 </span>
             </div>
 
@@ -272,14 +420,23 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     <select
                         id="window-semester"
                         v-model="form.semester_id"
-                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pl-3 pr-10 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pr-10 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         required
                     >
-                        <option v-for="sem in semesters" :key="sem.id" :value="sem.id">
+                        <option
+                            v-for="sem in semesters"
+                            :key="sem.id"
+                            :value="sem.id"
+                        >
                             {{ sem.name }}
                         </option>
                     </select>
-                    <p v-if="form.errors.semester_id" class="mt-1 text-xs text-destructive">{{ form.errors.semester_id }}</p>
+                    <p
+                        v-if="form.errors.semester_id"
+                        class="mt-1 text-xs text-destructive"
+                    >
+                        {{ form.errors.semester_id }}
+                    </p>
                 </div>
 
                 <div>
@@ -287,15 +444,26 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     <select
                         id="window-evidence"
                         v-model="form.evidence_item_id"
-                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pl-3 pr-10 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pr-10 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         required
                     >
-                        <option value="" disabled>Selecciona un Documento...</option>
-                        <option v-for="item in evidenceItems" :key="item.id" :value="item.id">
+                        <option value="" disabled>
+                            Selecciona un Documento...
+                        </option>
+                        <option
+                            v-for="item in evidenceItems"
+                            :key="item.id"
+                            :value="item.id"
+                        >
                             {{ item.name }}
                         </option>
                     </select>
-                    <p v-if="form.errors.evidence_item_id" class="mt-1 text-xs text-destructive">{{ form.errors.evidence_item_id }}</p>
+                    <p
+                        v-if="form.errors.evidence_item_id"
+                        class="mt-1 text-xs text-destructive"
+                    >
+                        {{ form.errors.evidence_item_id }}
+                    </p>
                 </div>
 
                 <div>
@@ -303,34 +471,72 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     <select
                         id="window-modality"
                         v-model="form.modality"
-                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pl-3 pr-10 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+                        class="mt-1 block w-full rounded-md border-input bg-background py-2 pr-10 pl-3 text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
-                        <option v-for="mod in modalities" :key="mod.value" :value="mod.value">
+                        <option
+                            v-for="mod in modalities"
+                            :key="mod.value"
+                            :value="mod.value"
+                        >
                             {{ mod.label }}
                         </option>
                     </select>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        Usa "Materia en línea" para abrir una ventana extendida solo para cargas en línea. Si no existe, se usará la ventana general.
+                        Usa "Materia en línea" para abrir una ventana extendida
+                        solo para cargas en línea. Si no existe, se usará la
+                        ventana general.
                     </p>
-                    <p v-if="form.errors.modality" class="mt-1 text-xs text-destructive">{{ form.errors.modality }}</p>
+                    <p
+                        v-if="form.errors.modality"
+                        class="mt-1 text-xs text-destructive"
+                    >
+                        {{ form.errors.modality }}
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <Label for="window-opens">Apertura</Label>
-                        <Input id="window-opens" type="datetime-local" v-model="form.opens_at" class="mt-1" required />
-                        <p v-if="form.errors.opens_at" class="mt-1 text-xs text-destructive">{{ form.errors.opens_at }}</p>
+                        <Input
+                            id="window-opens"
+                            type="datetime-local"
+                            v-model="form.opens_at"
+                            class="mt-1"
+                            required
+                        />
+                        <p
+                            v-if="form.errors.opens_at"
+                            class="mt-1 text-xs text-destructive"
+                        >
+                            {{ form.errors.opens_at }}
+                        </p>
                     </div>
                     <div>
                         <Label for="window-closes">Cierre Límite</Label>
-                        <Input id="window-closes" type="datetime-local" v-model="form.closes_at" class="mt-1" required />
-                        <p v-if="form.errors.closes_at" class="mt-1 text-xs text-destructive">{{ form.errors.closes_at }}</p>
+                        <Input
+                            id="window-closes"
+                            type="datetime-local"
+                            v-model="form.closes_at"
+                            class="mt-1"
+                            required
+                        />
+                        <p
+                            v-if="form.errors.closes_at"
+                            class="mt-1 text-xs text-destructive"
+                        >
+                            {{ form.errors.closes_at }}
+                        </p>
                     </div>
                 </div>
 
                 <div v-if="editingWindow" class="pt-2">
-                    <label class="flex items-center gap-2 text-sm text-foreground">
-                        <Checkbox :checked="form.status === 'ACTIVE'" @update:checked="handleStatusChange" />
+                    <label
+                        class="flex items-center gap-2 text-sm text-foreground"
+                    >
+                        <Checkbox
+                            :checked="form.status === 'ACTIVE'"
+                            @update:checked="handleStatusChange"
+                        />
                         Ventana Activa (Forzar cierre desmarcando)
                     </label>
                 </div>
@@ -338,7 +544,11 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
 
             <DialogFooter>
                 <Button variant="outline" @click="closeModal">Cancelar</Button>
-                <Button type="submit" :disabled="form.processing" @click="submitForm">
+                <Button
+                    type="submit"
+                    :disabled="form.processing"
+                    @click="submitForm"
+                >
                     {{ editingWindow ? 'Guardar Cambios' : 'Crear' }}
                 </Button>
             </DialogFooter>

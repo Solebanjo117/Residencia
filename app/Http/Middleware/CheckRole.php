@@ -19,7 +19,7 @@ class CheckRole
         /** @var \App\Models\User|null $user */
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             abort(403, 'No autenticado.');
         }
 

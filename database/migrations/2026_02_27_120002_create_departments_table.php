@@ -19,7 +19,7 @@ return new class extends Migration
         Schema::create('user_department', function (Blueprint $table) {
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->unsignedSmallInteger('department_id');
-            
+
             $table->primary(['user_id', 'department_id']);
             $table->foreign('department_id')->references('id')->on('departments');
         });

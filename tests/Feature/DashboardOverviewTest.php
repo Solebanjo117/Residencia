@@ -18,21 +18,21 @@ use Inertia\Testing\AssertableInertia as Assert;
 function createDashboardBaseContext(): array
 {
     $semester = Semester::create([
-        'name' => 'SEM-DB-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-DB-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-DB-' . Str::upper(Str::random(6)),
-        'name' => 'Materia DB ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-DB-'.Str::upper(Str::random(6)),
+        'name' => 'Materia DB '.Str::upper(Str::random(4)),
     ]);
 
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-DB-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-DB-'.Str::upper(Str::random(8)),
         'description' => 'Item dashboard',
         'requires_subject' => true,
         'active' => true,
@@ -47,7 +47,7 @@ it('renders role dashboard with docente quick actions and deadlines', function (
     $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $docenteRoleId]);
 
-    $department = Department::create(['name' => 'DEP-DB-' . Str::upper(Str::random(6))]);
+    $department = Department::create(['name' => 'DEP-DB-'.Str::upper(Str::random(6))]);
     $teacher->departments()->attach($department->id);
 
     $load = TeachingLoad::create([

@@ -3,14 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
+use App\Models\EvidenceCategory;
 use App\Models\EvidenceRequirement;
 use App\Models\Semester;
-use App\Models\Department;
-use App\Models\EvidenceItem;
-use App\Models\EvidenceCategory;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class RequirementController extends Controller
 {
@@ -19,9 +18,9 @@ class RequirementController extends Controller
         $semesters = Semester::orderBy('start_date', 'desc')->get();
         $semesterId = $request->query('semester_id') ?? $semesters->first()?->id;
         $departments = Department::orderBy('name')->get();
-        
+
         // Group items by category for nicer UI
-        $categories = EvidenceCategory::with(['items' => function($q) {
+        $categories = EvidenceCategory::with(['items' => function ($q) {
             $q->where('active', true)->orderBy('name');
         }])->orderBy('name')->get();
 

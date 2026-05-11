@@ -84,14 +84,14 @@ it('applies folder permissions when creating a teaching load and can force full 
     $teacher = createTeacherWithFolderKeys(['0.HORARIO OFICIAL']);
 
     $semester = Semester::create([
-        'name' => 'SEM-PERM-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-PERM-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUB-PERM-' . Str::upper(Str::random(5)),
+        'code' => 'SUB-PERM-'.Str::upper(Str::random(5)),
         'name' => 'Materia Permisos',
     ]);
 
@@ -151,14 +151,14 @@ it('rebuilds teacher structure and removes folders that are no longer permitted'
     ]);
 
     $semester = Semester::create([
-        'name' => 'SEM-REBUILD-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-REBUILD-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUB-REBUILD-' . Str::upper(Str::random(5)),
+        'code' => 'SUB-REBUILD-'.Str::upper(Str::random(5)),
         'name' => 'Materia Rebuild',
     ]);
 

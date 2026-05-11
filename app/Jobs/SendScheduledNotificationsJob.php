@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\NotificationSchedule;
-use App\Models\TeachingLoad;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Bus\Queueable;
@@ -50,8 +49,8 @@ class SendScheduledNotificationsJob implements ShouldQueue
                     $notificationService->notifyImmediate(
                         $teacher,
                         $schedule->notification_type,
-                        "Scheduled Notification: " . $schedule->evidenceItem->name,
-                        "Reminder for " . $schedule->evidenceItem->name . " in semester " . $schedule->semester->name,
+                        'Scheduled Notification: '.$schedule->evidenceItem->name,
+                        'Reminder for '.$schedule->evidenceItem->name.' in semester '.$schedule->semester->name,
                         $schedule
                     );
 

@@ -59,14 +59,16 @@ class AuditHistoricalData extends Command
         $initialAudit = $this->runAudit($strictFilesystem);
         $this->renderAuditSummary($initialAudit, 'Hallazgos iniciales');
 
-        if (!$applyFixes) {
+        if (! $applyFixes) {
             $totalIssues = $this->countIssues($initialAudit);
             if ($totalIssues > 0) {
                 $this->warn("Se detectaron {$totalIssues} inconsistencias. Ejecuta con --fix para saneamiento automatico de casos reparables.");
+
                 return self::FAILURE;
             }
 
             $this->info('No se detectaron inconsistencias.');
+
             return self::SUCCESS;
         }
 
@@ -81,10 +83,12 @@ class AuditHistoricalData extends Command
         $remainingIssues = $this->countIssues($postFixAudit);
         if ($remainingIssues > 0) {
             $this->warn("Persisten {$remainingIssues} inconsistencias no corregibles automaticamente. Requieren revision manual.");
+
             return self::FAILURE;
         }
 
         $this->info('Saneamiento completado sin inconsistencias remanentes.');
+
         return self::SUCCESS;
     }
 
@@ -129,7 +133,7 @@ class AuditHistoricalData extends Command
                 $newStatus = $entry->new_status->value;
 
                 $allowedTargets = self::ALLOWED_TRANSITIONS[$oldStatus] ?? [];
-                if (!in_array($newStatus, $allowedTargets, true)) {
+                if (! in_array($newStatus, $allowedTargets, true)) {
                     $issues['invalid_status_transitions'][] = [
                         'submission_id' => $submission->id,
                         'history_id' => $entry->id,
@@ -189,7 +193,7 @@ class AuditHistoricalData extends Command
             ->orderBy('id')
             ->get();
 
-        $grouped = $activeWindows->groupBy(fn ($window) => $window->semester_id . '|' . $window->evidence_item_id);
+        $grouped = $activeWindows->groupBy(fn ($window) => $window->semester_id.'|'.$window->evidence_item_id);
 
         foreach ($grouped as $group) {
             $lastKeptWindow = null;
@@ -202,6 +206,7 @@ class AuditHistoricalData extends Command
                         'semester_id' => $window->semester_id,
                         'evidence_item_id' => $window->evidence_item_id,
                     ];
+
                     continue;
                 }
 
@@ -222,13 +227,13 @@ class AuditHistoricalData extends Command
             ->select('semester_id', 'evidence_item_id')
             ->distinct()
             ->get()
-            ->mapWithKeys(fn ($window) => [$window->semester_id . '|' . $window->evidence_item_id => true]);
+            ->mapWithKeys(fn ($window) => [$window->semester_id.'|'.$window->evidence_item_id => true]);
 
         $now = now();
         foreach ($pendingSchedules as $schedule) {
             if ($schedule->notify_at->lte($now)) {
-                $windowKey = $schedule->semester_id . '|' . $schedule->evidence_item_id;
-                if (!$activeWindowKeys->has($windowKey)) {
+                $windowKey = $schedule->semester_id.'|'.$schedule->evidence_item_id;
+                if (! $activeWindowKeys->has($windowKey)) {
                     $issues['orphan_due_schedules'][] = [
                         'schedule_id' => $schedule->id,
                     ];
@@ -273,7 +278,7 @@ class AuditHistoricalData extends Command
         $disk = Storage::disk('local');
 
         foreach ($files as $file) {
-            if (!$file->folderNode) {
+            if (! $file->folderNode) {
                 continue;
             }
 
@@ -282,7 +287,7 @@ class AuditHistoricalData extends Command
 
             if (
                 $normalizedFolderPath !== ''
-                && !str_starts_with($normalizedCurrentPath, $normalizedFolderPath . '/')
+                && ! str_starts_with($normalizedCurrentPath, $normalizedFolderPath.'/')
             ) {
                 $issues['file_path_outside_folder'][] = [
                     'file_id' => $file->id,
@@ -291,7 +296,7 @@ class AuditHistoricalData extends Command
                 ];
             }
 
-            if ($strictFilesystem && !$disk->exists($normalizedCurrentPath)) {
+            if ($strictFilesystem && ! $disk->exists($normalizedCurrentPath)) {
                 $issues['missing_physical_files'][] = [
                     'file_id' => $file->id,
                     'path' => $normalizedCurrentPath,
@@ -386,7 +391,7 @@ class AuditHistoricalData extends Command
                 continue;
             }
 
-            if (!in_array($submission->status, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED], true)) {
+            if (! in_array($submission->status, [SubmissionStatus::APPROVED, SubmissionStatus::REJECTED], true)) {
                 continue;
             }
 
@@ -435,19 +440,19 @@ class AuditHistoricalData extends Command
 
         foreach ($issues as $issue) {
             $submission = $submissions->get($issue['submission_id'] ?? null);
-            if (!$submission) {
+            if (! $submission) {
                 continue;
             }
 
             $lastEntry = $submission->statusHistory->last();
-            if (!$lastEntry || $lastEntry->new_status === $submission->status) {
+            if (! $lastEntry || $lastEntry->new_status === $submission->status) {
                 continue;
             }
 
             $from = $lastEntry->new_status->value;
             $to = $submission->status->value;
 
-            if (!$this->isAllowedTransition($from, $to)) {
+            if (! $this->isAllowedTransition($from, $to)) {
                 continue;
             }
 
@@ -524,7 +529,7 @@ class AuditHistoricalData extends Command
 
         foreach ($issues as $issue) {
             $file = $filesById->get($issue['file_id'] ?? null);
-            if (!$file) {
+            if (! $file) {
                 continue;
             }
 
@@ -537,7 +542,7 @@ class AuditHistoricalData extends Command
 
             $moved = false;
             if ($disk->exists($currentPath)) {
-                if (!$disk->exists($targetPath)) {
+                if (! $disk->exists($targetPath)) {
                     $disk->copy($currentPath, $targetPath);
                 }
                 $disk->delete($currentPath);
@@ -546,7 +551,7 @@ class AuditHistoricalData extends Command
                 $moved = true;
             }
 
-            if (!$moved) {
+            if (! $moved) {
                 continue;
             }
 
@@ -560,7 +565,7 @@ class AuditHistoricalData extends Command
     private function resolveFallbackReviewerId(): ?int
     {
         $officeRoleId = Role::query()->where('name', Role::JEFE_OFICINA)->value('id');
-        if (!$officeRoleId) {
+        if (! $officeRoleId) {
             return null;
         }
 
@@ -570,6 +575,7 @@ class AuditHistoricalData extends Command
     private function isAllowedTransition(string $from, string $to): bool
     {
         $allowedTargets = self::ALLOWED_TRANSITIONS[$from] ?? [];
+
         return in_array($to, $allowedTargets, true);
     }
 
@@ -581,7 +587,8 @@ class AuditHistoricalData extends Command
     private function targetPathForFolder(string $normalizedFolderPath, string $normalizedCurrentPath): string
     {
         $fileName = basename($normalizedCurrentPath);
-        return trim($normalizedFolderPath . '/' . $fileName, '/');
+
+        return trim($normalizedFolderPath.'/'.$fileName, '/');
     }
 
     private function renderAuditSummary(array $audit, string $title): void
@@ -602,7 +609,7 @@ class AuditHistoricalData extends Command
         $this->line('');
         $this->info($title);
         $this->table(['Tipo', 'Cantidad', 'Corregible'], $rows);
-        $this->line('Total inconsistencias: ' . $this->countIssues($audit));
+        $this->line('Total inconsistencias: '.$this->countIssues($audit));
     }
 
     private function renderFixSummary(array $fixes): void

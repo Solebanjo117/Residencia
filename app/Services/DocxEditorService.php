@@ -16,17 +16,29 @@ use ZipArchive;
 class DocxEditorService
 {
     private const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
     private const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
+
     private const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+
     private const WORD_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+
     private const PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+
     private const PACKAGE_REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
     private const CONTENT_TYPES_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
+
     private const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
     private const BULLET_NUM_ID = 9101;
+
     private const BULLET_ABSTRACT_NUM_ID = 9100;
+
     private const ORDERED_NUM_ID = 9201;
+
     private const ORDERED_ABSTRACT_NUM_ID = 9200;
 
     public function __construct(
@@ -70,8 +82,7 @@ class DocxEditorService
         bool $saveAsNewVersion = false,
         ?string $headerHtml = null,
         ?string $footerHtml = null
-    ): EvidenceFile
-    {
+    ): EvidenceFile {
         $this->ensureEditableDocx($file);
         $absolutePath = $this->ensureFileExists($file);
         $package = $this->readPackage($absolutePath);
@@ -122,7 +133,7 @@ class DocxEditorService
 
     private function ensureEditableDocx(EvidenceFile $file): void
     {
-        if (!$file->isDocx()) {
+        if (! $file->isDocx()) {
             throw new RuntimeException('Este archivo no es compatible con el editor DOCX.');
         }
     }
@@ -131,7 +142,7 @@ class DocxEditorService
     {
         $this->storageService->assertEvidenceFilePath($file);
 
-        if (!Storage::disk('local')->exists($file->stored_relative_path)) {
+        if (! Storage::disk('local')->exists($file->stored_relative_path)) {
             throw new RuntimeException('No se encontro el archivo DOCX en almacenamiento.');
         }
 
@@ -140,7 +151,7 @@ class DocxEditorService
 
     private function readPackage(string $absolutePath): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($absolutePath) !== true) {
             throw new RuntimeException('No se pudo abrir el paquete DOCX.');
@@ -186,7 +197,7 @@ class DocxEditorService
 
     private function extractImageRelationships(ZipArchive $zip, ?string $documentRelsXml): array
     {
-        if (!$documentRelsXml) {
+        if (! $documentRelsXml) {
             return [];
         }
 
@@ -195,7 +206,7 @@ class DocxEditorService
 
     private function extractImageRelationshipsForPart(ZipArchive $zip, ?string $relsXml, string $basePart): array
     {
-        if (!$relsXml) {
+        if (! $relsXml) {
             return [];
         }
 
@@ -205,12 +216,12 @@ class DocxEditorService
         $relationships = [];
 
         foreach ($xpath->query('/pr:Relationships/pr:Relationship') as $relationship) {
-            if (!$relationship instanceof DOMElement) {
+            if (! $relationship instanceof DOMElement) {
                 continue;
             }
 
             $type = (string) $relationship->getAttribute('Type');
-            if (!str_ends_with($type, '/image')) {
+            if (! str_ends_with($type, '/image')) {
                 continue;
             }
 
@@ -232,7 +243,7 @@ class DocxEditorService
                 'target' => $target,
                 'zip_path' => $zipPath,
                 'mime_type' => $mimeType,
-                'data_uri' => 'data:' . $mimeType . ';base64,' . base64_encode($binary),
+                'data_uri' => 'data:'.$mimeType.';base64,'.base64_encode($binary),
             ];
         }
 
@@ -248,7 +259,7 @@ class DocxEditorService
             'image_relationships' => [],
         ];
 
-        if (!$documentRelsXml) {
+        if (! $documentRelsXml) {
             return [
                 'header' => $emptyPart,
                 'footer' => $emptyPart,
@@ -276,7 +287,7 @@ class DocxEditorService
         $relationships = [];
 
         foreach ($xpath->query('/pr:Relationships/pr:Relationship') as $relationship) {
-            if (!$relationship instanceof DOMElement) {
+            if (! $relationship instanceof DOMElement) {
                 continue;
             }
 
@@ -297,14 +308,14 @@ class DocxEditorService
 
     private function selectHeaderFooterReference(DOMXPath $xpath, string $localName): ?string
     {
-        $references = $xpath->query('/w:document/w:body/w:sectPr/w:' . $localName);
+        $references = $xpath->query('/w:document/w:body/w:sectPr/w:'.$localName);
         if ($references === false) {
             return null;
         }
 
         $selected = null;
         foreach ($references as $reference) {
-            if (!$reference instanceof DOMElement) {
+            if (! $reference instanceof DOMElement) {
                 continue;
             }
 
@@ -326,7 +337,7 @@ class DocxEditorService
 
     private function resolveWordPartReference(ZipArchive $zip, array $relsMap, ?string $relationshipId, string $basePart): array
     {
-        if ($relationshipId === null || !isset($relsMap[$relationshipId])) {
+        if ($relationshipId === null || ! isset($relsMap[$relationshipId])) {
             return [
                 'xml' => null,
                 'path' => null,
@@ -347,9 +358,9 @@ class DocxEditorService
         }
 
         $relsPath = trim((string) dirname($path), '/')
-            . '/_rels/'
-            . basename($path)
-            . '.rels';
+            .'/_rels/'
+            .basename($path)
+            .'.rels';
         $partRelsXml = $zip->getFromName($relsPath) ?: null;
 
         return [
@@ -380,6 +391,7 @@ class DocxEditorService
 
             if ($segment === '..') {
                 array_pop($segments);
+
                 continue;
             }
 
@@ -415,13 +427,12 @@ class DocxEditorService
         ?string $numberingXml,
         bool $hasExtraParts,
         array $imageRelationships
-    ): array
-    {
+    ): array {
         $dom = $this->loadWordXml($documentXml);
         $xpath = $this->wordXPath($dom);
         $body = $xpath->query('/w:document/w:body')->item(0);
 
-        if (!$body instanceof DOMElement) {
+        if (! $body instanceof DOMElement) {
             throw new RuntimeException('El documento DOCX no contiene un cuerpo valido.');
         }
 
@@ -436,10 +447,10 @@ class DocxEditorService
     ): array {
         $dom = $this->loadWordXml($partXml);
         $xpath = $this->wordXPath($dom);
-        $container = $xpath->query('/w:' . ($partType === 'header' ? 'hdr' : 'ftr'))->item(0);
+        $container = $xpath->query('/w:'.($partType === 'header' ? 'hdr' : 'ftr'))->item(0);
 
-        if (!$container instanceof DOMElement) {
-            throw new RuntimeException('No se pudo interpretar el ' . ($partType === 'header' ? 'encabezado' : 'pie de pagina') . ' del DOCX.');
+        if (! $container instanceof DOMElement) {
+            throw new RuntimeException('No se pudo interpretar el '.($partType === 'header' ? 'encabezado' : 'pie de pagina').' del DOCX.');
         }
 
         return $this->renderWordContainerToHtml($container, $xpath, $numberingXml, $imageRelationships);
@@ -467,7 +478,7 @@ class DocxEditorService
         ];
 
         foreach ($container->childNodes as $child) {
-            if (!$child instanceof DOMElement) {
+            if (! $child instanceof DOMElement) {
                 continue;
             }
 
@@ -482,11 +493,13 @@ class DocxEditorService
                     $warnings[] = 'Se detecto una tabla DOCX demasiado compleja y se dejo como referencia no editable.';
                     $blocks[] = '<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" contenteditable="false" data-docx-unsupported="table">Tabla detectada: se muestra como referencia, pero no es editable en esta fase.</div>';
                     $stats['unsupported_blocks']++;
+
                     continue;
                 }
 
                 $blocks[] = $tableHtml;
                 $stats['tables']++;
+
                 continue;
             }
 
@@ -494,6 +507,7 @@ class DocxEditorService
                 $this->flushListBuffer($blocks, $listBuffer, $listType);
                 $warnings[] = 'Se detectaron elementos DOCX no soportados que podrian simplificarse al guardar.';
                 $stats['unsupported_blocks']++;
+
                 continue;
             }
 
@@ -522,6 +536,7 @@ class DocxEditorService
                     $this->listLevelAttribute($parsed['level'])
                 );
                 $stats['list_items']++;
+
                 continue;
             }
 
@@ -554,7 +569,7 @@ class DocxEditorService
             return '';
         }
 
-        return ' style="margin-left:' . (1.5 * $level) . 'rem"';
+        return ' style="margin-left:'.(1.5 * $level).'rem"';
     }
 
     private function flushListBuffer(array &$blocks, array &$listBuffer, ?string &$listType): void
@@ -566,7 +581,7 @@ class DocxEditorService
             return;
         }
 
-        $blocks[] = '<' . $listType . '>' . implode('', $listBuffer) . '</' . $listType . '>';
+        $blocks[] = '<'.$listType.'>'.implode('', $listBuffer).'</'.$listType.'>';
         $listBuffer = [];
         $listType = null;
     }
@@ -577,8 +592,7 @@ class DocxEditorService
         array $numberingFormats,
         array $imageRelationships,
         array &$warnings
-    ): ?array
-    {
+    ): ?array {
         $html = $this->extractInlineHtml($paragraph, $imageRelationships, $warnings);
         $html = trim($html);
 
@@ -646,26 +660,26 @@ class DocxEditorService
 
         if (($presentation['alignment'] ?? null) !== null) {
             $alignment = (string) $presentation['alignment'];
-            $attributes[] = 'data-docx-align="' . htmlspecialchars($alignment, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-            $styleParts[] = 'text-align:' . $this->cssTextAlignValue($alignment);
+            $attributes[] = 'data-docx-align="'.htmlspecialchars($alignment, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
+            $styleParts[] = 'text-align:'.$this->cssTextAlignValue($alignment);
         }
 
         if (($presentation['indent_left'] ?? null) !== null) {
             $indentLeft = (int) $presentation['indent_left'];
-            $attributes[] = 'data-docx-indent-left="' . $indentLeft . '"';
-            $styleParts[] = 'margin-left:' . ($indentLeft / 20) . 'pt';
+            $attributes[] = 'data-docx-indent-left="'.$indentLeft.'"';
+            $styleParts[] = 'margin-left:'.($indentLeft / 20).'pt';
         }
 
         if (($presentation['spacing_before'] ?? null) !== null) {
             $spacingBefore = (int) $presentation['spacing_before'];
-            $attributes[] = 'data-docx-spacing-before="' . $spacingBefore . '"';
-            $styleParts[] = 'margin-top:' . ($spacingBefore / 20) . 'pt';
+            $attributes[] = 'data-docx-spacing-before="'.$spacingBefore.'"';
+            $styleParts[] = 'margin-top:'.($spacingBefore / 20).'pt';
         }
 
         if (($presentation['spacing_after'] ?? null) !== null) {
             $spacingAfter = (int) $presentation['spacing_after'];
-            $attributes[] = 'data-docx-spacing-after="' . $spacingAfter . '"';
-            $styleParts[] = 'margin-bottom:' . ($spacingAfter / 20) . 'pt';
+            $attributes[] = 'data-docx-spacing-after="'.$spacingAfter.'"';
+            $styleParts[] = 'margin-bottom:'.($spacingAfter / 20).'pt';
         }
 
         foreach ($extraAttributes as $name => $value) {
@@ -673,7 +687,7 @@ class DocxEditorService
                 continue;
             }
 
-            $attributes[] = $name . '="' . htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            $attributes[] = $name.'="'.htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
 
         if ($extraStyle !== null && trim($extraStyle) !== '') {
@@ -681,10 +695,10 @@ class DocxEditorService
         }
 
         if ($styleParts !== []) {
-            $attributes[] = 'style="' . htmlspecialchars(implode('; ', $styleParts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            $attributes[] = 'style="'.htmlspecialchars(implode('; ', $styleParts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
 
-        return '<' . $tag . ($attributes !== [] ? ' ' . implode(' ', $attributes) : '') . '>' . $html . '</' . $tag . '>';
+        return '<'.$tag.($attributes !== [] ? ' '.implode(' ', $attributes) : '').'>'.$html.'</'.$tag.'>';
     }
 
     private function cssTextAlignValue(string $alignment): string
@@ -708,13 +722,13 @@ class DocxEditorService
         $rowCount = 0;
 
         foreach ($xpath->query('./w:tr', $table) as $rowNode) {
-            if (!$rowNode instanceof DOMElement) {
+            if (! $rowNode instanceof DOMElement) {
                 continue;
             }
 
             $cellHtml = [];
             foreach ($xpath->query('./w:tc', $rowNode) as $cellNode) {
-                if (!$cellNode instanceof DOMElement) {
+                if (! $cellNode instanceof DOMElement) {
                     continue;
                 }
 
@@ -726,14 +740,14 @@ class DocxEditorService
                     $warnings
                 );
 
-                $cellHtml[] = '<td>' . $renderedCell . '</td>';
+                $cellHtml[] = '<td>'.$renderedCell.'</td>';
             }
 
             if ($cellHtml === []) {
                 continue;
             }
 
-            $rowsHtml[] = '<tr>' . implode('', $cellHtml) . '</tr>';
+            $rowsHtml[] = '<tr>'.implode('', $cellHtml).'</tr>';
             $rowCount++;
         }
 
@@ -745,7 +759,7 @@ class DocxEditorService
             $warnings[] = 'La tabla tiene muchas filas; puedes editarla, pero la experiencia puede simplificarse en esta fase.';
         }
 
-        return '<table class="docx-table" data-docx-kind="table"><tbody>' . implode('', $rowsHtml) . '</tbody></table>';
+        return '<table class="docx-table" data-docx-kind="table"><tbody>'.implode('', $rowsHtml).'</tbody></table>';
     }
 
     private function renderTableCellBlocksToHtml(
@@ -760,7 +774,7 @@ class DocxEditorService
         $listType = null;
 
         foreach ($cell->childNodes as $child) {
-            if (!$child instanceof DOMElement) {
+            if (! $child instanceof DOMElement) {
                 continue;
             }
 
@@ -768,6 +782,7 @@ class DocxEditorService
                 $warnings[] = 'Las tablas anidadas se muestran como referencia dentro de la celda y no se reescriben en esta fase.';
                 $this->flushListBuffer($blocks, $listBuffer, $listType);
                 $blocks[] = '<div class="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800" contenteditable="false" data-docx-unsupported="nested-table">Tabla anidada no editable</div>';
+
                 continue;
             }
 
@@ -795,6 +810,7 @@ class DocxEditorService
                     ['data-docx-list-level' => (string) $parsed['level']],
                     $this->listLevelAttribute($parsed['level'])
                 );
+
                 continue;
             }
 
@@ -809,7 +825,7 @@ class DocxEditorService
 
     private function extractNumberingFormats(?string $numberingXml): array
     {
-        if (!$numberingXml) {
+        if (! $numberingXml) {
             return [];
         }
 
@@ -819,7 +835,7 @@ class DocxEditorService
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (! $loaded) {
             return [];
         }
 
@@ -828,7 +844,7 @@ class DocxEditorService
 
         $abstractMap = [];
         foreach ($xpath->query('/w:numbering/w:abstractNum') as $abstractNode) {
-            if (!$abstractNode instanceof DOMElement) {
+            if (! $abstractNode instanceof DOMElement) {
                 continue;
             }
 
@@ -836,7 +852,7 @@ class DocxEditorService
             $abstractMap[$abstractId] = [];
 
             foreach ($xpath->query('./w:lvl', $abstractNode) as $levelNode) {
-                if (!$levelNode instanceof DOMElement) {
+                if (! $levelNode instanceof DOMElement) {
                     continue;
                 }
 
@@ -848,7 +864,7 @@ class DocxEditorService
 
         $map = [];
         foreach ($xpath->query('/w:numbering/w:num') as $numNode) {
-            if (!$numNode instanceof DOMElement) {
+            if (! $numNode instanceof DOMElement) {
                 continue;
             }
 
@@ -865,17 +881,19 @@ class DocxEditorService
         $html = '';
 
         foreach ($node->childNodes as $child) {
-            if (!$child instanceof DOMElement) {
+            if (! $child instanceof DOMElement) {
                 continue;
             }
 
             if ($child->localName === 'r') {
                 $html .= $this->runToHtml($child, $imageRelationships, $warnings);
+
                 continue;
             }
 
             if ($child->localName === 'hyperlink') {
                 $html .= $this->extractInlineHtml($child, $imageRelationships, $warnings);
+
                 continue;
             }
 
@@ -894,22 +912,25 @@ class DocxEditorService
         $html = '';
 
         foreach ($run->childNodes as $child) {
-            if (!$child instanceof DOMElement) {
+            if (! $child instanceof DOMElement) {
                 continue;
             }
 
             if ($child->localName === 't') {
                 $html .= $this->wrapStyledText($child->textContent, $formatting);
+
                 continue;
             }
 
             if (in_array($child->localName, ['br', 'cr'], true)) {
                 $html .= '<br>';
+
                 continue;
             }
 
             if ($child->localName === 'tab') {
                 $html .= $this->wrapStyledText('    ', $formatting);
+
                 continue;
             }
 
@@ -940,7 +961,7 @@ class DocxEditorService
             }
         }
 
-        if (!$rPr instanceof DOMElement) {
+        if (! $rPr instanceof DOMElement) {
             return $formatting;
         }
 
@@ -957,7 +978,7 @@ class DocxEditorService
     private function extractRunFontFamily(DOMElement $rPr): ?string
     {
         foreach ($rPr->childNodes as $child) {
-            if (!$child instanceof DOMElement || $child->localName !== 'rFonts') {
+            if (! $child instanceof DOMElement || $child->localName !== 'rFonts') {
                 continue;
             }
 
@@ -975,7 +996,7 @@ class DocxEditorService
     private function extractRunFontSize(DOMElement $rPr): ?int
     {
         foreach ($rPr->childNodes as $child) {
-            if (!$child instanceof DOMElement || $child->localName !== 'sz') {
+            if (! $child instanceof DOMElement || $child->localName !== 'sz') {
                 continue;
             }
 
@@ -991,7 +1012,7 @@ class DocxEditorService
     private function extractRunColor(DOMElement $rPr): ?string
     {
         foreach ($rPr->childNodes as $child) {
-            if (!$child instanceof DOMElement || $child->localName !== 'color') {
+            if (! $child instanceof DOMElement || $child->localName !== 'color') {
                 continue;
             }
 
@@ -1014,34 +1035,34 @@ class DocxEditorService
         $styleParts = [];
         $dataAttributes = [];
 
-        if (!empty($formatting['bold'])) {
+        if (! empty($formatting['bold'])) {
             $styleParts[] = 'font-weight:700';
         }
 
-        if (!empty($formatting['italic'])) {
+        if (! empty($formatting['italic'])) {
             $styleParts[] = 'font-style:italic';
         }
 
-        if (!empty($formatting['underline'])) {
+        if (! empty($formatting['underline'])) {
             $styleParts[] = 'text-decoration:underline';
         }
 
         $fontFamily = $this->normalizeFontFamily($formatting['font_family'] ?? null);
         if ($fontFamily !== null) {
-            $styleParts[] = 'font-family:' . $this->cssFontFamilyValue($fontFamily);
-            $dataAttributes[] = 'data-docx-font-family="' . htmlspecialchars($fontFamily, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            $styleParts[] = 'font-family:'.$this->cssFontFamilyValue($fontFamily);
+            $dataAttributes[] = 'data-docx-font-family="'.htmlspecialchars($fontFamily, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
         }
 
         $fontSize = (int) ($formatting['font_size_half_points'] ?? 0);
         if ($fontSize > 0) {
-            $styleParts[] = 'font-size:' . ($fontSize / 2) . 'pt';
-            $dataAttributes[] = 'data-docx-font-size="' . $fontSize . '"';
+            $styleParts[] = 'font-size:'.($fontSize / 2).'pt';
+            $dataAttributes[] = 'data-docx-font-size="'.$fontSize.'"';
         }
 
         $color = $this->normalizeColorValue($formatting['color'] ?? null);
         if ($color !== null) {
-            $styleParts[] = 'color:#' . $color;
-            $dataAttributes[] = 'data-docx-color="' . $color . '"';
+            $styleParts[] = 'color:#'.$color;
+            $dataAttributes[] = 'data-docx-color="'.$color.'"';
         }
 
         if ($styleParts === [] && $dataAttributes === []) {
@@ -1049,9 +1070,9 @@ class DocxEditorService
         }
 
         $attributes = $dataAttributes;
-        $attributes[] = 'style="' . htmlspecialchars(implode('; ', $styleParts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        $attributes[] = 'style="'.htmlspecialchars(implode('; ', $styleParts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
 
-        return '<span ' . implode(' ', $attributes) . '>' . $escapedText . '</span>';
+        return '<span '.implode(' ', $attributes).'>'.$escapedText.'</span>';
     }
 
     private function normalizeFontFamily(?string $fontFamily): ?string
@@ -1073,7 +1094,7 @@ class DocxEditorService
 
     private function cssFontFamilyValue(string $fontFamily): string
     {
-        return '"' . addcslashes($fontFamily, "\"\\") . '"';
+        return '"'.addcslashes($fontFamily, '"\\').'"';
     }
 
     private function renderEmbeddedObjectToHtml(DOMElement $node, array $imageRelationships, array &$warnings): string
@@ -1094,7 +1115,7 @@ class DocxEditorService
 
         $drawingXml = $node->ownerDocument?->saveXML($node);
         if ($drawingXml === false || $drawingXml === null) {
-            return '<img src="' . htmlspecialchars($image['data_uri'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="Imagen incrustada" contenteditable="false" style="max-width:100%" />';
+            return '<img src="'.htmlspecialchars($image['data_uri'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'" alt="Imagen incrustada" contenteditable="false" style="max-width:100%" />';
         }
 
         $size = $this->extractDrawingSize($node);
@@ -1102,23 +1123,23 @@ class DocxEditorService
         $style = ['max-width:100%', 'height:auto'];
 
         if ($size['width_px'] !== null) {
-            $style[] = 'width:' . $size['width_px'] . 'px';
+            $style[] = 'width:'.$size['width_px'].'px';
         }
 
         return '<img src="'
-            . htmlspecialchars($image['data_uri'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            . '" alt="'
-            . htmlspecialchars($alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            . '" contenteditable="false" data-docx-kind="image" data-docx-rel-id="'
-            . htmlspecialchars($relationshipId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            . '" data-docx-drawing="'
-            . base64_encode($drawingXml)
-            . '"'
-            . ($size['cx'] !== null ? ' data-docx-cx="' . $size['cx'] . '"' : '')
-            . ($size['cy'] !== null ? ' data-docx-cy="' . $size['cy'] . '"' : '')
-            . ' style="'
-            . htmlspecialchars(implode('; ', $style), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            . '" />';
+            .htmlspecialchars($image['data_uri'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            .'" alt="'
+            .htmlspecialchars($alt, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            .'" contenteditable="false" data-docx-kind="image" data-docx-rel-id="'
+            .htmlspecialchars($relationshipId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            .'" data-docx-drawing="'
+            .base64_encode($drawingXml)
+            .'"'
+            .($size['cx'] !== null ? ' data-docx-cx="'.$size['cx'].'"' : '')
+            .($size['cy'] !== null ? ' data-docx-cy="'.$size['cy'].'"' : '')
+            .' style="'
+            .htmlspecialchars(implode('; ', $style), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            .'" />';
     }
 
     private function findEmbeddedRelationshipId(DOMElement $node): ?string
@@ -1215,7 +1236,7 @@ class DocxEditorService
     private function hasUnderline(DOMElement $rPr): bool
     {
         foreach ($rPr->childNodes as $child) {
-            if (!$child instanceof DOMElement || $child->localName !== 'u') {
+            if (! $child instanceof DOMElement || $child->localName !== 'u') {
                 continue;
             }
 
@@ -1231,13 +1252,13 @@ class DocxEditorService
     {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
-        $wrapped = '<!DOCTYPE html><html><body>' . $html . '</body></html>';
+        $wrapped = '<!DOCTYPE html><html><body>'.$html.'</body></html>';
         $dom->loadHTML(mb_convert_encoding($wrapped, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
         $body = $dom->getElementsByTagName('body')->item(0);
-        if (!$body instanceof DOMElement) {
+        if (! $body instanceof DOMElement) {
             throw new RuntimeException('No se pudo interpretar el contenido del editor DOCX.');
         }
 
@@ -1284,7 +1305,7 @@ class DocxEditorService
             return;
         }
 
-        if (!$node instanceof DOMElement) {
+        if (! $node instanceof DOMElement) {
             return;
         }
 
@@ -1374,7 +1395,7 @@ class DocxEditorService
             ]];
         }
 
-        if (!$node instanceof DOMElement) {
+        if (! $node instanceof DOMElement) {
             return [];
         }
 
@@ -1425,7 +1446,7 @@ class DocxEditorService
         $tag = strtolower($listNode->tagName);
 
         foreach ($listNode->childNodes as $child) {
-            if (!$child instanceof DOMElement || strtolower($child->tagName) !== 'li') {
+            if (! $child instanceof DOMElement || strtolower($child->tagName) !== 'li') {
                 continue;
             }
 
@@ -1435,6 +1456,7 @@ class DocxEditorService
             foreach ($child->childNodes as $liChild) {
                 if ($liChild instanceof DOMElement && in_array(strtolower($liChild->tagName), ['ul', 'ol'], true)) {
                     $nestedLists[] = $liChild;
+
                     continue;
                 }
 
@@ -1508,7 +1530,7 @@ class DocxEditorService
         $cells = [];
 
         foreach ($rowNode->childNodes as $cellNode) {
-            if (!$cellNode instanceof DOMElement || !in_array(strtolower($cellNode->tagName), ['td', 'th'], true)) {
+            if (! $cellNode instanceof DOMElement || ! in_array(strtolower($cellNode->tagName), ['td', 'th'], true)) {
                 continue;
             }
 
@@ -1687,7 +1709,7 @@ class DocxEditorService
         $map = [];
 
         foreach (explode(';', $style) as $declaration) {
-            if (!str_contains($declaration, ':')) {
+            if (! str_contains($declaration, ':')) {
                 continue;
             }
 
@@ -1774,6 +1796,7 @@ class DocxEditorService
         foreach ($segments as $segment) {
             if (in_array(($segment['type'] ?? null), ['break', 'image'], true)) {
                 $merged[] = $segment;
+
                 continue;
             }
 
@@ -1794,6 +1817,7 @@ class DocxEditorService
                 && $merged[$lastIndex]['color'] === ($segment['color'] ?? null)
             ) {
                 $merged[$lastIndex]['text'] .= $text;
+
                 continue;
             }
 
@@ -1837,6 +1861,7 @@ class DocxEditorService
 
             if (($block['type'] ?? 'p') === 'table') {
                 $body->appendChild($this->buildTableNode($dom, $block));
+
                 continue;
             }
 
@@ -1883,6 +1908,7 @@ class DocxEditorService
         foreach ($blocks as $block) {
             if (($block['type'] ?? 'p') === 'table') {
                 $root->appendChild($this->buildTableNode($dom, $block));
+
                 continue;
             }
 
@@ -1989,6 +2015,7 @@ class DocxEditorService
                 $run = $dom->createElementNS(self::WORD_NS, 'w:r');
                 $run->appendChild($dom->createElementNS(self::WORD_NS, 'w:br'));
                 $paragraph->appendChild($run);
+
                 continue;
             }
 
@@ -1999,21 +2026,22 @@ class DocxEditorService
                     $run->appendChild($drawing);
                     $paragraph->appendChild($run);
                 }
+
                 continue;
             }
 
             $run = $dom->createElementNS(self::WORD_NS, 'w:r');
             $runProperties = $dom->createElementNS(self::WORD_NS, 'w:rPr');
 
-            if (!empty($segment['bold'])) {
+            if (! empty($segment['bold'])) {
                 $runProperties->appendChild($dom->createElementNS(self::WORD_NS, 'w:b'));
             }
 
-            if (!empty($segment['italic'])) {
+            if (! empty($segment['italic'])) {
                 $runProperties->appendChild($dom->createElementNS(self::WORD_NS, 'w:i'));
             }
 
-            if (!empty($segment['underline'])) {
+            if (! empty($segment['underline'])) {
                 $underline = $dom->createElementNS(self::WORD_NS, 'w:u');
                 $underline->setAttributeNS(self::WORD_NS, 'w:val', 'single');
                 $runProperties->appendChild($underline);
@@ -2075,7 +2103,7 @@ class DocxEditorService
 
         $tableBorders = $dom->createElementNS(self::WORD_NS, 'w:tblBorders');
         foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $borderName) {
-            $border = $dom->createElementNS(self::WORD_NS, 'w:' . $borderName);
+            $border = $dom->createElementNS(self::WORD_NS, 'w:'.$borderName);
             $border->setAttributeNS(self::WORD_NS, 'w:val', 'single');
             $border->setAttributeNS(self::WORD_NS, 'w:sz', '4');
             $border->setAttributeNS(self::WORD_NS, 'w:space', '0');
@@ -2145,7 +2173,7 @@ class DocxEditorService
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded || !$drawingDom->documentElement instanceof DOMElement) {
+        if (! $loaded || ! $drawingDom->documentElement instanceof DOMElement) {
             return null;
         }
 
@@ -2159,13 +2187,13 @@ class DocxEditorService
             throw new RuntimeException('No se pudo preparar un archivo temporal para guardar la version DOCX.');
         }
 
-        if (!copy($absolutePath, $tempPath)) {
+        if (! copy($absolutePath, $tempPath)) {
             @unlink($tempPath);
 
             throw new RuntimeException('No se pudo copiar el DOCX base para generar una nueva version.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($tempPath) !== true) {
             @unlink($tempPath);
 
@@ -2204,7 +2232,7 @@ class DocxEditorService
         $xml = $zip->getFromName('word/_rels/document.xml.rels');
 
         if ($xml === false) {
-            $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="' . self::PACKAGE_REL_NS . '"></Relationships>';
+            $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'.self::PACKAGE_REL_NS.'"></Relationships>';
         }
 
         $dom = $this->loadPackageXml($xml);
@@ -2212,7 +2240,7 @@ class DocxEditorService
         $xpath->registerNamespace('pr', self::PACKAGE_REL_NS);
 
         $existing = $xpath->query('/pr:Relationships/pr:Relationship[@Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"]')->item(0);
-        if (!$existing instanceof DOMElement) {
+        if (! $existing instanceof DOMElement) {
             $root = $dom->documentElement;
             if ($root instanceof DOMElement) {
                 $relationship = $dom->createElementNS(self::PACKAGE_REL_NS, 'Relationship');
@@ -2234,7 +2262,7 @@ class DocxEditorService
         $max = 0;
 
         foreach ($xpath->query('/pr:Relationships/pr:Relationship') as $relationship) {
-            if (!$relationship instanceof DOMElement) {
+            if (! $relationship instanceof DOMElement) {
                 continue;
             }
 
@@ -2243,7 +2271,7 @@ class DocxEditorService
             }
         }
 
-        return 'rId' . ($max + 1);
+        return 'rId'.($max + 1);
     }
 
     private function ensureContentTypesHaveNumbering(ZipArchive $zip): void
@@ -2258,7 +2286,7 @@ class DocxEditorService
         $xpath->registerNamespace('ct', self::CONTENT_TYPES_NS);
 
         $existing = $xpath->query('/ct:Types/ct:Override[@PartName="/word/numbering.xml"]')->item(0);
-        if (!$existing instanceof DOMElement) {
+        if (! $existing instanceof DOMElement) {
             $root = $dom->documentElement;
             if ($root instanceof DOMElement) {
                 $override = $dom->createElementNS(self::CONTENT_TYPES_NS, 'Override');
@@ -2274,7 +2302,7 @@ class DocxEditorService
 
     private function defaultNumberingXml(): string
     {
-        return <<<XML
+        return <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
     <w:abstractNum w:abstractNumId="9100">
@@ -2310,7 +2338,7 @@ XML;
             })
             ->count() + 1;
 
-        return $baseName . ' (v' . $nextVersion . ').' . $extension;
+        return $baseName.' (v'.$nextVersion.').'.$extension;
     }
 
     private function versionHistory(EvidenceFile $file): array
@@ -2349,7 +2377,7 @@ XML;
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (! $loaded) {
             throw new RuntimeException('No se pudo interpretar el XML interno del archivo DOCX.');
         }
 
@@ -2364,7 +2392,7 @@ XML;
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (! $loaded) {
             throw new RuntimeException('No se pudo interpretar el XML interno del paquete DOCX.');
         }
 
@@ -2379,7 +2407,7 @@ XML;
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded) {
+        if (! $loaded) {
             throw new RuntimeException('No se pudo interpretar [Content_Types].xml del DOCX.');
         }
 

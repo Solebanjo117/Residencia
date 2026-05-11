@@ -17,7 +17,7 @@ class FolderNode extends Model
         'name',
         'relative_path',
         'owner_user_id',
-        'semester_id'
+        'semester_id',
     ];
 
     public function parent()
@@ -39,7 +39,7 @@ class FolderNode extends Model
     {
         return $this->belongsTo(User::class, 'owner_user_id');
     }
-    
+
     public function semester()
     {
         return $this->belongsTo(Semester::class);

@@ -25,7 +25,7 @@ class EvidenceSubmission extends Model
         'office_reviewed_by_user_id',
         'final_approved_at',
         'final_approved_by_user_id',
-        'last_updated_at'
+        'last_updated_at',
     ];
 
     protected $casts = [
@@ -92,7 +92,7 @@ class EvidenceSubmission extends Model
         return $this->hasOne(ResubmissionUnlock::class, 'submission_id')
             ->where(function ($query) {
                 $query->whereNull('expires_at')
-                      ->orWhere('expires_at', '>', now());
+                    ->orWhere('expires_at', '>', now());
             })
             ->latest('unlocked_at');
     }
@@ -112,13 +112,13 @@ class EvidenceSubmission extends Model
 
         $files = $this->allFiles()->withTrashed()->with(['uploadedBy', 'editedBy', 'deletedBy'])->get()->map(function ($file) {
             $events = [];
-            
+
             // Upload event
             $events[] = [
                 'type' => 'file_upload',
                 'date' => $file->uploaded_at,
                 'user' => $file->uploadedBy->name,
-                'details' => "Archivo subido: {$file->file_name} (" . $this->formatBytes($file->size_bytes) . ")",
+                'details' => "Archivo subido: {$file->file_name} (".$this->formatBytes($file->size_bytes).')',
                 'file_id' => $file->id,
             ];
 
@@ -160,10 +160,13 @@ class EvidenceSubmission extends Model
 
     private function formatBytes($bytes, $precision = 2)
     {
-        if ($bytes === 0) return '0 B';
+        if ($bytes === 0) {
+            return '0 B';
+        }
         $k = 1024;
         $sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         $i = floor(log($bytes) / log($k));
-        return round($bytes / pow($k, $i), $precision) . ' ' . $sizes[$i];
+
+        return round($bytes / pow($k, $i), $precision).' '.$sizes[$i];
     }
 }

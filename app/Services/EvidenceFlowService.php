@@ -77,7 +77,7 @@ class EvidenceFlowService
         return match (true) {
             $stage <= 0 => 'Etapa 0',
             $stage === 1 => 'Etapa 1',
-            default => 'Etapa ' . $stage,
+            default => 'Etapa '.$stage,
         };
     }
 
@@ -92,18 +92,18 @@ class EvidenceFlowService
             return true;
         }
 
-        return !$requirements
+        return ! $requirements
             ->filter(fn (EvidenceRequirement $requirement) => $this->stageOrder($requirement->evidenceItem?->name) < $currentStage)
             ->contains(function (EvidenceRequirement $requirement) use ($submissionsByItem) {
                 $submission = $submissionsByItem->get($requirement->evidence_item_id);
 
-                return !$this->countsAsCompletedForProgress($submission);
+                return ! $this->countsAsCompletedForProgress($submission);
             });
     }
 
     public function countsAsCompletedForProgress(?EvidenceSubmission $submission): bool
     {
-        if (!$submission) {
+        if (! $submission) {
             return false;
         }
 
@@ -143,7 +143,7 @@ class EvidenceFlowService
             ];
         }
 
-        if (!$stageUnlocked) {
+        if (! $stageUnlocked) {
             return [
                 'code' => 'STAGE_LOCKED',
                 'label' => 'Bloqueado por etapa previa',
@@ -157,7 +157,7 @@ class EvidenceFlowService
         $now = now();
 
         if ($hasUnlock) {
-            $isLate = !$window || $now->greaterThan($window->closes_at);
+            $isLate = ! $window || $now->greaterThan($window->closes_at);
 
             return [
                 'code' => 'UNLOCKED',
@@ -169,7 +169,7 @@ class EvidenceFlowService
             ];
         }
 
-        if (!$window) {
+        if (! $window) {
             return [
                 'code' => 'NOT_CONFIGURED',
                 'label' => 'Sin ventana configurada',
@@ -242,7 +242,7 @@ class EvidenceFlowService
             return 'NE';
         }
 
-        if (!$submission && in_array($availability['code'], ['UPCOMING', 'STAGE_LOCKED'], true)) {
+        if (! $submission && in_array($availability['code'], ['UPCOMING', 'STAGE_LOCKED'], true)) {
             return 'BL';
         }
 

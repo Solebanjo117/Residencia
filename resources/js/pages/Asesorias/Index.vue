@@ -383,7 +383,9 @@ ${clone.outerHTML}
                                     :key="row.id"
                                     class="hover:bg-slate-50/60"
                                 >
-                                    <td class="px-4 py-3 text-sm text-slate-800">
+                                    <td
+                                        class="px-4 py-3 text-sm text-slate-800"
+                                    >
                                         {{ row.materia }}
                                     </td>
                                     <td
@@ -406,10 +408,14 @@ ${clone.outerHTML}
                                             >-</span
                                         >
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-slate-700">
+                                    <td
+                                        class="px-4 py-3 text-sm text-slate-700"
+                                    >
                                         {{ row.carrera }}
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-slate-600">
+                                    <td
+                                        class="px-4 py-3 text-sm text-slate-600"
+                                    >
                                         {{ row.aula || '-' }}
                                     </td>
                                 </tr>

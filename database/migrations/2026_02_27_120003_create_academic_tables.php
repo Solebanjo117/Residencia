@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('code', 20)->unique();
             $table->date('start_date');
             $table->date('end_date');
-            $table->enum('status', ['PLANNED','ACTIVE','CLOSED'])->default('PLANNED');
+            $table->enum('status', ['PLANNED', 'ACTIVE', 'CLOSED'])->default('PLANNED');
             $table->timestamp('created_at')->useCurrent();
         });
 
@@ -28,9 +28,9 @@ return new class extends Migration
             $table->string('name', 40)->unique();
             $table->date('start_date');
             $table->date('end_date');
-            $table->enum('status', ['OPEN','CLOSED'])->default('OPEN');
+            $table->enum('status', ['OPEN', 'CLOSED'])->default('OPEN');
             $table->timestamp('created_at')->useCurrent();
-            
+
             $table->foreignId('academic_period_id')->nullable()->constrained('academic_periods');
         });
 
@@ -50,7 +50,7 @@ return new class extends Migration
             $table->string('group_code', 40);
             $table->unsignedTinyInteger('hours_per_week')->nullable();
             $table->timestamp('created_at')->useCurrent();
-            
+
             $table->index(['teacher_user_id', 'semester_id']);
             $table->index('semester_id');
             $table->index('subject_id');

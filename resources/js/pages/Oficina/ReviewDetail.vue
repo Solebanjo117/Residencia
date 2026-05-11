@@ -12,8 +12,8 @@ import {
     XCircle,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 
 declare const route: any;
@@ -83,13 +83,16 @@ function approveSubmission(submissionId: number) {
 function confirmApproveSubmission() {
     if (!approvingSubmissionId.value || approveForm.processing) return;
 
-    approveForm.post(route('oficina.revisiones.status', approvingSubmissionId.value), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showApproveConfirm.value = false;
-            approvingSubmissionId.value = null;
+    approveForm.post(
+        route('oficina.revisiones.status', approvingSubmissionId.value),
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showApproveConfirm.value = false;
+                approvingSubmissionId.value = null;
+            },
         },
-    });
+    );
 }
 
 function handleApproveDialogUpdate(open: boolean) {

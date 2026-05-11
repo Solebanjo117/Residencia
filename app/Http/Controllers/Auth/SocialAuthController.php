@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Support\Auth\SocialProviderRegistry;
 use App\Services\Auth\SocialAuthenticationService;
+use App\Support\Auth\SocialProviderRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,8 +17,8 @@ class SocialAuthController extends Controller
 {
     public function redirect(string $provider): RedirectResponse
     {
-        if (!SocialProviderRegistry::isEnabled($provider)) {
-            return redirect()->route('login')->with('social_auth_error', 'El acceso con ' . ucfirst($provider) . ' no esta disponible en este momento.');
+        if (! SocialProviderRegistry::isEnabled($provider)) {
+            return redirect()->route('login')->with('social_auth_error', 'El acceso con '.ucfirst($provider).' no esta disponible en este momento.');
         }
 
         return Socialite::driver($provider)->redirect();
@@ -26,12 +26,12 @@ class SocialAuthController extends Controller
 
     public function callback(Request $request, string $provider, SocialAuthenticationService $service): RedirectResponse
     {
-        if (!SocialProviderRegistry::isEnabled($provider)) {
-            return redirect()->route('login')->with('social_auth_error', 'El acceso con ' . ucfirst($provider) . ' no esta disponible en este momento.');
+        if (! SocialProviderRegistry::isEnabled($provider)) {
+            return redirect()->route('login')->with('social_auth_error', 'El acceso con '.ucfirst($provider).' no esta disponible en este momento.');
         }
 
         if ($request->filled('error')) {
-            return redirect()->route('login')->with('social_auth_error', 'Se cancelo el acceso con ' . ucfirst($provider) . '.');
+            return redirect()->route('login')->with('social_auth_error', 'Se cancelo el acceso con '.ucfirst($provider).'.');
         }
 
         try {
@@ -64,8 +64,8 @@ class SocialAuthController extends Controller
     private function requiresTwoFactorChallenge($user): bool
     {
         return Features::canManageTwoFactorAuthentication()
-            && !is_null($user->two_factor_secret)
-            && !is_null($user->two_factor_confirmed_at);
+            && ! is_null($user->two_factor_secret)
+            && ! is_null($user->two_factor_confirmed_at);
     }
 
     private function resolveErrorMessage(Throwable $exception, string $provider): string
@@ -76,6 +76,6 @@ class SocialAuthController extends Controller
             return $message;
         }
 
-        return 'No se pudo completar el acceso con ' . ucfirst($provider) . '. Intenta nuevamente.';
+        return 'No se pudo completar el acceso con '.ucfirst($provider).'. Intenta nuevamente.';
     }
 }

@@ -16,12 +16,13 @@ class AdvisoryFile extends Model
         'mime_type',
         'size_bytes',
         'uploaded_at',
-        'uploaded_by_user_id'
+        'uploaded_by_user_id',
     ];
 
     protected $casts = [
         'uploaded_at' => 'datetime',
     ];
+
     public $timestamps = false;
 
     public function session()

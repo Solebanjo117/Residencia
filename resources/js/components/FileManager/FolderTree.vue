@@ -20,8 +20,12 @@ const emit = defineEmits<{
 const page = usePage();
 const nodeId = computed(() => String(props.node.id));
 const isVirtualNode = computed(() => Boolean(props.node.is_virtual));
-const hasChildren = computed(() => props.node.children && props.node.children.length > 0);
-const isOpen = computed(() => isVirtualNode.value || Boolean(props.expandedState[nodeId.value]));
+const hasChildren = computed(
+    () => props.node.children && props.node.children.length > 0,
+);
+const isOpen = computed(
+    () => isVirtualNode.value || Boolean(props.expandedState[nodeId.value]),
+);
 const isActive = computed(() => {
     if (isVirtualNode.value) {
         return false;
@@ -45,7 +49,10 @@ const toggle = () => {
 const onDragOver = (event: DragEvent) => {
     if (isVirtualNode.value) return;
 
-    if (event.dataTransfer?.types?.includes('Files') && !props.hasInternalDrag) {
+    if (
+        event.dataTransfer?.types?.includes('Files') &&
+        !props.hasInternalDrag
+    ) {
         return;
     }
 
@@ -64,7 +71,10 @@ const onDrop = (event: DragEvent) => {
     isDragOver.value = false;
     if (isVirtualNode.value) return;
 
-    if (event.dataTransfer?.types?.includes('Files') && !props.hasInternalDrag) {
+    if (
+        event.dataTransfer?.types?.includes('Files') &&
+        !props.hasInternalDrag
+    ) {
         event.preventDefault();
         return;
     }
@@ -78,7 +88,7 @@ const onDrop = (event: DragEvent) => {
     <div class="pl-2">
         <div
             class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
-            :class="{ 'ring-2 ring-blue-400 bg-blue-50': isDragOver }"
+            :class="{ 'bg-blue-50 ring-2 ring-blue-400': isDragOver }"
             @dragover="onDragOver($event)"
             @dragleave="onDragLeave"
             @drop="onDrop"
@@ -102,7 +112,10 @@ const onDrop = (event: DragEvent) => {
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
                 :class="{ 'font-semibold': isActive }"
             >
-                <component :is="isOpen ? FolderOpen : Folder" class="h-4 w-4 text-yellow-500" />
+                <component
+                    :is="isOpen ? FolderOpen : Folder"
+                    class="h-4 w-4 text-yellow-500"
+                />
                 {{ node.name }}
             </Link>
 
@@ -110,7 +123,10 @@ const onDrop = (event: DragEvent) => {
                 v-else
                 class="flex flex-1 items-center gap-2 text-sm font-semibold text-gray-700"
             >
-                <component :is="isOpen ? FolderOpen : Folder" class="h-4 w-4 text-yellow-500" />
+                <component
+                    :is="isOpen ? FolderOpen : Folder"
+                    class="h-4 w-4 text-yellow-500"
+                />
                 {{ node.name }}
             </div>
         </div>

@@ -25,19 +25,19 @@ function createDocxEditorContext(SubmissionStatus $submissionStatus = Submission
 {
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
-    $department = Department::create(['name' => 'DEP-DOCX-' . Str::upper(Str::random(6))]);
+    $department = Department::create(['name' => 'DEP-DOCX-'.Str::upper(Str::random(6))]);
     $teacher->departments()->attach($department->id);
 
     $semester = Semester::create([
-        'name' => 'SEM-DOCX-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-DOCX-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'DOCX-' . Str::upper(Str::random(5)),
-        'name' => 'Materia DOCX ' . Str::upper(Str::random(3)),
+        'code' => 'DOCX-'.Str::upper(Str::random(5)),
+        'name' => 'Materia DOCX '.Str::upper(Str::random(3)),
     ]);
 
     $load = TeachingLoad::create([
@@ -51,7 +51,7 @@ function createDocxEditorContext(SubmissionStatus $submissionStatus = Submission
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'DOCX ITEM ' . Str::upper(Str::random(4)),
+        'name' => 'DOCX ITEM '.Str::upper(Str::random(4)),
         'description' => 'Item para pruebas del editor DOCX',
         'requires_subject' => true,
         'active' => true,
@@ -68,7 +68,7 @@ function createDocxEditorContext(SubmissionStatus $submissionStatus = Submission
     ]);
 
     $root = StorageRoot::create([
-        'name' => 'root-docx-' . Str::lower(Str::random(8)),
+        'name' => 'root-docx-'.Str::lower(Str::random(8)),
         'base_path' => 'storage_root',
         'is_active' => true,
     ]);
@@ -76,7 +76,7 @@ function createDocxEditorContext(SubmissionStatus $submissionStatus = Submission
     $folder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'DOCX Folder',
-        'relative_path' => 'sem_' . $semester->id . '/docente_' . $teacher->id . '/docx_' . Str::lower(Str::random(6)),
+        'relative_path' => 'sem_'.$semester->id.'/docente_'.$teacher->id.'/docx_'.Str::lower(Str::random(6)),
         'owner_user_id' => $teacher->id,
         'semester_id' => $semester->id,
         'parent_id' => null,
@@ -99,16 +99,16 @@ function makeSimpleDocx(string $bodyXml, array $options = []): string
     $contentTypeOverrides = $options['content_type_overrides'] ?? [];
     $sectPrXml = $options['sect_pr_xml'] ?? '<w:sectPr/>';
 
-    $zip = new \ZipArchive();
+    $zip = new \ZipArchive;
     $zip->open($tempPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
 
     $contentTypeOverridesXml = '';
     if ($numberingXml !== null) {
-        $contentTypeOverridesXml .= PHP_EOL . '    <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>';
+        $contentTypeOverridesXml .= PHP_EOL.'    <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>';
     }
 
     foreach ($contentTypeOverrides as $partName => $contentType) {
-        $contentTypeOverridesXml .= PHP_EOL . '    <Override PartName="' . $partName . '" ContentType="' . $contentType . '"/>';
+        $contentTypeOverridesXml .= PHP_EOL.'    <Override PartName="'.$partName.'" ContentType="'.$contentType.'"/>';
     }
 
     $contentTypeDefaults = '';
@@ -126,7 +126,7 @@ function makeSimpleDocx(string $bodyXml, array $options = []): string
             continue;
         }
 
-        $contentTypeDefaults .= PHP_EOL . '    <Default Extension="' . $extension . '" ContentType="' . $mimeType . '"/>';
+        $contentTypeDefaults .= PHP_EOL.'    <Default Extension="'.$extension.'" ContentType="'.$mimeType.'"/>';
     }
 
     $zip->addFromString('[Content_Types].xml', <<<XML
@@ -150,7 +150,7 @@ XML);
 
     $relationshipLines = '';
     foreach ($documentRelationships as $relationship) {
-        $relationshipLines .= PHP_EOL . '    <Relationship Id="' . $relationship['id'] . '" Type="' . $relationship['type'] . '" Target="' . $relationship['target'] . '"/>';
+        $relationshipLines .= PHP_EOL.'    <Relationship Id="'.$relationship['id'].'" Type="'.$relationship['type'].'" Target="'.$relationship['target'].'"/>';
     }
 
     $zip->addFromString('word/_rels/document.xml.rels', <<<XML
@@ -282,10 +282,10 @@ it('renders the docx editor with extracted editable html', function () {
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
-    $storedPath = $ctx['folder']->relative_path . '/formato.docx';
+    $storedPath = $ctx['folder']->relative_path.'/formato.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx(
         sprintf(
-            <<<XML
+            <<<'XML'
 <w:p><w:r><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="32"/><w:color w:val="1F4E79"/></w:rPr><w:t>Titulo de prueba</w:t></w:r></w:p>
 <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Texto en negritas</w:t></w:r></w:p>
 %s
@@ -338,7 +338,7 @@ it('saves an edited docx as a new current revision without deleting the original
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
-    $storedPath = $ctx['folder']->relative_path . '/editable.docx';
+    $storedPath = $ctx['folder']->relative_path.'/editable.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Texto base</w:t></w:r></w:p>'));
 
     $file = EvidenceFile::create([
@@ -390,10 +390,10 @@ it('preserves images, explicit font metadata and real lists after saving a docx 
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
-    $storedPath = $ctx['folder']->relative_path . '/roundtrip.docx';
+    $storedPath = $ctx['folder']->relative_path.'/roundtrip.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx(
         sprintf(
-            <<<XML
+            <<<'XML'
 <w:p><w:r><w:rPr><w:rFonts w:ascii="Aptos"/><w:sz w:val="28"/><w:color w:val="2F5597"/></w:rPr><w:t>Texto base con fuente</w:t></w:r></w:p>
 %s
 XML,
@@ -430,7 +430,7 @@ XML,
     $response = $this
         ->actingAs($ctx['teacher'])
         ->post(route('files.docx.store', $file->id), [
-            'html' => $loaded['html'] . '<ol><li>Primer elemento</li><li>Segundo elemento</li></ol>',
+            'html' => $loaded['html'].'<ol><li>Primer elemento</li><li>Segundo elemento</li></ol>',
             'save_mode' => 'replace_current',
         ]);
 
@@ -448,7 +448,7 @@ XML,
     expect($reloaded['html'])->toContain('<ol>');
     expect($reloaded['html'])->toContain('Primer elemento');
 
-    $zip = new \ZipArchive();
+    $zip = new \ZipArchive;
     $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/numbering.xml'))->not->toBeFalse();
@@ -459,8 +459,8 @@ it('supports simple tables and paragraph presentation in a docx round trip', fun
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
-    $storedPath = $ctx['folder']->relative_path . '/tabla-estilos.docx';
-    $documentXml = sprintf(<<<XML
+    $storedPath = $ctx['folder']->relative_path.'/tabla-estilos.docx';
+    $documentXml = sprintf(<<<'XML'
 <w:p>
     <w:pPr>
         <w:jc w:val="center"/>
@@ -517,7 +517,7 @@ XML, sampleSimpleTableXml());
     expect($reloaded['html'])->toContain('data-docx-align="center"');
     expect($reloaded['html'])->toContain('<table class="docx-table"');
 
-    $zip = new \ZipArchive();
+    $zip = new \ZipArchive;
     $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/document.xml'))->toContain('<w:tbl>');
@@ -529,7 +529,7 @@ it('loads and saves editable header and footer content when the docx already def
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
-    $storedPath = $ctx['folder']->relative_path . '/encabezado-pie.docx';
+    $storedPath = $ctx['folder']->relative_path.'/encabezado-pie.docx';
     $bodyXml = '<w:p><w:r><w:t>Cuerpo principal</w:t></w:r></w:p>';
 
     Storage::disk('local')->put($storedPath, makeSimpleDocx(
@@ -599,7 +599,7 @@ it('loads and saves editable header and footer content when the docx already def
     expect($newFile)->not->toBeNull();
     $response->assertRedirect(route('files.docx.show', $newFile->id));
 
-    $zip = new \ZipArchive();
+    $zip = new \ZipArchive;
     $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/header1.xml'))->toContain('Encabezado editado');
@@ -629,7 +629,7 @@ it('blocks saving a docx when submission is pending and window is not open', fun
         'status' => WindowStatus::ACTIVE,
     ]);
 
-    $storedPath = $ctx['folder']->relative_path . '/pendiente.docx';
+    $storedPath = $ctx['folder']->relative_path.'/pendiente.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Base</w:t></w:r></w:p>'));
 
     $file = EvidenceFile::create([
@@ -682,7 +682,7 @@ it('allows saving a docx when submission is pending and window is open', functio
         'status' => WindowStatus::ACTIVE,
     ]);
 
-    $storedPath = $ctx['folder']->relative_path . '/pendiente.docx';
+    $storedPath = $ctx['folder']->relative_path.'/pendiente.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Base</w:t></w:r></w:p>'));
 
     $file = EvidenceFile::create([
@@ -720,7 +720,7 @@ it('renders the docx editor in read only mode when teacher can no longer replace
         'office_reviewed_at' => now(),
     ]);
 
-    $storedPath = $ctx['folder']->relative_path . '/solo-lectura.docx';
+    $storedPath = $ctx['folder']->relative_path.'/solo-lectura.docx';
     Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Solo lectura</w:t></w:r></w:p>'));
 
     $file = EvidenceFile::create([

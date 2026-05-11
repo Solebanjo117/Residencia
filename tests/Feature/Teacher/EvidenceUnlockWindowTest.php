@@ -24,15 +24,15 @@ function createTeacherEvidenceContext(): array
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-UNL-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-UNL-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-UNL-' . Str::upper(Str::random(6)),
-        'name' => 'Materia UNL ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-UNL-'.Str::upper(Str::random(6)),
+        'name' => 'Materia UNL '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -46,7 +46,7 @@ function createTeacherEvidenceContext(): array
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-UNL-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-UNL-'.Str::upper(Str::random(8)),
         'description' => 'Item unlock test',
         'requires_subject' => true,
         'active' => true,
@@ -62,7 +62,7 @@ function createTeacherEvidenceContext(): array
     ]);
 
     $root = StorageRoot::create([
-        'name' => 'root-unl-' . Str::lower(Str::random(8)),
+        'name' => 'root-unl-'.Str::lower(Str::random(8)),
         'base_path' => 'storage_root',
         'is_active' => true,
     ]);
@@ -70,7 +70,7 @@ function createTeacherEvidenceContext(): array
     $folder = FolderNode::create([
         'storage_root_id' => $root->id,
         'name' => 'Folder UNL',
-        'relative_path' => 'sem_' . $semester->id . '/docente_' . $teacher->id . '/item_' . $item->id,
+        'relative_path' => 'sem_'.$semester->id.'/docente_'.$teacher->id.'/item_'.$item->id,
         'owner_user_id' => $teacher->id,
         'semester_id' => $semester->id,
         'parent_id' => null,

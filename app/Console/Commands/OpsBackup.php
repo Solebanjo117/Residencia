@@ -29,11 +29,11 @@ class OpsBackup extends Command
 
         $snapshotName = $this->buildSnapshotName((string) $this->option('name'));
         $backupsPath = storage_path('app/backups');
-        $snapshotPath = $backupsPath . DIRECTORY_SEPARATOR . $snapshotName;
+        $snapshotPath = $backupsPath.DIRECTORY_SEPARATOR.$snapshotName;
 
         File::ensureDirectoryExists($snapshotPath);
 
-        $includeFiles = !$this->option('no-files');
+        $includeFiles = ! $this->option('no-files');
 
         Log::channel('operations')->info('backup.started', [
             'command' => $this->getName(),
@@ -74,13 +74,13 @@ class OpsBackup extends Command
             }
 
             if ($includeFiles) {
-                $filesBackupPath = $snapshotPath . DIRECTORY_SEPARATOR . 'storage_app';
+                $filesBackupPath = $snapshotPath.DIRECTORY_SEPARATOR.'storage_app';
                 $this->copyDirectoryContents(storage_path('app'), $filesBackupPath, ['backups']);
                 $manifest['files']['backup_path'] = 'storage_app';
             }
 
             File::put(
-                $snapshotPath . DIRECTORY_SEPARATOR . 'manifest.json',
+                $snapshotPath.DIRECTORY_SEPARATOR.'manifest.json',
                 json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
             );
 
@@ -108,7 +108,7 @@ class OpsBackup extends Command
                 'duration_ms' => $this->elapsedMs($startedAt),
             ]);
 
-            $this->error('Error durante backup: ' . $exception->getMessage());
+            $this->error('Error durante backup: '.$exception->getMessage());
 
             return self::FAILURE;
         }
@@ -118,7 +118,7 @@ class OpsBackup extends Command
     {
         $suffix = trim($rawName) !== '' ? Str::slug($rawName) : 'snapshot';
 
-        return $suffix . '_' . now()->format('Ymd_His');
+        return $suffix.'_'.now()->format('Ymd_His');
     }
 
     private function backupDatabase(string $snapshotPath, array &$manifest): ?string
@@ -134,11 +134,11 @@ class OpsBackup extends Command
 
         $sqlitePath = $this->resolveSqlitePath($connection);
 
-        if ($sqlitePath === null || !File::exists($sqlitePath)) {
+        if ($sqlitePath === null || ! File::exists($sqlitePath)) {
             return null;
         }
 
-        $target = $snapshotPath . DIRECTORY_SEPARATOR . 'database.sqlite';
+        $target = $snapshotPath.DIRECTORY_SEPARATOR.'database.sqlite';
         File::copy($sqlitePath, $target);
 
         $manifest['database']['source'] = $sqlitePath;
@@ -151,7 +151,7 @@ class OpsBackup extends Command
     {
         $configuredPath = config("database.connections.{$connection}.database");
 
-        if (!is_string($configuredPath) || $configuredPath === '' || $configuredPath === ':memory:') {
+        if (! is_string($configuredPath) || $configuredPath === '' || $configuredPath === ':memory:') {
             return null;
         }
 
@@ -175,13 +175,13 @@ class OpsBackup extends Command
 
             $this->copyDirectoryContents(
                 $directory,
-                $destination . DIRECTORY_SEPARATOR . $name,
+                $destination.DIRECTORY_SEPARATOR.$name,
                 $excludedTopLevel
             );
         }
 
         foreach (File::files($source) as $file) {
-            File::copy($file->getPathname(), $destination . DIRECTORY_SEPARATOR . $file->getFilename());
+            File::copy($file->getPathname(), $destination.DIRECTORY_SEPARATOR.$file->getFilename());
         }
     }
 

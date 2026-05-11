@@ -13,7 +13,7 @@ return new class extends Migration
             ->orderByDesc('id')
             ->value('id');
 
-        if (!$activeSemesterId) {
+        if (! $activeSemesterId) {
             return;
         }
 

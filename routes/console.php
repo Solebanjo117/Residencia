@@ -1,15 +1,15 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schedule;
-use Illuminate\Support\Facades\Hash;
 use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\Role;
 use App\Models\StorageRoot;
 use App\Models\User;
+use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -61,7 +61,7 @@ Artisan::command('residencia:bootstrap {--admin-name=Jefe de Departamento : Nomb
             ],
         );
 
-        if (!$this->option('skip-evidence-catalog')) {
+        if (! $this->option('skip-evidence-catalog')) {
             $category = EvidenceCategory::firstOrCreate(
                 ['name' => 'I_CARGA_ACADEMICA'],
                 ['description' => 'Evidencias relacionadas a la carga academica'],

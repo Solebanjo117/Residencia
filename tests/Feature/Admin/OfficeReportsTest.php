@@ -21,15 +21,15 @@ function createOfficeReportsContext(): array
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-REP-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-REP-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-REP-' . Str::upper(Str::random(6)),
-        'name' => 'Materia REP ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-REP-'.Str::upper(Str::random(6)),
+        'name' => 'Materia REP '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -43,7 +43,7 @@ function createOfficeReportsContext(): array
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $itemSubmitted = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-REP-SUB-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-REP-SUB-'.Str::upper(Str::random(8)),
         'description' => 'Item reportes test',
         'requires_subject' => true,
         'active' => true,
@@ -51,7 +51,7 @@ function createOfficeReportsContext(): array
 
     $itemApproved = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-REP-APP-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-REP-APP-'.Str::upper(Str::random(8)),
         'description' => 'Item reportes test approved',
         'requires_subject' => true,
         'active' => true,

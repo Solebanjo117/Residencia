@@ -43,10 +43,7 @@ function decodeLabel(label: string): string {
             >
                 {{ decodeLabel(link.label) }}
             </Link>
-            <span
-                v-else
-                class="px-3 py-1 text-sm text-muted-foreground"
-            >
+            <span v-else class="px-3 py-1 text-sm text-muted-foreground">
                 {{ decodeLabel(link.label) }}
             </span>
         </template>

@@ -17,7 +17,7 @@ class NotificationSchedule extends Model
         'evidence_item_id',
         'notify_at',
         'notification_type',
-        'is_sent'
+        'is_sent',
     ];
 
     protected $casts = [

@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import type { BreadcrumbItem } from '@/types';
 import { disable, enable, show } from '@/routes/two-factor';
+import type { BreadcrumbItem } from '@/types';
 
 type Props = {
     requiresConfirmation?: boolean;
@@ -59,7 +59,10 @@ onUnmounted(() => {
                     <Badge variant="destructive">Desactivado</Badge>
 
                     <p class="text-muted-foreground">
-                        Al activar la autenticación en dos pasos, se te solicitará un código seguro al iniciar sesión. Este código se obtiene de una aplicación compatible con TOTP en tu teléfono.
+                        Al activar la autenticación en dos pasos, se te
+                        solicitará un código seguro al iniciar sesión. Este
+                        código se obtiene de una aplicación compatible con TOTP
+                        en tu teléfono.
                     </p>
 
                     <div>
@@ -89,7 +92,10 @@ onUnmounted(() => {
                     <Badge variant="default">Activado</Badge>
 
                     <p class="text-muted-foreground">
-                        Con la autenticación en dos pasos activada, se te solicitará un código seguro y aleatorio al iniciar sesión, el cual se obtiene de la aplicación compatible con TOTP en tu teléfono.
+                        Con la autenticación en dos pasos activada, se te
+                        solicitará un código seguro y aleatorio al iniciar
+                        sesión, el cual se obtiene de la aplicación compatible
+                        con TOTP en tu teléfono.
                     </p>
 
                     <TwoFactorRecoveryCodes />

@@ -29,7 +29,7 @@ class FolderStructureService
     public function ensureSemesterFolder(Semester $semester): FolderNode
     {
         $storageRoot = StorageRoot::where('is_active', true)->first();
-        if (!$storageRoot) {
+        if (! $storageRoot) {
             $storageRoot = StorageRoot::create([
                 'name' => 'Root Storage',
                 'base_path' => 'storage_root',
@@ -63,7 +63,7 @@ class FolderStructureService
             [
                 'storage_root_id' => $semesterFolder->storage_root_id,
                 'name' => $teacher->name,
-                'relative_path' => $semesterFolder->relative_path . '/' . Str::slug($teacher->name),
+                'relative_path' => $semesterFolder->relative_path.'/'.Str::slug($teacher->name),
             ]
         );
     }
@@ -72,7 +72,7 @@ class FolderStructureService
     {
         $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
 
-        if (!$docenteRoleId) {
+        if (! $docenteRoleId) {
             return;
         }
 
@@ -93,7 +93,7 @@ class FolderStructureService
         $root = StorageRoot::findOrFail($teacherFolder->storage_root_id);
         $structure = $this->filteredStructureForTeacher($teacher, $allowedPermissionKeys);
 
-        if (!empty($structure)) {
+        if (! empty($structure)) {
             $this->createRecursiveFolders($structure, $teacherFolder, $root, $teacher, $semester);
         }
 
@@ -112,13 +112,13 @@ class FolderStructureService
                     'name' => $subjectName,
                 ],
                 [
-                    'relative_path' => $teacherFolder->relative_path . '/' . Str::slug($subjectName),
+                    'relative_path' => $teacherFolder->relative_path.'/'.Str::slug($subjectName),
                     'owner_user_id' => $teacher->id,
                     'semester_id' => $semester->id,
                 ]
             );
 
-            if (!empty($structure)) {
+            if (! empty($structure)) {
                 $this->createRecursiveFolders($structure, $subjectFolder, $root, $teacher, $semester);
             }
         }
@@ -135,7 +135,7 @@ class FolderStructureService
                 ->pluck('id')
                 ->all();
 
-            if (!empty($teacherNodeIds)) {
+            if (! empty($teacherNodeIds)) {
                 EvidenceFile::withTrashed()
                     ->whereIn('folder_node_id', $teacherNodeIds)
                     ->forceDelete();
@@ -171,7 +171,7 @@ class FolderStructureService
         $allKeys = $this->allFolderPermissionKeys();
         $configured = $teacher->folder_permission_keys;
 
-        if (!is_array($configured)) {
+        if (! is_array($configured)) {
             return $allKeys;
         }
 
@@ -239,13 +239,13 @@ class FolderStructureService
                     'parent_id' => $parent->id,
                 ],
                 [
-                    'relative_path' => $parent->relative_path . '/' . $folderName,
+                    'relative_path' => $parent->relative_path.'/'.$folderName,
                     'owner_user_id' => $owner->id,
                     'semester_id' => $semester->id,
                 ]
             );
 
-            if (!empty($children)) {
+            if (! empty($children)) {
                 $this->createRecursiveFolders($children, $node, $root, $owner, $semester);
             }
         }
@@ -261,7 +261,7 @@ class FolderStructureService
         foreach ($structure as $key => $value) {
             $folderName = is_numeric($key) ? (string) $value : (string) $key;
             $children = is_array($value) ? $value : [];
-            $nodeKey = $prefix === '' ? $folderName : $prefix . '/' . $folderName;
+            $nodeKey = $prefix === '' ? $folderName : $prefix.'/'.$folderName;
 
             $catalog[] = [
                 'key' => $nodeKey,
@@ -270,7 +270,7 @@ class FolderStructureService
                 'parent_key' => $parentKey,
             ];
 
-            if (!empty($children)) {
+            if (! empty($children)) {
                 $this->flattenPermissionCatalog($children, $nodeKey, $depth + 1, $nodeKey, $catalog);
             }
         }
@@ -282,20 +282,21 @@ class FolderStructureService
 
         foreach ($structure as $key => $value) {
             $folderName = is_numeric($key) ? (string) $value : (string) $key;
-            $nodeKey = $prefix === '' ? $folderName : $prefix . '/' . $folderName;
+            $nodeKey = $prefix === '' ? $folderName : $prefix.'/'.$folderName;
             $children = is_array($value) ? $value : [];
-            $filteredChildren = !empty($children)
+            $filteredChildren = ! empty($children)
                 ? $this->filterStructureByPermissionKeys($children, $allowedSet, $nodeKey)
                 : [];
 
             $isAllowed = isset($allowedSet[$nodeKey]);
 
-            if (!$isAllowed && empty($filteredChildren)) {
+            if (! $isAllowed && empty($filteredChildren)) {
                 continue;
             }
 
             if (is_numeric($key)) {
                 $filtered[] = $folderName;
+
                 continue;
             }
 

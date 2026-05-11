@@ -21,7 +21,9 @@ defineProps<{
                 :href="home()"
                 class="relative z-20 flex items-center text-lg font-medium"
             >
-                <span class="mr-3 flex size-12 items-center justify-center overflow-hidden rounded-full bg-white">
+                <span
+                    class="mr-3 flex size-12 items-center justify-center overflow-hidden rounded-full bg-white"
+                >
                     <AppLogoIcon class="size-12 object-contain" />
                 </span>
                 Tecnológico de Piedras Negras

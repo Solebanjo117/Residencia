@@ -45,7 +45,9 @@ onMounted(async () => {
                 <LockKeyhole class="size-4" />Códigos de recuperación 2FA
             </CardTitle>
             <CardDescription>
-                Los códigos de recuperación te permiten recuperar acceso si pierdes tu dispositivo 2FA. Guárdalos en un gestor de contraseñas seguro.
+                Los códigos de recuperación te permiten recuperar acceso si
+                pierdes tu dispositivo 2FA. Guárdalos en un gestor de
+                contraseñas seguro.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,7 +111,9 @@ onMounted(async () => {
                         </div>
                     </div>
                     <p class="text-xs text-muted-foreground select-none">
-                        Cada código de recuperación se puede usar una sola vez para acceder a tu cuenta y se eliminará después de su uso. Si necesitas más, haz clic en
+                        Cada código de recuperación se puede usar una sola vez
+                        para acceder a tu cuenta y se eliminará después de su
+                        uso. Si necesitas más, haz clic en
                         <span class="font-bold">Regenerar códigos</span> arriba.
                     </p>
                 </div>

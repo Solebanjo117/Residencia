@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\AuditLog;
 
 class AuditController extends Controller
 {
@@ -27,8 +27,8 @@ class AuditController extends Controller
                 $q->whereHas('user', function ($uq) use ($search) {
                     $uq->where('name', 'like', "%{$search}%");
                 })
-                ->orWhere('action', 'like', "%{$search}%")
-                ->orWhere('entity_type', 'like', "%{$search}%");
+                    ->orWhere('action', 'like', "%{$search}%")
+                    ->orWhere('entity_type', 'like', "%{$search}%");
             });
         }
 
@@ -38,11 +38,12 @@ class AuditController extends Controller
         $logs->transform(function ($log) {
             $log->user_name = $log->user?->name;
             $log->user_email = $log->user?->email;
+
             return $log;
         });
 
         return Inertia::render('Admin/AuditLogs', [
-            'logs' => $logs
+            'logs' => $logs,
         ]);
     }
 }

@@ -1,13 +1,13 @@
 <?php
 
+use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
-use App\Models\Department;
 use App\Models\Role;
 use App\Models\Semester;
-use App\Models\SubmissionWindow;
 use App\Models\Subject;
+use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -17,20 +17,20 @@ function createTeacherInitContext(): array
     $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
     $department = Department::create([
-        'name' => 'Dept INIT ' . Str::upper(Str::random(4)),
+        'name' => 'Dept INIT '.Str::upper(Str::random(4)),
     ]);
     $teacher->departments()->attach($department->id);
 
     $semester = Semester::create([
-        'name' => 'SEM-INIT-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-INIT-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-INIT-' . Str::upper(Str::random(6)),
-        'name' => 'Materia Init ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-INIT-'.Str::upper(Str::random(6)),
+        'name' => 'Materia Init '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -44,7 +44,7 @@ function createTeacherInitContext(): array
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-INIT-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-INIT-'.Str::upper(Str::random(8)),
         'description' => 'Item init test',
         'requires_subject' => true,
         'active' => true,

@@ -2,7 +2,14 @@
 import { useVModel } from '@vueuse/core';
 import { Check, ChevronsUpDown, Search } from 'lucide-vue-next';
 import type { HTMLAttributes } from 'vue';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    watch,
+} from 'vue';
 import { cn } from '@/lib/utils';
 
 type SearchableSelectValue = string | number | null;
@@ -41,7 +48,13 @@ const props = withDefaults(
 
 const emits = defineEmits<{
     (e: 'update:modelValue', payload: SearchableSelectValue): void;
-    (e: 'change', payload: { value: SearchableSelectValue; option: SearchableSelectOption | null }): void;
+    (
+        e: 'change',
+        payload: {
+            value: SearchableSelectValue;
+            option: SearchableSelectOption | null;
+        },
+    ): void;
 }>();
 
 const modelValue = useVModel(props, 'modelValue', emits, {
@@ -61,7 +74,11 @@ const selectedOption = computed(() => {
 
     const normalizedValue = String(modelValue.value);
 
-    return props.options.find((option) => String(option.value) === normalizedValue) ?? null;
+    return (
+        props.options.find(
+            (option) => String(option.value) === normalizedValue,
+        ) ?? null
+    );
 });
 
 const filteredOptions = computed(() => {
@@ -78,7 +95,9 @@ const filteredOptions = computed(() => {
               ? [option.keywords]
               : [];
 
-        const searchable = [option.label, ...keywords].join(' ').toLocaleLowerCase();
+        const searchable = [option.label, ...keywords]
+            .join(' ')
+            .toLocaleLowerCase();
 
         return searchable.includes(query);
     });
@@ -146,7 +165,11 @@ const onTriggerKeydown = (event: KeyboardEvent) => {
         return;
     }
 
-    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+    if (
+        event.key === 'Enter' ||
+        event.key === ' ' ||
+        event.key === 'ArrowDown'
+    ) {
         event.preventDefault();
         void openDropdown();
     }
@@ -180,7 +203,7 @@ onBeforeUnmount(() => {
             :class="
                 cn(
                     'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-sm transition-colors',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200',
+                    'focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none',
                     'hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-60',
                     triggerClass,
                 )
@@ -188,7 +211,10 @@ onBeforeUnmount(() => {
             @click="toggleDropdown"
             @keydown="onTriggerKeydown"
         >
-            <span class="truncate" :class="selectedOption ? 'text-gray-900' : 'text-gray-400'">
+            <span
+                class="truncate"
+                :class="selectedOption ? 'text-gray-900' : 'text-gray-400'"
+            >
                 {{ selectedOption ? selectedOption.label : placeholder }}
             </span>
 
@@ -197,11 +223,18 @@ onBeforeUnmount(() => {
 
         <div
             v-if="isOpen"
-            :class="cn('absolute z-50 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg', dropdownClass)"
+            :class="
+                cn(
+                    'absolute z-50 mt-2 w-full rounded-md border border-gray-200 bg-white shadow-lg',
+                    dropdownClass,
+                )
+            "
         >
             <div class="border-b border-gray-100 p-2">
                 <div class="relative">
-                    <Search class="pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Search
+                        class="pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    />
                     <input
                         ref="searchInputRef"
                         v-model="searchTerm"
@@ -214,11 +247,17 @@ onBeforeUnmount(() => {
             </div>
 
             <ul role="listbox" class="max-h-64 overflow-y-auto py-1">
-                <li v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
+                <li
+                    v-if="filteredOptions.length === 0"
+                    class="px-3 py-2 text-sm text-gray-500"
+                >
                     {{ emptyText }}
                 </li>
 
-                <li v-for="option in filteredOptions" :key="String(option.value)">
+                <li
+                    v-for="option in filteredOptions"
+                    :key="String(option.value)"
+                >
                     <button
                         type="button"
                         role="option"
@@ -226,12 +265,21 @@ onBeforeUnmount(() => {
                         :disabled="option.disabled"
                         class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
                         :class="[
-                            isSelected(option) ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50',
-                            option.disabled ? 'cursor-not-allowed opacity-50' : '',
+                            isSelected(option)
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-700 hover:bg-gray-50',
+                            option.disabled
+                                ? 'cursor-not-allowed opacity-50'
+                                : '',
                         ]"
                         @click="selectOption(option)"
                     >
-                        <Check class="h-4 w-4 shrink-0" :class="isSelected(option) ? 'opacity-100' : 'opacity-0'" />
+                        <Check
+                            class="h-4 w-4 shrink-0"
+                            :class="
+                                isSelected(option) ? 'opacity-100' : 'opacity-0'
+                            "
+                        />
                         <span class="truncate">{{ option.label }}</span>
                     </button>
                 </li>

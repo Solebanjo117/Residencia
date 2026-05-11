@@ -15,11 +15,11 @@ return new class extends Migration
             // Modify existing columns
             $table->string('name', 120)->change();
             $table->string('email', 160)->change();
-            
+
             // Add new columns
-            $table->unsignedTinyInteger('role_id')->after('password'); 
+            $table->unsignedTinyInteger('role_id')->after('password');
             $table->boolean('is_active')->default(true)->after('role_id');
-            
+
             $table->foreign('role_id')->references('id')->on('roles');
         });
     }
@@ -32,7 +32,7 @@ return new class extends Migration
         Schema::table('users', function (Blueprint $table) {
             $table->dropForeign(['role_id']);
             $table->dropColumn(['role_id', 'is_active']);
-            
+
             $table->string('name', 255)->change();
             $table->string('email', 255)->change();
         });

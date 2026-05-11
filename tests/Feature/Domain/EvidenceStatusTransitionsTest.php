@@ -18,15 +18,15 @@ function createSubmissionForTransitionTest(SubmissionStatus $status): array
     $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
 
     $semester = Semester::create([
-        'name' => 'SEM-TR-' . Str::upper(Str::random(6)),
+        'name' => 'SEM-TR-'.Str::upper(Str::random(6)),
         'start_date' => now()->subMonth()->toDateString(),
         'end_date' => now()->addMonth()->toDateString(),
         'status' => 'OPEN',
     ]);
 
     $subject = Subject::create([
-        'code' => 'SUBJ-TR-' . Str::upper(Str::random(6)),
-        'name' => 'Materia TR ' . Str::upper(Str::random(4)),
+        'code' => 'SUBJ-TR-'.Str::upper(Str::random(6)),
+        'name' => 'Materia TR '.Str::upper(Str::random(4)),
     ]);
 
     $load = TeachingLoad::create([
@@ -40,7 +40,7 @@ function createSubmissionForTransitionTest(SubmissionStatus $status): array
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $item = EvidenceItem::create([
         'category_id' => $categoryId,
-        'name' => 'ITEM-TR-' . Str::upper(Str::random(8)),
+        'name' => 'ITEM-TR-'.Str::upper(Str::random(8)),
         'description' => 'Item transition test',
         'requires_subject' => true,
         'active' => true,

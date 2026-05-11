@@ -1,6 +1,20 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Folder, FileText, Eye, Download, Trash2, Upload, RefreshCw, X, FolderPlus, Pencil, ArrowRightLeft, Move, AlertTriangle } from 'lucide-vue-next';
+import {
+    Folder,
+    FileText,
+    Eye,
+    Download,
+    Trash2,
+    Upload,
+    RefreshCw,
+    X,
+    FolderPlus,
+    Pencil,
+    ArrowRightLeft,
+    Move,
+    AlertTriangle,
+} from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import FolderTree from '@/components/FileManager/FolderTree.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -8,23 +22,21 @@ import { type BreadcrumbItem } from '@/types';
 
 const props = defineProps<{
     folderTree: any[];
-    currentFolder:
-        | {
-              id: number;
-              name: string;
-              parent_id?: number | null;
-              can_upload: boolean;
-              can_create_folder?: boolean;
-              can_rename?: boolean;
-              can_move?: boolean;
-              can_delete?: boolean;
-              ancestors?: Array<{
-                  id: number;
-                  name: string;
-                  can_view: boolean;
-              }>;
-          }
-        | null;
+    currentFolder: {
+        id: number;
+        name: string;
+        parent_id?: number | null;
+        can_upload: boolean;
+        can_create_folder?: boolean;
+        can_rename?: boolean;
+        can_move?: boolean;
+        can_delete?: boolean;
+        ancestors?: Array<{
+            id: number;
+            name: string;
+            can_view: boolean;
+        }>;
+    } | null;
     semesterName?: string | null;
     allowedExtensions?: string[];
     contents: {
@@ -70,7 +82,10 @@ const persistExpandedFolders = () => {
         return;
     }
 
-    window.sessionStorage.setItem(expandedFoldersStorageKey, JSON.stringify(expandedFolders.value));
+    window.sessionStorage.setItem(
+        expandedFoldersStorageKey,
+        JSON.stringify(expandedFolders.value),
+    );
 };
 
 const setFolderExpanded = (folderId: string | number, isExpanded: boolean) => {
@@ -122,7 +137,10 @@ const loadLeftPanelWidth = () => {
         return;
     }
 
-    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, parsed));
+    leftPanelWidth.value = Math.max(
+        leftPanelMinWidth,
+        Math.min(leftPanelMaxWidth, parsed),
+    );
 };
 
 const persistLeftPanelWidth = () => {
@@ -130,7 +148,10 @@ const persistLeftPanelWidth = () => {
         return;
     }
 
-    window.localStorage.setItem(leftPanelWidthStorageKey, String(leftPanelWidth.value));
+    window.localStorage.setItem(
+        leftPanelWidthStorageKey,
+        String(leftPanelWidth.value),
+    );
 };
 
 const onResizeMove = (event: MouseEvent) => {
@@ -147,7 +168,10 @@ const onResizeMove = (event: MouseEvent) => {
     const startingWidthPx = (resizeStartWidth.value / 100) * bounds.width;
     const nextWidthPercent = ((startingWidthPx + deltaX) / bounds.width) * 100;
 
-    leftPanelWidth.value = Math.max(leftPanelMinWidth, Math.min(leftPanelMaxWidth, nextWidthPercent));
+    leftPanelWidth.value = Math.max(
+        leftPanelMinWidth,
+        Math.min(leftPanelMaxWidth, nextWidthPercent),
+    );
 };
 
 const stopResizing = () => {
@@ -214,11 +238,21 @@ const allowedExtensionsSet = computed(() => {
     return new Set(extensions.map((e) => e.toLowerCase()));
 });
 
-const canUploadCurrentFolder = computed(() => Boolean(props.currentFolder?.can_upload));
-const canCreateFolder = computed(() => Boolean(props.currentFolder?.can_create_folder));
-const canRenameCurrentFolder = computed(() => Boolean(props.currentFolder?.can_rename));
-const canMoveCurrentFolder = computed(() => Boolean(props.currentFolder?.can_move));
-const canDeleteCurrentFolder = computed(() => Boolean(props.currentFolder?.can_delete));
+const canUploadCurrentFolder = computed(() =>
+    Boolean(props.currentFolder?.can_upload),
+);
+const canCreateFolder = computed(() =>
+    Boolean(props.currentFolder?.can_create_folder),
+);
+const canRenameCurrentFolder = computed(() =>
+    Boolean(props.currentFolder?.can_rename),
+);
+const canMoveCurrentFolder = computed(() =>
+    Boolean(props.currentFolder?.can_move),
+);
+const canDeleteCurrentFolder = computed(() =>
+    Boolean(props.currentFolder?.can_delete),
+);
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -333,7 +367,9 @@ const handleFileSelected = (event: Event) => {
             .then(() => {
                 target.value = '';
                 uploadSuccess.value = 'Archivo subido correctamente.';
-                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+                setTimeout(() => {
+                    uploadSuccess.value = '';
+                }, 3000);
                 router.reload({ preserveScroll: true });
             })
             .catch((err: Error) => {
@@ -352,7 +388,11 @@ const handleReplaceSelected = (event: Event) => {
     const target = event.target as HTMLInputElement;
     uploadError.value = '';
     uploadSuccess.value = '';
-    if (target.files && target.files.length > 0 && fileToReplace.value !== null) {
+    if (
+        target.files &&
+        target.files.length > 0 &&
+        fileToReplace.value !== null
+    ) {
         replaceForm.file = target.files[0];
         replaceForm.post(`/files/${fileToReplace.value}/replace`, {
             preserveScroll: true,
@@ -361,13 +401,16 @@ const handleReplaceSelected = (event: Event) => {
                 fileToReplace.value = null;
                 replaceForm.reset();
                 uploadSuccess.value = 'Archivo reemplazado correctamente.';
-                setTimeout(() => { uploadSuccess.value = ''; }, 3000);
+                setTimeout(() => {
+                    uploadSuccess.value = '';
+                }, 3000);
             },
             onError: (errors: any) => {
                 target.value = '';
                 fileToReplace.value = null;
                 replaceForm.reset();
-                uploadError.value = errors.file || 'Error al reemplazar archivo.';
+                uploadError.value =
+                    errors.file || 'Error al reemplazar archivo.';
             },
         });
     }
@@ -389,7 +432,7 @@ const dropUploadProgress = ref({ total: 0, completed: 0 });
 let externalDragCounter = 0;
 
 const isExternalFileDrag = (event: DragEvent): boolean => {
-    return !!(event.dataTransfer?.types?.includes('Files'));
+    return !!event.dataTransfer?.types?.includes('Files');
 };
 
 const onContentDragEnter = (event: DragEvent) => {
@@ -429,8 +472,11 @@ const onContentDrop = async (event: DragEvent) => {
     externalDragCounter = 0;
 
     if (!props.currentFolder || !canUploadCurrentFolder.value) {
-        uploadError.value = 'No tienes permiso para subir archivos en esta carpeta.';
-        setTimeout(() => { uploadError.value = ''; }, 4000);
+        uploadError.value =
+            'No tienes permiso para subir archivos en esta carpeta.';
+        setTimeout(() => {
+            uploadError.value = '';
+        }, 4000);
         return;
     }
 
@@ -444,15 +490,21 @@ const onContentDrop = async (event: DragEvent) => {
         const file = files[i];
         if (file.size === 0) continue;
 
-        const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
+        const ext = file.name.includes('.')
+            ? file.name.split('.').pop()!.toLowerCase()
+            : '';
         if (ext && allowedExtensionsSet.value.has(ext)) {
             validFiles.push(file);
         }
     }
 
     if (validFiles.length === 0) {
-        uploadError.value = 'Formato no permitido. Formatos validos: ' + [...allowedExtensionsSet.value].join(', ');
-        setTimeout(() => { uploadError.value = ''; }, 4000);
+        uploadError.value =
+            'Formato no permitido. Formatos validos: ' +
+            [...allowedExtensionsSet.value].join(', ');
+        setTimeout(() => {
+            uploadError.value = '';
+        }, 4000);
         return;
     }
 
@@ -500,7 +552,13 @@ const onContentDrop = async (event: DragEvent) => {
 
 // ---- Folder Management Modals ----
 
-type ModalType = 'createFolder' | 'renameFolder' | 'moveFolder' | 'deleteFolder' | 'moveFile' | null;
+type ModalType =
+    | 'createFolder'
+    | 'renameFolder'
+    | 'moveFolder'
+    | 'deleteFolder'
+    | 'moveFile'
+    | null;
 
 const activeModal = ref<ModalType>(null);
 const processingAction = ref(false);
@@ -612,7 +670,8 @@ const submitMoveFolder = () => {
             router.reload({ preserveScroll: true });
         },
         onError: (errors: any) => {
-            modalError.value = errors.target_folder_id || 'Error al mover carpeta.';
+            modalError.value =
+                errors.target_folder_id || 'Error al mover carpeta.';
             processingAction.value = false;
         },
         onFinish: () => {
@@ -632,7 +691,8 @@ const submitMoveFile = () => {
             router.reload({ preserveScroll: true });
         },
         onError: (errors: any) => {
-            modalError.value = errors.target_folder_id || 'Error al mover archivo.';
+            modalError.value =
+                errors.target_folder_id || 'Error al mover archivo.';
             processingAction.value = false;
         },
         onFinish: () => {
@@ -660,7 +720,12 @@ const submitDeleteFolder = () => {
 };
 
 const moveTargets = computed(() => {
-    const targets: Array<{ id: number | string; name: string; depth: number; disabled: boolean }> = [];
+    const targets: Array<{
+        id: number | string;
+        name: string;
+        depth: number;
+        disabled: boolean;
+    }> = [];
     const excludeIds = new Set<number>();
 
     if (activeModal.value === 'moveFolder' && selectedFolder.value) {
@@ -734,7 +799,8 @@ const onDropOnFolder = (targetFolderId: number) => {
                 router.reload({ preserveScroll: true });
             },
             onError: (errors: any) => {
-                uploadError.value = errors.target_folder_id || 'Error al mover archivo.';
+                uploadError.value =
+                    errors.target_folder_id || 'Error al mover archivo.';
                 dragItem.value = null;
                 dragType.value = null;
                 moveTargetId.value = '';
@@ -759,7 +825,8 @@ const onDropOnFolder = (targetFolderId: number) => {
                 router.reload({ preserveScroll: true });
             },
             onError: (errors: any) => {
-                uploadError.value = errors.target_folder_id || 'Error al mover carpeta.';
+                uploadError.value =
+                    errors.target_folder_id || 'Error al mover carpeta.';
                 dragItem.value = null;
                 dragType.value = null;
                 moveTargetId.value = '';
@@ -793,8 +860,14 @@ const onFolderAction = (action: string, folder: any) => {
     <Head title="Gestor de Archivos" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div ref="containerRef" class="flex h-[calc(100vh-4rem)] overflow-hidden">
-            <div class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4" :style="{ width: `${leftPanelWidth}%` }">
+        <div
+            ref="containerRef"
+            class="flex h-[calc(100vh-4rem)] overflow-hidden"
+        >
+            <div
+                class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
+                :style="{ width: `${leftPanelWidth}%` }"
+            >
                 <h3 class="mb-4 px-2 font-semibold text-gray-700">Carpetas</h3>
                 <FolderTree
                     v-for="root in folderTree"
@@ -813,7 +886,9 @@ const onFolderAction = (action: string, folder: any) => {
                 :class="{ 'bg-blue-400': isResizing }"
                 @mousedown.prevent="startResizing"
             >
-                <div class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"></div>
+                <div
+                    class="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-transparent group-hover:bg-blue-500"
+                ></div>
             </div>
 
             <div
@@ -830,24 +905,67 @@ const onFolderAction = (action: string, folder: any) => {
                 >
                     <div class="text-center">
                         <Upload class="mx-auto mb-2 h-10 w-10 text-blue-500" />
-                        <p class="text-lg font-semibold text-blue-700">Suelta archivos para subirlos a esta carpeta</p>
-                        <p v-if="!canUploadCurrentFolder" class="mt-1 text-sm text-red-600">No tienes permiso para subir archivos en esta carpeta.</p>
+                        <p class="text-lg font-semibold text-blue-700">
+                            Suelta archivos para subirlos a esta carpeta
+                        </p>
+                        <p
+                            v-if="!canUploadCurrentFolder"
+                            class="mt-1 text-sm text-red-600"
+                        >
+                            No tienes permiso para subir archivos en esta
+                            carpeta.
+                        </p>
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between border-b border-gray-200 p-4">
+                <div
+                    class="flex items-center justify-between border-b border-gray-200 p-4"
+                >
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">
-                            {{ currentFolder ? currentFolder.name : 'Selecciona una carpeta' }}
+                            {{
+                                currentFolder
+                                    ? currentFolder.name
+                                    : 'Selecciona una carpeta'
+                            }}
                         </h2>
                         <span v-if="semesterName" class="text-xs text-gray-500">
                             Semestre: <b>{{ semesterName }}</b>
                         </span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <div v-if="uploadForm.processing || processingAction || isUploadingDroppedFiles" class="flex items-center gap-2 text-sm text-blue-600">
-                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                            <template v-if="isUploadingDroppedFiles">Subiendo {{ dropUploadProgress.completed }}/{{ dropUploadProgress.total }}...</template>
+                        <div
+                            v-if="
+                                uploadForm.processing ||
+                                processingAction ||
+                                isUploadingDroppedFiles
+                            "
+                            class="flex items-center gap-2 text-sm text-blue-600"
+                        >
+                            <svg
+                                class="h-4 w-4 animate-spin"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    class="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    stroke-width="4"
+                                    fill="none"
+                                />
+                                <path
+                                    class="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                            <template v-if="isUploadingDroppedFiles"
+                                >Subiendo {{ dropUploadProgress.completed }}/{{
+                                    dropUploadProgress.total
+                                }}...</template
+                            >
                             <template v-else>Procesando...</template>
                         </div>
                         <template v-if="currentFolder">
@@ -893,10 +1011,15 @@ const onFolderAction = (action: string, folder: any) => {
                             </button>
                         </template>
                         <button
-                            v-if="currentFolder && canUploadCurrentFolder && !uploadForm.processing && !isUploadingDroppedFiles"
+                            v-if="
+                                currentFolder &&
+                                canUploadCurrentFolder &&
+                                !uploadForm.processing &&
+                                !isUploadingDroppedFiles
+                            "
                             type="button"
                             @click="triggerUpload"
-                            class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:outline-none focus:ring active:bg-blue-900 disabled:opacity-25"
+                            class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-xs font-semibold tracking-widest text-white uppercase ring-blue-300 transition duration-150 ease-in-out hover:bg-blue-700 focus:border-blue-900 focus:ring focus:outline-none active:bg-blue-900 disabled:opacity-25"
                         >
                             <Upload class="mr-2 h-4 w-4" />
                             Subir Archivo
@@ -918,46 +1041,77 @@ const onFolderAction = (action: string, folder: any) => {
                     </div>
                 </div>
 
-                <div v-if="uploadError" class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                <div
+                    v-if="uploadError"
+                    class="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700"
+                >
                     {{ uploadError }}
                 </div>
-                <div v-if="uploadSuccess" class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700">
+                <div
+                    v-if="uploadSuccess"
+                    class="mx-4 mt-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-700"
+                >
                     {{ uploadSuccess }}
                 </div>
 
                 <div class="flex-1 overflow-y-auto p-6">
-                    <div v-if="!currentFolder" class="flex h-full flex-col items-center justify-center text-gray-400">
+                    <div
+                        v-if="!currentFolder"
+                        class="flex h-full flex-col items-center justify-center text-gray-400"
+                    >
                         <Folder class="mb-4 h-16 w-16 text-gray-300" />
-                        <p>Selecciona una carpeta del arbol para ver su contenido</p>
+                        <p>
+                            Selecciona una carpeta del arbol para ver su
+                            contenido
+                        </p>
                     </div>
 
                     <div v-else>
                         <div v-if="contents.folders.length > 0" class="mb-8">
-                            <h4 class="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+                            <h4
+                                class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
+                            >
                                 Subcarpetas
                             </h4>
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            <div
+                                class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+                            >
                                 <div
                                     v-for="folder in contents.folders"
                                     :key="folder.id"
                                     class="group/folder relative flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
                                     draggable="true"
-                                    @dragstart="onDragStart($event, folder, 'folder')"
+                                    @dragstart="
+                                        onDragStart($event, folder, 'folder')
+                                    "
                                 >
                                     <Link
                                         :href="`/files/folders/${folder.id}`"
                                         class="flex flex-1 items-center gap-3 text-gray-700 hover:text-blue-600"
                                     >
-                                        <Folder class="h-8 w-8 text-yellow-500" />
-                                        <span class="truncate font-medium">{{ folder.name }}</span>
+                                        <Folder
+                                            class="h-8 w-8 text-yellow-500"
+                                        />
+                                        <span class="truncate font-medium">{{
+                                            folder.name
+                                        }}</span>
                                     </Link>
-                                    <div v-if="folder.can_rename || folder.can_move || folder.can_delete" class="flex items-center gap-1 opacity-0 transition-opacity group-hover/folder:opacity-100">
+                                    <div
+                                        v-if="
+                                            folder.can_rename ||
+                                            folder.can_move ||
+                                            folder.can_delete
+                                        "
+                                        class="flex items-center gap-1 opacity-0 transition-opacity group-hover/folder:opacity-100"
+                                    >
                                         <button
                                             v-if="folder.can_rename"
                                             type="button"
                                             class="p-1 text-gray-400 hover:text-blue-600"
                                             title="Renombrar"
-                                            @click.prevent="onFolderAction('rename', folder)"
+                                            @click.prevent="
+                                                onFolderAction('rename', folder)
+                                            "
                                         >
                                             <Pencil class="h-3.5 w-3.5" />
                                         </button>
@@ -966,16 +1120,22 @@ const onFolderAction = (action: string, folder: any) => {
                                             type="button"
                                             class="p-1 text-gray-400 hover:text-blue-600"
                                             title="Mover"
-                                            @click.prevent="onFolderAction('move', folder)"
+                                            @click.prevent="
+                                                onFolderAction('move', folder)
+                                            "
                                         >
-                                            <ArrowRightLeft class="h-3.5 w-3.5" />
+                                            <ArrowRightLeft
+                                                class="h-3.5 w-3.5"
+                                            />
                                         </button>
                                         <button
                                             v-if="folder.can_delete"
                                             type="button"
                                             class="p-1 text-gray-400 hover:text-red-600"
                                             title="Eliminar"
-                                            @click.prevent="onFolderAction('delete', folder)"
+                                            @click.prevent="
+                                                onFolderAction('delete', folder)
+                                            "
                                         >
                                             <Trash2 class="h-3.5 w-3.5" />
                                         </button>
@@ -985,78 +1145,184 @@ const onFolderAction = (action: string, folder: any) => {
                         </div>
 
                         <div v-if="contents.files.length > 0">
-                            <h4 class="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+                            <h4
+                                class="mb-3 text-sm font-semibold tracking-wider text-gray-500 uppercase"
+                            >
                                 Archivos
                             </h4>
-                            <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                                <table class="min-w-full divide-y divide-gray-200">
+                            <div
+                                class="overflow-x-auto rounded-lg border border-gray-200 bg-white"
+                            >
+                                <table
+                                    class="min-w-full divide-y divide-gray-200"
+                                >
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Nombre</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Estado</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tamaño</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Subido por</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Fecha</th>
-                                            <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Acciones</th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Nombre
+                                            </th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Estado
+                                            </th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Tamaño
+                                            </th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Subido por
+                                            </th>
+                                            <th
+                                                class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Fecha
+                                            </th>
+                                            <th
+                                                class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
+                                            >
+                                                Acciones
+                                            </th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-gray-200 bg-white">
-                                        <tr v-for="file in contents.files" :key="file.id" class="hover:bg-gray-50" :draggable="file.can_move" @dragstart="file.can_move ? onDragStart($event, file, 'file') : undefined">
-                                            <td class="px-6 py-4 whitespace-nowrap">
+                                    <tbody
+                                        class="divide-y divide-gray-200 bg-white"
+                                    >
+                                        <tr
+                                            v-for="file in contents.files"
+                                            :key="file.id"
+                                            class="hover:bg-gray-50"
+                                            :draggable="file.can_move"
+                                            @dragstart="
+                                                file.can_move
+                                                    ? onDragStart(
+                                                          $event,
+                                                          file,
+                                                          'file',
+                                                      )
+                                                    : undefined
+                                            "
+                                        >
+                                            <td
+                                                class="px-6 py-4 whitespace-nowrap"
+                                            >
                                                 <div class="flex items-center">
-                                                    <FileText class="mr-3 h-5 w-5 text-gray-400" />
+                                                    <FileText
+                                                        class="mr-3 h-5 w-5 text-gray-400"
+                                                    />
                                                     <div class="min-w-0">
-                                                        <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
                                                         <span
-                                                            v-if="file.linked_from"
-                                                            class="mt-1 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700"
+                                                            class="block truncate text-sm font-medium text-gray-900"
+                                                            >{{
+                                                                file.name
+                                                            }}</span
                                                         >
-                                                            Reutilizado de {{ file.linked_from }}
+                                                        <span
+                                                            v-if="
+                                                                file.linked_from
+                                                            "
+                                                            class="mt-1 inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-indigo-700 uppercase"
+                                                        >
+                                                            Reutilizado de
+                                                            {{
+                                                                file.linked_from
+                                                            }}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="flex flex-wrap items-center gap-2">
+                                            <td
+                                                class="px-6 py-4 whitespace-nowrap"
+                                            >
+                                                <div
+                                                    class="flex flex-wrap items-center gap-2"
+                                                >
                                                     <span
                                                         v-if="file.status"
-                                                        :class="['inline-flex rounded-full border px-2 py-1 text-xs font-semibold leading-5', getStatusColor(file.status)]"
+                                                        :class="[
+                                                            'inline-flex rounded-full border px-2 py-1 text-xs leading-5 font-semibold',
+                                                            getStatusColor(
+                                                                file.status,
+                                                            ),
+                                                        ]"
                                                     >
-                                                        {{ statusLabel(file.status) }}
+                                                        {{
+                                                            statusLabel(
+                                                                file.status,
+                                                            )
+                                                        }}
                                                     </span>
-                                                    <span v-if="!file.status" class="text-xs italic text-gray-400">
+                                                    <span
+                                                        v-if="!file.status"
+                                                        class="text-xs text-gray-400 italic"
+                                                    >
                                                         Sin estado
                                                     </span>
-                                                    <span v-if="file.is_late" class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
+                                                    <span
+                                                        v-if="file.is_late"
+                                                        class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700"
+                                                    >
                                                         EXT
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
+                                            <td
+                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
+                                            >
                                                 {{ formatSize(file.size) }}
                                             </td>
-                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
+                                            <td
+                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
+                                            >
                                                 {{ file.uploaded_by }}
                                             </td>
-                                            <td class="px-6 py-4 text-sm whitespace-nowrap text-gray-500">
+                                            <td
+                                                class="px-6 py-4 text-sm whitespace-nowrap text-gray-500"
+                                            >
                                                 {{ file.uploaded_at }}
                                             </td>
-                                            <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
-                                                <div class="flex justify-end gap-2">
+                                            <td
+                                                class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap"
+                                            >
+                                                <div
+                                                    class="flex justify-end gap-2"
+                                                >
                                                     <Link
-                                                        v-if="file.is_docx && file.docx_editor_url"
-                                                        :href="file.docx_editor_url"
+                                                        v-if="
+                                                            file.is_docx &&
+                                                            file.docx_editor_url
+                                                        "
+                                                        :href="
+                                                            file.docx_editor_url
+                                                        "
                                                         class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
-                                                        :title="file.can_edit_docx ? 'Abrir editor DOCX' : 'Ver documento DOCX'"
+                                                        :title="
+                                                            file.can_edit_docx
+                                                                ? 'Abrir editor DOCX'
+                                                                : 'Ver documento DOCX'
+                                                        "
                                                     >
-                                                        {{ file.can_edit_docx ? 'Editar DOCX' : 'Ver DOCX' }}
+                                                        {{
+                                                            file.can_edit_docx
+                                                                ? 'Editar DOCX'
+                                                                : 'Ver DOCX'
+                                                        }}
                                                     </Link>
                                                     <button
-                                                        v-else-if="file.can_preview"
+                                                        v-else-if="
+                                                            file.can_preview
+                                                        "
                                                         type="button"
                                                         class="p-1 text-slate-600 hover:text-slate-900"
                                                         title="Ver en la pagina"
-                                                        @click="openPreview(file)"
+                                                        @click="
+                                                            openPreview(file)
+                                                        "
                                                     >
                                                         <Eye class="h-4 w-4" />
                                                     </button>
@@ -1065,34 +1331,54 @@ const onFolderAction = (action: string, folder: any) => {
                                                         type="button"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
                                                         title="Reemplazar"
-                                                        @click="triggerReplace(file.id)"
+                                                        @click="
+                                                            triggerReplace(
+                                                                file.id,
+                                                            )
+                                                        "
                                                     >
-                                                        <RefreshCw class="h-4 w-4" />
+                                                        <RefreshCw
+                                                            class="h-4 w-4"
+                                                        />
                                                     </button>
                                                     <button
                                                         v-if="file.can_move"
                                                         type="button"
                                                         class="p-1 text-blue-600 hover:text-blue-900"
                                                         title="Mover archivo"
-                                                        @click="openMoveFileModal(file)"
+                                                        @click="
+                                                            openMoveFileModal(
+                                                                file,
+                                                            )
+                                                        "
                                                     >
                                                         <Move class="h-4 w-4" />
                                                     </button>
                                                     <a
-                                                        :href="file.download_url"
+                                                        :href="
+                                                            file.download_url
+                                                        "
                                                         class="p-1 text-blue-600 hover:text-blue-900"
                                                         title="Descargar"
                                                     >
-                                                        <Download class="h-4 w-4" />
+                                                        <Download
+                                                            class="h-4 w-4"
+                                                        />
                                                     </a>
                                                     <button
                                                         v-if="file.can_delete"
                                                         type="button"
                                                         class="p-1 text-red-600 hover:text-red-900"
                                                         title="Eliminar"
-                                                        @click="router.delete(`/files/${file.id}`)"
+                                                        @click="
+                                                            router.delete(
+                                                                `/files/${file.id}`,
+                                                            )
+                                                        "
                                                     >
-                                                        <Trash2 class="h-4 w-4" />
+                                                        <Trash2
+                                                            class="h-4 w-4"
+                                                        />
                                                     </button>
                                                 </div>
                                             </td>
@@ -1102,8 +1388,16 @@ const onFolderAction = (action: string, folder: any) => {
                             </div>
                         </div>
 
-                        <div v-if="contents.folders.length === 0 && contents.files.length === 0" class="py-12 text-center">
-                            <p class="text-gray-500">Esta carpeta esta vacia.</p>
+                        <div
+                            v-if="
+                                contents.folders.length === 0 &&
+                                contents.files.length === 0
+                            "
+                            class="py-12 text-center"
+                        >
+                            <p class="text-gray-500">
+                                Esta carpeta esta vacia.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -1111,103 +1405,224 @@ const onFolderAction = (action: string, folder: any) => {
         </div>
 
         <!-- Create Folder Modal -->
-        <div v-if="activeModal === 'createFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+        <div
+            v-if="activeModal === 'createFolder'"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+            @click.self="closeModal"
+        >
             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                <h3 class="mb-4 text-lg font-semibold text-gray-900">Nueva Carpeta</h3>
-                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">
+                    Nueva Carpeta
+                </h3>
+                <div
+                    v-if="modalError"
+                    class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                    {{ modalError }}
+                </div>
                 <form @submit.prevent="submitCreateFolder">
                     <input
                         v-model="createFolderForm.name"
                         type="text"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         placeholder="Nombre de la carpeta"
                         autofocus
                     />
                     <div class="mt-4 flex justify-end gap-2">
-                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
-                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Crear</button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            @click="closeModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            :disabled="processingAction"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            Crear
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Rename Folder Modal -->
-        <div v-if="activeModal === 'renameFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+        <div
+            v-if="activeModal === 'renameFolder'"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+            @click.self="closeModal"
+        >
             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                <h3 class="mb-4 text-lg font-semibold text-gray-900">Renombrar Carpeta</h3>
-                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">
+                    Renombrar Carpeta
+                </h3>
+                <div
+                    v-if="modalError"
+                    class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                    {{ modalError }}
+                </div>
                 <form @submit.prevent="submitRenameFolder">
                     <input
                         v-model="renameFolderForm.name"
                         type="text"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         autofocus
                     />
                     <div class="mt-4 flex justify-end gap-2">
-                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
-                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Renombrar</button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            @click="closeModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            :disabled="processingAction"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            Renombrar
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Move Folder / Move File Modal -->
-        <div v-if="activeModal === 'moveFolder' || activeModal === 'moveFile'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+        <div
+            v-if="activeModal === 'moveFolder' || activeModal === 'moveFile'"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+            @click.self="closeModal"
+        >
             <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
                 <h3 class="mb-4 text-lg font-semibold text-gray-900">
-                    {{ activeModal === 'moveFolder' ? 'Mover Carpeta' : 'Mover Archivo' }}
+                    {{
+                        activeModal === 'moveFolder'
+                            ? 'Mover Carpeta'
+                            : 'Mover Archivo'
+                    }}
                 </h3>
-                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
-                <form @submit.prevent="activeModal === 'moveFolder' ? submitMoveFolder() : submitMoveFile()">
+                <div
+                    v-if="modalError"
+                    class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                    {{ modalError }}
+                </div>
+                <form
+                    @submit.prevent="
+                        activeModal === 'moveFolder'
+                            ? submitMoveFolder()
+                            : submitMoveFile()
+                    "
+                >
                     <select
                         v-model="moveTargetId"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                         size="8"
                     >
-                        <option value="" disabled>Selecciona la carpeta destino...</option>
+                        <option value="" disabled>
+                            Selecciona la carpeta destino...
+                        </option>
                         <option
                             v-for="target in moveTargets"
                             :key="target.id"
                             :value="target.id"
                             :disabled="target.disabled"
                         >
-                            {{ '\u00A0\u00A0'.repeat(target.depth) }}{{ target.name }}
+                            {{ '\u00A0\u00A0'.repeat(target.depth)
+                            }}{{ target.name }}
                         </option>
                     </select>
                     <div class="mt-4 flex justify-end gap-2">
-                        <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
-                        <button type="submit" :disabled="processingAction" class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Mover</button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            @click="closeModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="submit"
+                            :disabled="processingAction"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            Mover
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Delete Folder Confirmation Modal -->
-        <div v-if="activeModal === 'deleteFolder'" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" @click.self="closeModal">
+        <div
+            v-if="activeModal === 'deleteFolder'"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+            @click.self="closeModal"
+        >
             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                <h3 class="mb-4 text-lg font-semibold text-gray-900">Eliminar Carpeta</h3>
-                <div v-if="modalError" class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{{ modalError }}</div>
+                <h3 class="mb-4 text-lg font-semibold text-gray-900">
+                    Eliminar Carpeta
+                </h3>
+                <div
+                    v-if="modalError"
+                    class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                    {{ modalError }}
+                </div>
                 <div class="mb-4 flex items-start gap-3">
-                    <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                    <AlertTriangle
+                        class="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
+                    />
                     <p class="text-sm text-gray-600">
-                        ¿Estas seguro de que deseas eliminar la carpeta <b>{{ selectedFolder?.name }}</b>?
-                        La carpeta debe estar vacia (sin subcarpetas ni archivos).
+                        ¿Estas seguro de que deseas eliminar la carpeta
+                        <b>{{ selectedFolder?.name }}</b
+                        >? La carpeta debe estar vacia (sin subcarpetas ni
+                        archivos).
                     </p>
                 </div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50" @click="closeModal">Cancelar</button>
-                    <button type="button" :disabled="processingAction" class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50" @click="submitDeleteFolder">Eliminar</button>
+                    <button
+                        type="button"
+                        class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        @click="closeModal"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="processingAction"
+                        class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        @click="submitDeleteFolder"
+                    >
+                        Eliminar
+                    </button>
                 </div>
             </div>
         </div>
 
         <!-- File Preview Modal -->
-        <div v-if="previewFile" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-            <div class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-                <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div
+            v-if="previewFile"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+        >
+            <div
+                class="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-slate-200 px-5 py-4"
+                >
                     <div class="min-w-0">
-                        <h3 class="truncate text-base font-semibold text-slate-900">{{ previewFile.name }}</h3>
-                        <p class="text-xs text-slate-500">{{ previewFile.mime_type || 'Archivo' }}</p>
+                        <h3
+                            class="truncate text-base font-semibold text-slate-900"
+                        >
+                            {{ previewFile.name }}
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            {{ previewFile.mime_type || 'Archivo' }}
+                        </p>
                     </div>
                     <div class="flex items-center gap-2">
                         <a
@@ -1243,7 +1658,10 @@ const onFolderAction = (action: string, folder: any) => {
                         class="h-full w-full border-0"
                         title="Vista previa del archivo"
                     />
-                    <div v-else class="flex h-full items-center justify-center bg-white p-6">
+                    <div
+                        v-else
+                        class="flex h-full items-center justify-center bg-white p-6"
+                    >
                         <img
                             v-if="previewFile.mime_type?.startsWith('image/')"
                             :src="previewFile.preview_url"

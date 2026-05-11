@@ -17,10 +17,10 @@ return new class extends Migration
             $table->foreignId('teacher_user_id')->constrained('users');
             $table->foreignId('evidence_item_id')->constrained('evidence_items');
             $table->foreignId('teaching_load_id')->constrained('teaching_loads');
-            $table->enum('status', ['DRAFT','SUBMITTED','APPROVED','REJECTED','NA','NE'])->default('DRAFT');
+            $table->enum('status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE'])->default('DRAFT');
             $table->dateTime('submitted_at')->nullable();
-            $table->timestamp('last_updated_at')->useCurrent()->useCurrentOnUpdate(); 
-            
+            $table->timestamp('last_updated_at')->useCurrent()->useCurrentOnUpdate();
+
             $table->unique(['semester_id', 'teacher_user_id', 'evidence_item_id', 'teaching_load_id'], 'uk_es_unique');
         });
 
@@ -43,7 +43,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('submission_id')->constrained('evidence_submissions')->cascadeOnDelete();
             $table->foreignId('reviewed_by_user_id')->constrained('users');
-            $table->enum('decision', ['APPROVE','REJECT']);
+            $table->enum('decision', ['APPROVE', 'REJECT']);
             $table->string('comments', 500)->nullable();
             $table->dateTime('reviewed_at')->useCurrent();
         });
@@ -51,8 +51,8 @@ return new class extends Migration
         Schema::create('evidence_status_history', function (Blueprint $table) {
             $table->id();
             $table->foreignId('submission_id')->constrained('evidence_submissions')->cascadeOnDelete();
-            $table->enum('old_status', ['DRAFT','SUBMITTED','APPROVED','REJECTED','NA','NE']);
-            $table->enum('new_status', ['DRAFT','SUBMITTED','APPROVED','REJECTED','NA','NE']);
+            $table->enum('old_status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE']);
+            $table->enum('new_status', ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'NA', 'NE']);
             $table->foreignId('changed_by_user_id')->constrained('users');
             $table->string('change_reason', 500)->nullable();
             $table->dateTime('changed_at')->useCurrent();

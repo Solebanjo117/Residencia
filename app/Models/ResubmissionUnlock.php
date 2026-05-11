@@ -14,13 +14,14 @@ class ResubmissionUnlock extends Model
         'unlocked_by_user_id',
         'unlocked_at',
         'expires_at',
-        'reason'
+        'reason',
     ];
 
     protected $casts = [
         'unlocked_at' => 'datetime',
         'expires_at' => 'datetime',
     ];
+
     public $timestamps = false;
 
     public function submission()

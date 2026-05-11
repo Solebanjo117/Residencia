@@ -21,8 +21,8 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/composables/useAppearance';
 import { useTwoFactorAuth } from '@/composables/useTwoFactorAuth';
-import type { TwoFactorConfigContent } from '@/types';
 import { confirm } from '@/routes/two-factor';
+import type { TwoFactorConfigContent } from '@/types';
 
 type Props = {
     requiresConfirmation: boolean;
@@ -56,7 +56,8 @@ const modalConfig = computed<TwoFactorConfigContent>(() => {
     if (showVerificationStep.value) {
         return {
             title: 'Verificar código de autenticación',
-            description: 'Ingresa el código de 6 dígitos de tu aplicación autenticadora',
+            description:
+                'Ingresa el código de 6 dígitos de tu aplicación autenticadora',
             buttonText: 'Continuar',
         };
     }
@@ -219,7 +220,9 @@ watch(
                                         :value="manualSetupKey"
                                         class="h-full w-full bg-background p-3 text-foreground"
                                     />
-                                    <button type="button" @click="copy(manualSetupKey || '')"
+                                    <button
+                                        type="button"
+                                        @click="copy(manualSetupKey || '')"
                                         class="relative block h-auto border-l border-border px-3 hover:bg-muted"
                                     >
                                         <Check
