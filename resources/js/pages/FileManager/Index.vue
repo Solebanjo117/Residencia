@@ -1233,6 +1233,17 @@ const onFolderAction = (action: string, folder: any) => {
                                                                 file.linked_from
                                                             }}
                                                         </span>
+                                                        <span
+                                                            v-if="
+                                                                file.folder_path
+                                                            "
+                                                            class="mt-1 block max-w-[22rem] truncate text-xs text-gray-500"
+                                                            :title="
+                                                                file.folder_path
+                                                            "
+                                                        >
+                                                            {{ file.folder_path }}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </td>

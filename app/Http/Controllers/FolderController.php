@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\EvidenceFile;
 use App\Models\FolderNode;
+use App\Models\Semester;
 use App\Models\User;
 use App\Services\FolderManagerService;
 use App\Services\StorageService;
@@ -20,6 +21,12 @@ class FolderController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+        $defaultFolder = $this->defaultFolderFor($user);
+
+        if ($defaultFolder) {
+            return redirect()->route('folders.show', $defaultFolder->id);
+        }
+
         $roots = $this->storageService->getAccessibleRoots($user);
 
         return Inertia::render('FileManager/Index', [
@@ -34,7 +41,7 @@ class FolderController extends Controller
     {
         $this->authorize('view', $folder);
 
-        $contents = $folder->load(['children', 'files.uploadedBy', 'files.submission']);
+        $contents = $folder->load(['children']);
         $user = $request->user();
         $folder->load(['semester', 'parent']);
         $ancestors = $this->buildFolderAncestors($folder, $user);
@@ -43,7 +50,13 @@ class FolderController extends Controller
             ->filter(fn (FolderNode $child) => $user->can('view', $child))
             ->values();
 
-        $visibleFiles = $contents->files
+        $visibleFolderIds = $this->visibleFolderIdsForContents($folder, $user);
+        $visibleFiles = EvidenceFile::query()
+            ->with(['uploadedBy', 'submission', 'folderNode'])
+            ->currentVersion()
+            ->whereIn('folder_node_id', $visibleFolderIds)
+            ->orderByDesc('uploaded_at')
+            ->get()
             ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
             ->values();
 
@@ -51,6 +64,7 @@ class FolderController extends Controller
         $allVisibleFiles = collect($visibleFiles)
             ->map(fn (EvidenceFile $file) => [$file, null])
             ->merge($linkedAdvanceFiles)
+            ->unique(fn (array $entry) => $entry[0]->id)
             ->values();
 
         $roots = $this->storageService->getAccessibleRoots($user);
@@ -82,7 +96,7 @@ class FolderController extends Controller
                     'update_url' => route('folders.update', $child->id),
                     'delete_url' => route('folders.destroy', $child->id),
                 ]),
-                'files' => $allVisibleFiles->map(function (array $entry) use ($user) {
+                'files' => $allVisibleFiles->map(function (array $entry) use ($user, $folder) {
                     /** @var EvidenceFile $file */
                     [$file, $linkedFrom] = $entry;
                     $submission = $file->submission;
@@ -103,6 +117,8 @@ class FolderController extends Controller
                             : null,
                         'is_late' => (bool) $submission?->submitted_late,
                         'linked_from' => $linkedFrom,
+                        'folder_name' => $file->folderNode?->name,
+                        'folder_path' => $this->relativeFolderPath($folder, $file->folderNode),
                         'is_docx' => $isDocx,
                         'can_preview' => $canPreview,
                         'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
@@ -117,6 +133,67 @@ class FolderController extends Controller
                 }),
             ],
         ]);
+    }
+
+    private function defaultFolderFor(User $user): ?FolderNode
+    {
+        if (! $user->isDocente()) {
+            return null;
+        }
+
+        $activeSemesterId = Semester::active()?->id;
+
+        return FolderNode::query()
+            ->where('owner_user_id', $user->id)
+            ->when($activeSemesterId, fn ($query) => $query->where('semester_id', $activeSemesterId))
+            ->orderBy('parent_id')
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function visibleFolderIdsForContents(FolderNode $folder, User $user): array
+    {
+        $ids = [];
+        $pending = [$folder];
+
+        while ($pending !== []) {
+            /** @var FolderNode $current */
+            $current = array_shift($pending);
+
+            if (! $user->can('view', $current)) {
+                continue;
+            }
+
+            $ids[] = $current->id;
+
+            $children = FolderNode::query()
+                ->where('parent_id', $current->id)
+                ->get();
+
+            foreach ($children as $child) {
+                $pending[] = $child;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function relativeFolderPath(FolderNode $currentFolder, ?FolderNode $fileFolder): ?string
+    {
+        if (! $fileFolder || $fileFolder->id === $currentFolder->id) {
+            return null;
+        }
+
+        $segments = [];
+        $cursor = $fileFolder;
+
+        while ($cursor && $cursor->id !== $currentFolder->id) {
+            array_unshift($segments, $cursor->name);
+            $cursor->loadMissing('parent');
+            $cursor = $cursor->parent;
+        }
+
+        return $cursor ? implode(' / ', $segments) : $fileFolder->name;
     }
 
     public function storeSubfolder(Request $request, FolderNode $folder)

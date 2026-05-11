@@ -116,6 +116,15 @@ it('does not auto submit evidence when uploading from file manager', function ()
     ]);
 });
 
+it('opens the active teacher folder by default in file manager', function () {
+    $ctx = createFileManagerContext(windowOpen: true);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.index'))
+        ->assertRedirect(route('folders.show', $ctx['folder']->id));
+});
+
 it('allows file manager upload when regular window already closed and treats it as late workflow', function () {
     Storage::fake('local');
 

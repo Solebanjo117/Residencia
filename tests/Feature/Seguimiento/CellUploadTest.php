@@ -112,6 +112,18 @@ it('lets a teacher upload a seguimiento cell file and exposes it in file manager
             ->has('contents.files', 1)
             ->where('contents.files.0.id', $file->id)
         );
+
+    $teacherFolder = $file->folderNode->parent->parent;
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $teacherFolder->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('contents.files', 1)
+            ->where('contents.files.0.id', $file->id)
+            ->where('contents.files.0.folder_path', $ctx['subject']->name.' / ASESORIAS')
+        );
 });
 
 it('marks open seguimiento cells as uploadable for their teacher', function () {
