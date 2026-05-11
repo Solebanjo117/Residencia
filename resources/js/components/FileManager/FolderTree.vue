@@ -40,6 +40,18 @@ const isActive = computed(() => {
 
 const isDragOver = ref(false);
 
+const isIndividualProjectsFolder = computed(() => {
+    const normalizedName = String(props.node.name ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+
+    return (
+        normalizedName.includes('PROYECTOS INDIVIDUALES') ||
+        normalizedName.includes('PROY IND')
+    );
+});
+
 const toggle = () => {
     if (hasChildren.value && !isVirtualNode.value) {
         emit('toggle-folder', props.node.id);
@@ -88,7 +100,11 @@ const onDrop = (event: DragEvent) => {
     <div class="pl-2">
         <div
             class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
-            :class="{ 'bg-blue-50 ring-2 ring-blue-400': isDragOver }"
+            :class="{
+                'bg-blue-50 ring-2 ring-blue-400': isDragOver,
+                'border border-emerald-200 bg-emerald-50 hover:bg-emerald-100':
+                    isIndividualProjectsFolder,
+            }"
             @dragover="onDragOver($event)"
             @dragleave="onDragLeave"
             @drop="onDrop"
@@ -110,11 +126,20 @@ const onDrop = (event: DragEvent) => {
                 v-if="!isVirtualNode"
                 :href="`/files/folders/${node.id}`"
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
-                :class="{ 'font-semibold': isActive }"
+                :class="{
+                    'font-semibold': isActive,
+                    'text-emerald-800 hover:text-emerald-700':
+                        isIndividualProjectsFolder,
+                }"
             >
                 <component
                     :is="isOpen ? FolderOpen : Folder"
-                    class="h-4 w-4 text-yellow-500"
+                    class="h-4 w-4"
+                    :class="
+                        isIndividualProjectsFolder
+                            ? 'text-emerald-600'
+                            : 'text-yellow-500'
+                    "
                 />
                 {{ node.name }}
             </Link>
@@ -125,7 +150,12 @@ const onDrop = (event: DragEvent) => {
             >
                 <component
                     :is="isOpen ? FolderOpen : Folder"
-                    class="h-4 w-4 text-yellow-500"
+                    class="h-4 w-4"
+                    :class="
+                        isIndividualProjectsFolder
+                            ? 'text-emerald-600'
+                            : 'text-yellow-500'
+                    "
                 />
                 {{ node.name }}
             </div>

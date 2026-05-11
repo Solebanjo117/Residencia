@@ -254,6 +254,18 @@ const canDeleteCurrentFolder = computed(() =>
     Boolean(props.currentFolder?.can_delete),
 );
 
+const isIndividualProjectsFolder = (folder: any) => {
+    const normalizedName = String(folder?.name ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+
+    return (
+        normalizedName.includes('PROYECTOS INDIVIDUALES') ||
+        normalizedName.includes('PROY IND')
+    );
+};
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Gestor de Archivos',
@@ -1080,6 +1092,11 @@ const onFolderAction = (action: string, folder: any) => {
                                     v-for="folder in contents.folders"
                                     :key="folder.id"
                                     class="group/folder relative flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
+                                    :class="
+                                        isIndividualProjectsFolder(folder)
+                                            ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
+                                            : ''
+                                    "
                                     draggable="true"
                                     @dragstart="
                                         onDragStart($event, folder, 'folder')
@@ -1088,9 +1105,21 @@ const onFolderAction = (action: string, folder: any) => {
                                     <Link
                                         :href="`/files/folders/${folder.id}`"
                                         class="flex flex-1 items-center gap-3 text-gray-700 hover:text-blue-600"
+                                        :class="
+                                            isIndividualProjectsFolder(folder)
+                                                ? 'text-emerald-800 hover:text-emerald-700'
+                                                : ''
+                                        "
                                     >
                                         <Folder
-                                            class="h-8 w-8 text-yellow-500"
+                                            class="h-8 w-8"
+                                            :class="
+                                                isIndividualProjectsFolder(
+                                                    folder,
+                                                )
+                                                    ? 'text-emerald-600'
+                                                    : 'text-yellow-500'
+                                            "
                                         />
                                         <span class="truncate font-medium">{{
                                             folder.name
