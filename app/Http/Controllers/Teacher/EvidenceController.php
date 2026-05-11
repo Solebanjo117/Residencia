@@ -95,7 +95,7 @@ class EvidenceController extends Controller
             ->where('semester_id', $selectedSemester->id)
             ->where('status', 'ACTIVE')
             ->get()
-            ->keyBy('evidence_item_id');
+            ->groupBy('evidence_item_id');
 
         $tasks = [];
 
@@ -105,8 +105,12 @@ class EvidenceController extends Controller
             foreach ($requirements as $requirement) {
                 $submission = $loadSubmissions->get($requirement->evidence_item_id);
                 $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
+                $window = $flowService->resolveWindowForLoad(
+                    $windows->get($requirement->evidence_item_id) ?? collect(),
+                    $load
+                );
                 $availability = $flowService->resolveAvailability(
-                    $windows->get($requirement->evidence_item_id),
+                    $window,
                     $stageUnlocked,
                     $submission?->activeResubmissionUnlock !== null,
                     $submission
@@ -173,7 +177,7 @@ class EvidenceController extends Controller
                             : [],
                     ],
                     'availability' => $availability,
-                    'window' => ($window = $windows->get($requirement->evidence_item_id)) ? [
+                    'window' => $window ? [
                         'opens_at' => $window->opens_at,
                         'closes_at' => $window->closes_at,
                         'state_code' => $availability['code'],
@@ -243,11 +247,12 @@ class EvidenceController extends Controller
             ->get()
             ->keyBy('evidence_item_id');
 
-        $window = SubmissionWindow::query()
+        $windows = SubmissionWindow::query()
             ->where('semester_id', $load->semester_id)
             ->where('evidence_item_id', $requirement->evidence_item_id)
             ->where('status', 'ACTIVE')
-            ->first();
+            ->get();
+        $window = $flowService->resolveWindowForLoad($windows, $load);
 
         $availability = $flowService->resolveAvailability(
             $window,
@@ -520,11 +525,12 @@ class EvidenceController extends Controller
             ->get()
             ->keyBy('evidence_item_id');
 
-        $window = SubmissionWindow::query()
+        $windows = SubmissionWindow::query()
             ->where('semester_id', $submission->semester_id)
             ->where('evidence_item_id', $submission->evidence_item_id)
             ->where('status', 'ACTIVE')
-            ->first();
+            ->get();
+        $window = $flowService->resolveWindowForLoad($windows, $submission->teachingLoad);
 
         $stageUnlocked = $requirement
             ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)

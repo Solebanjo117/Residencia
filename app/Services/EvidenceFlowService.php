@@ -6,6 +6,7 @@ use App\Enums\SubmissionStatus;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
 use App\Models\SubmissionWindow;
+use App\Models\TeachingLoad;
 use Illuminate\Support\Collection;
 
 class EvidenceFlowService
@@ -112,6 +113,17 @@ class EvidenceFlowService
             SubmissionStatus::APPROVED,
             SubmissionStatus::NA,
         ], true);
+    }
+
+    public function resolveWindowForLoad(Collection $windows, ?TeachingLoad $load): ?SubmissionWindow
+    {
+        if ($windows->isEmpty()) {
+            return null;
+        }
+
+        return $windows->firstWhere('modality', $load?->modality)
+            ?? $windows->firstWhere('modality', null)
+            ?? $windows->first();
     }
 
     public function resolveAvailability(

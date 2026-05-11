@@ -36,6 +36,7 @@ const props = defineProps<{
     evidenceItems: any[];
     modalities: Array<{ value: string; label: string }>;
     selectedSemester: string | null;
+    selectedStatus?: string | null;
 }>();
 
 const page = usePage();
@@ -47,15 +48,16 @@ const filterSemester = ref(
     props.selectedSemester ||
         (props.semesters.length > 0 ? props.semesters[0].id : ''),
 );
+const filterStatus = ref(props.selectedStatus || '');
 
-watch(filterSemester, (newValue) => {
-    if (newValue !== props.selectedSemester) {
-        router.get(
-            '/admin/windows',
-            { semester_id: newValue },
-            { preserveState: true, replace: true },
-        );
-    }
+watch([filterSemester, filterStatus], ([semesterId, status]) => {
+    router.get('/admin/windows', {
+        semester_id: semesterId,
+        status: status || undefined,
+    }, {
+        preserveState: true,
+        replace: true,
+    });
 });
 
 watch(
@@ -79,7 +81,7 @@ const formatForInput = (dateString: string) => {
     const date = new Date(dateString);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
         .toISOString()
-        .slice(0, 16);
+        .slice(0, 10);
 };
 
 const openCreateModal = () => {
@@ -189,8 +191,8 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         Ventanas de Entrega
                     </h1>
                     <p class="mt-1 text-sm text-muted-foreground">
-                        Configura las fechas límite para que los docentes suban
-                        sus documentos.
+                        Configura las fechas limite para que los docentes suban
+                        sus archivos por evidencia.
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -215,6 +217,24 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                             <Filter class="h-4 w-4" />
                         </div>
                     </div>
+                    <div class="relative">
+                        <select
+                            v-model="filterStatus"
+                            aria-label="Filtrar estado de ventana"
+                            class="appearance-none rounded-lg border border-input bg-background py-2 pr-10 pl-4 text-sm shadow-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                            <option value="">Todos los estados</option>
+                            <option value="OPEN">Abiertas</option>
+                            <option value="UPCOMING">Programadas</option>
+                            <option value="EXPIRED">Vencidas</option>
+                            <option value="INACTIVE">Inactivas</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground"
+                        >
+                            <Filter class="h-4 w-4" />
+                        </div>
+                    </div>
 
                     <Button @click="openCreateModal">
                         <CalendarClock class="mr-2 h-4 w-4" />
@@ -232,7 +252,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                                     scope="col"
                                     class="px-6 py-3 text-left text-xs font-medium tracking-wider text-muted-foreground uppercase"
                                 >
-                                    Documento
+                                    Evidencia
                                 </th>
                                 <th
                                     scope="col"
@@ -398,7 +418,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     {{
                         editingWindow
                             ? 'Modifica las fechas y datos de esta ventana.'
-                            : 'Define los plazos para que los docentes suban documentos.'
+                            : 'Define los plazos para que los docentes suban evidencias.'
                     }}
                 </DialogDescription>
             </DialogHeader>
@@ -409,8 +429,9 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                 <AlertCircle class="h-5 w-5 shrink-0 text-info" />
                 <span>
                     Las ventanas definen cuándo los docentes pueden subir
-                    archivos para un documento en específico. Fuera de estas
-                    fechas, el sistema bloqueará la subida.
+                    archivos para una evidencia en especifico. La fecha de
+                    inicio abre a las 00:00 y la fecha de cierre termina a las
+                    23:59.
                 </span>
             </div>
 
@@ -440,7 +461,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                 </div>
 
                 <div>
-                    <Label for="window-evidence">Documento Requerido</Label>
+                    <Label for="window-evidence">Evidencia</Label>
                     <select
                         id="window-evidence"
                         v-model="form.evidence_item_id"
@@ -448,7 +469,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         required
                     >
                         <option value="" disabled>
-                            Selecciona un Documento...
+                            Selecciona una evidencia...
                         </option>
                         <option
                             v-for="item in evidenceItems"
@@ -482,9 +503,9 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         </option>
                     </select>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        Usa "Materia en línea" para abrir una ventana extendida
-                        solo para cargas en línea. Si no existe, se usará la
-                        ventana general.
+                        Usa "Materia en linea" o "Presencial" solo si esa
+                        evidencia tendra fechas distintas por modalidad. Si no,
+                        se usara la ventana general.
                     </p>
                     <p
                         v-if="form.errors.modality"
@@ -499,7 +520,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         <Label for="window-opens">Apertura</Label>
                         <Input
                             id="window-opens"
-                            type="datetime-local"
+                            type="date"
                             v-model="form.opens_at"
                             class="mt-1"
                             required
@@ -512,10 +533,10 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         </p>
                     </div>
                     <div>
-                        <Label for="window-closes">Cierre Límite</Label>
+                        <Label for="window-closes">Cierre Limite</Label>
                         <Input
                             id="window-closes"
-                            type="datetime-local"
+                            type="date"
                             v-model="form.closes_at"
                             class="mt-1"
                             required

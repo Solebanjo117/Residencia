@@ -128,7 +128,7 @@ class AdvisoryController extends Controller
                 $item = $requirement->evidenceItem;
                 $submission = $loadSubmissions->get($item->id);
                 $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
-                $window = $this->resolveWindowForLoad($windows->get($item->id) ?? collect(), $load);
+                $window = $flowService->resolveWindowForLoad($windows->get($item->id) ?? collect(), $load);
                 $availability = $flowService->resolveAvailability(
                     $window,
                     $stageUnlocked,
@@ -531,7 +531,7 @@ class AdvisoryController extends Controller
             : true;
 
         return $flowService->resolveAvailability(
-            $this->resolveWindowForLoad($windows, $load),
+            $flowService->resolveWindowForLoad($windows, $load),
             $stageUnlocked,
             $submission?->activeResubmissionUnlock()->exists() ?? false,
             $submission,
@@ -615,13 +615,6 @@ class AdvisoryController extends Controller
         $normalized = Str::ascii(mb_strtoupper($name));
 
         return trim(preg_replace('/\s+/', ' ', str_replace(['.', '_', '-'], ' ', $normalized)));
-    }
-
-    private function resolveWindowForLoad(Collection $windows, TeachingLoad $load): ?SubmissionWindow
-    {
-        return $windows->firstWhere('modality', $load->modality)
-            ?? $windows->firstWhere('modality', null)
-            ?? $windows->first();
     }
 
     private function resolveRowStatus(Collection $cells): string

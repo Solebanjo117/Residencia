@@ -339,10 +339,11 @@ class FileController extends Controller
             ->get()
             ->keyBy('evidence_item_id');
 
-        $window = SubmissionWindow::where('semester_id', $submission->semester_id)
+        $windows = SubmissionWindow::where('semester_id', $submission->semester_id)
             ->where('evidence_item_id', $submission->evidence_item_id)
             ->where('status', 'ACTIVE')
-            ->first();
+            ->get();
+        $window = $flowService->resolveWindowForLoad($windows, $submission->teachingLoad);
 
         $stageUnlocked = $requirement instanceof EvidenceRequirement
             ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)

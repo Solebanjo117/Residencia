@@ -54,8 +54,8 @@ it('blocks creating overlapping active submission windows for same semester and 
         ->post(route('admin.windows.store'), [
             'semester_id' => $ctx['semester']->id,
             'evidence_item_id' => $ctx['item']->id,
-            'opens_at' => now()->addDays(3)->toDateTimeString(),
-            'closes_at' => now()->addDays(7)->toDateTimeString(),
+            'opens_at' => now()->addDays(3)->toDateString(),
+            'closes_at' => now()->addDays(7)->toDateString(),
             'status' => 'ACTIVE',
         ]);
 
@@ -82,8 +82,8 @@ it('allows creating non-overlapping active submission windows', function () {
         ->post(route('admin.windows.store'), [
             'semester_id' => $ctx['semester']->id,
             'evidence_item_id' => $ctx['item']->id,
-            'opens_at' => now()->addDays(6)->toDateTimeString(),
-            'closes_at' => now()->addDays(9)->toDateTimeString(),
+            'opens_at' => now()->addDays(6)->toDateString(),
+            'closes_at' => now()->addDays(9)->toDateString(),
             'status' => 'ACTIVE',
         ]);
 
@@ -124,8 +124,8 @@ it('blocks updating an active submission window into an overlapping range', func
         ->put(route('admin.windows.update', $windowToUpdate->id), [
             'semester_id' => $ctx['semester']->id,
             'evidence_item_id' => $ctx['item']->id,
-            'opens_at' => now()->addDays(3)->toDateTimeString(),
-            'closes_at' => now()->addDays(8)->toDateTimeString(),
+            'opens_at' => now()->addDays(3)->toDateString(),
+            'closes_at' => now()->addDays(8)->toDateString(),
             'status' => 'ACTIVE',
         ]);
 
@@ -134,6 +134,32 @@ it('blocks updating an active submission window into an overlapping range', func
 
     expect($baseWindow->fresh()->opens_at->toDateTimeString())->toBe($baseOpen->toDateTimeString());
     expect($windowToUpdate->fresh()->opens_at->toDateTimeString())->toBe($secondOpen->toDateTimeString());
+});
+
+it('stores date windows as full-day ranges and allows a same-day window', function () {
+    $ctx = createSubmissionWindowContext();
+    $deliveryDate = now()->addDays(2)->toDateString();
+
+    $response = $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('admin.windows.store'), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'opens_at' => $deliveryDate,
+            'closes_at' => $deliveryDate,
+            'status' => 'ACTIVE',
+        ]);
+
+    $response->assertRedirect(route('admin.windows.index'));
+    $response->assertSessionDoesntHaveErrors();
+
+    $window = SubmissionWindow::first();
+
+    expect($window->opens_at->toDateString())->toBe($deliveryDate);
+    expect($window->opens_at->format('H:i:s'))->toBe('00:00:00');
+    expect($window->closes_at->toDateString())->toBe($deliveryDate);
+    expect($window->closes_at->format('H:i:s'))->toBe('23:59:59');
 });
 
 it('filters submission windows by operational status', function () {
