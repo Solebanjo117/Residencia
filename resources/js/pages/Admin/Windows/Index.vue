@@ -476,7 +476,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                             :key="item.id"
                             :value="item.id"
                         >
-                            {{ item.name }}
+                            {{ item.stage_label }} - {{ item.name }}
                         </option>
                     </select>
                     <p

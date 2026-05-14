@@ -8,6 +8,7 @@ use App\Models\EvidenceSubmission;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class EvidenceFlowService
 {
@@ -42,43 +43,62 @@ class EvidenceFlowService
             return 99;
         }
 
-        if (str_contains($name, 'HORARIO')) {
+        if (str_contains($name, 'HORARIO') || str_contains($name, 'INSTRUM')) {
             return 0;
         }
 
-        if (str_contains($name, 'INSTRUM')) {
-            return 0;
+        if (
+            str_contains($name, 'ACTAS')
+            || str_contains($name, 'REP FINAL')
+            || str_contains($name, 'REPORTE FINAL')
+            || str_contains($name, 'REPORTES EVIDENCIAS ASIGNATURAS')
+            || (str_contains($name, 'EVIDENCIAS') && str_contains($name, 'ASIGNATUR'))
+            || (str_contains($name, 'CALIF') && str_contains($name, 'FINAL'))
+        ) {
+            return 50;
         }
 
-        if (str_contains($name, 'DIAGN')) {
-            return 1;
+        if (str_contains($name, 'SEG 04') || str_contains($name, 'SD4')) {
+            return 40;
         }
 
-        if (str_contains($name, 'SEG 01')) {
-            return 2;
+        if (str_contains($name, 'SEG 03') || str_contains($name, 'SD3') || str_contains($name, 'PARCIALES 3')) {
+            return 30;
         }
 
-        if (str_contains($name, 'SEG 02') || str_contains($name, 'SD2')) {
-            return 3;
+        if (
+            str_contains($name, 'SEG 02')
+            || str_contains($name, 'SD2')
+            || str_contains($name, 'PARCIALES 2')
+            || str_contains($name, 'PROY IND')
+            || str_contains($name, 'PROYECTOS INDIVIDUALES')
+        ) {
+            return 20;
         }
 
-        if (str_contains($name, 'SEG 03')) {
-            return 4;
+        if (
+            str_contains($name, 'DIAGN')
+            || str_contains($name, 'SEG 01')
+            || str_contains($name, 'SD1')
+            || str_contains($name, 'PARCIALES')
+            || str_contains($name, 'ASESOR')
+        ) {
+            return 10;
         }
 
-        if (str_contains($name, 'SEG 04') || str_contains($name, 'SD4') || str_contains($name, 'FINAL')) {
-            return 5;
-        }
-
-        return 2;
+        return 10;
     }
 
     public function stageLabel(int $stage): string
     {
-        return match (true) {
-            $stage <= 0 => 'Etapa 0',
-            $stage === 1 => 'Etapa 1',
-            default => 'Etapa '.$stage,
+        return match ($stage) {
+            0 => 'Etapa inicial',
+            10 => 'SD1',
+            20 => 'SD2',
+            30 => 'SD3',
+            40 => 'SD4',
+            50 => 'Etapa final',
+            default => $stage < 50 ? 'SD1' : 'Etapa final',
         };
     }
 
@@ -263,9 +283,6 @@ class EvidenceFlowService
 
     private function normalizeName(?string $value): string
     {
-        $normalized = mb_strtoupper((string) $value);
-        $normalized = str_replace(['Á', 'É', 'Í', 'Ó', 'Ú'], ['A', 'E', 'I', 'O', 'U'], $normalized);
-
-        return $normalized;
+        return Str::ascii(mb_strtoupper((string) $value));
     }
 }

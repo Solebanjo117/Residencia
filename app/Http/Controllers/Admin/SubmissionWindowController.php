@@ -7,6 +7,7 @@ use App\Models\EvidenceItem;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
+use App\Services\EvidenceFlowService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,8 @@ use Inertia\Inertia;
 
 class SubmissionWindowController extends Controller
 {
+    public function __construct(private readonly EvidenceFlowService $flowService) {}
+
     public function index(Request $request)
     {
         $semesterId = $request->query('semester_id');
@@ -34,7 +37,19 @@ class SubmissionWindowController extends Controller
 
         $semesters = Semester::orderBy('start_date', 'desc')->get();
         // Solo items activos para poder asignarles una ventana
-        $evidenceItems = EvidenceItem::where('active', true)->orderBy('name')->get();
+        $evidenceItems = EvidenceItem::where('active', true)
+            ->get()
+            ->sortBy([
+                fn (EvidenceItem $item) => $this->flowService->stageOrder($item->name),
+                fn (EvidenceItem $item) => $item->name,
+            ])
+            ->map(fn (EvidenceItem $item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'stage_order' => $this->flowService->stageOrder($item->name),
+                'stage_label' => $this->flowService->stageLabel($this->flowService->stageOrder($item->name)),
+            ])
+            ->values();
 
         return Inertia::render('Admin/Windows/Index', [
             'windows' => $windows,
