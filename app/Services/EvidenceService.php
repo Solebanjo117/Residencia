@@ -121,6 +121,11 @@ class EvidenceService
     public function review(EvidenceSubmission $submission, User $reviewer, ReviewDecision $decision, ?string $comments)
     {
         $startedAt = microtime(true);
+        $comments = trim((string) $comments) ?: null;
+
+        if ($decision === ReviewDecision::REJECT && $comments === null) {
+            throw new \InvalidArgumentException('Debes indicar el motivo del rechazo.');
+        }
 
         $result = DB::transaction(function () use ($submission, $reviewer, $decision, $comments) {
             // Create review record
@@ -160,8 +165,12 @@ class EvidenceService
             $this->notificationService->notifyImmediate(
                 $submission->teacher,
                 $type,
-                'Evidence Reviewed: '.$submission->evidenceItem->name,
-                'Your submission has been '.strtolower($decision->value).'. Comments: '.$comments,
+                $decision === ReviewDecision::APPROVE
+                    ? 'Evidencia aprobada'
+                    : 'Evidencia rechazada',
+                $decision === ReviewDecision::APPROVE
+                    ? 'Tu evidencia '.$submission->evidenceItem->name.' fue aprobada por oficina.'
+                    : 'Tu evidencia '.$submission->evidenceItem->name.' fue rechazada. Motivo: '.$comments,
                 $submission
             );
 

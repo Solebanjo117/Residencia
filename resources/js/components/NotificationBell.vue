@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Bell } from 'lucide-vue-next';
 import { ref, onMounted, onUnmounted } from 'vue';
@@ -11,6 +12,8 @@ interface ExternalNotification {
     message: string;
     is_read: boolean;
     created_at: string;
+    action_url: string | null;
+    action_label: string | null;
 }
 
 const notifications = ref<ExternalNotification[]>([]);
@@ -39,6 +42,15 @@ async function markAsRead(id: number | null = null) {
         await fetchNotifications();
     } catch {
         console.error('Error marking read');
+    }
+}
+
+async function openNotification(notification: ExternalNotification) {
+    await markAsRead(notification.id);
+    isOpen.value = false;
+
+    if (notification.action_url) {
+        router.visit(notification.action_url);
     }
 }
 
@@ -130,7 +142,13 @@ function formatDate(dateStr: string) {
                         <li
                             v-for="notif in notifications"
                             :key="notif.id"
-                            class="group cursor-default p-4 hover:bg-gray-50"
+                            class="group p-4 hover:bg-gray-50"
+                            :class="
+                                notif.action_url
+                                    ? 'cursor-pointer'
+                                    : 'cursor-default'
+                            "
+                            @click="openNotification(notif)"
                         >
                             <div class="flex gap-x-3">
                                 <div class="mt-1 flex-1">
@@ -148,10 +166,16 @@ function formatDate(dateStr: string) {
                                     <p class="mt-1 text-[10px] text-gray-400">
                                         {{ formatDate(notif.created_at) }}
                                     </p>
+                                    <p
+                                        v-if="notif.action_label"
+                                        class="mt-2 text-xs font-semibold text-indigo-600"
+                                    >
+                                        {{ notif.action_label }}
+                                    </p>
                                 </div>
                                 <button
                                     type="button"
-                                    @click="markAsRead(notif.id)"
+                                    @click.stop="markAsRead(notif.id)"
                                     class="p-1 text-indigo-600 opacity-0 transition-opacity group-hover:opacity-100"
                                     title="Marcar leído"
                                     aria-label="Marcar leído"

@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EvidenceSubmission;
 use App\Models\Notification;
+use App\Models\NotificationSchedule;
+use App\Models\SubmissionWindow;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -19,7 +23,8 @@ class NotificationController extends Controller
             ->where('is_read', false)
             ->orderBy('created_at', 'desc')
             ->limit(10)
-            ->get();
+            ->get()
+            ->map(fn (Notification $notification) => $this->notificationPayload($notification, $user));
 
         $unreadCount = Notification::where('user_id', $user->id)
             ->where('is_read', false)
@@ -56,5 +61,95 @@ class NotificationController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    private function notificationPayload(Notification $notification, User $user): array
+    {
+        $actionUrl = $this->resolveActionUrl($notification, $user);
+
+        return [
+            'id' => $notification->id,
+            'type' => $notification->type instanceof \BackedEnum
+                ? $notification->type->value
+                : $notification->type,
+            'title' => $notification->title,
+            'message' => $notification->message,
+            'is_read' => $notification->is_read,
+            'created_at' => $notification->created_at,
+            'action_url' => $actionUrl,
+            'action_label' => $this->resolveActionLabel($notification, $user, $actionUrl),
+        ];
+    }
+
+    private function resolveActionUrl(Notification $notification, User $user): ?string
+    {
+        if (! $notification->related_entity_type || ! $notification->related_entity_id) {
+            return null;
+        }
+
+        if ($notification->related_entity_type === EvidenceSubmission::class) {
+            $submission = EvidenceSubmission::with(['semester', 'teacher'])
+                ->find($notification->related_entity_id);
+
+            if (! $submission) {
+                return null;
+            }
+
+            if ($user->isDocente()) {
+                return route('docente.evidencias', [
+                    'semester_id' => $submission->semester_id,
+                    'teaching_load_id' => $submission->teaching_load_id,
+                ], false);
+            }
+
+            if ($user->isJefeOficina()) {
+                return route('oficina.revisiones.show', $submission->teacher_user_id, false);
+            }
+
+            if ($user->isJefeDepto()) {
+                return route('asesorias', [
+                    'semester' => $submission->semester?->name,
+                ], false);
+            }
+        }
+
+        if ($notification->related_entity_type === SubmissionWindow::class) {
+            $window = SubmissionWindow::find($notification->related_entity_id);
+
+            if (! $window) {
+                return null;
+            }
+
+            return $user->isDocente()
+                ? route('docente.evidencias', ['semester_id' => $window->semester_id], false)
+                : route('admin.windows.index', ['semester_id' => $window->semester_id], false);
+        }
+
+        if ($notification->related_entity_type === NotificationSchedule::class) {
+            $schedule = NotificationSchedule::find($notification->related_entity_id);
+
+            if (! $schedule) {
+                return null;
+            }
+
+            return $user->isDocente()
+                ? route('docente.evidencias', ['semester_id' => $schedule->semester_id], false)
+                : route('admin.windows.index', ['semester_id' => $schedule->semester_id], false);
+        }
+
+        return null;
+    }
+
+    private function resolveActionLabel(Notification $notification, User $user, ?string $actionUrl): ?string
+    {
+        if (! $actionUrl) {
+            return null;
+        }
+
+        if ($notification->related_entity_type === EvidenceSubmission::class) {
+            return $user->isDocente() ? 'Ver evidencia' : 'Abrir revisión';
+        }
+
+        return $user->isDocente() ? 'Ver mis evidencias' : 'Abrir ventana';
     }
 }

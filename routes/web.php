@@ -42,7 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // Rutas para Jefe de Oficina
-    Route::prefix('oficina')->name('oficina.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])->group(function () {
+    Route::prefix('oficina')->name('oficina.')->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])->group(function () {
         Route::get('revisiones', [\App\Http\Controllers\Admin\ReviewController::class, 'index'])->name('revisiones');
         Route::get('revisiones/{submission}', [\App\Http\Controllers\Admin\ReviewController::class, 'show'])->name('revisiones.show');
         Route::post('revisiones/{submission}/status', [\App\Http\Controllers\Admin\ReviewController::class, 'updateStatus'])->name('revisiones.status');

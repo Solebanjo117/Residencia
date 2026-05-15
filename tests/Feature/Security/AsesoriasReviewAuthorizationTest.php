@@ -117,6 +117,66 @@ it('allows jefe oficina to review a submitted evidence in seguimiento route', fu
     ]);
 });
 
+it('requires a reason when rejecting evidence in seguimiento route', function () {
+    $submission = createReviewableSubmission();
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    $response = $this
+        ->from('/asesorias')
+        ->actingAs($jefeOficina)
+        ->post(route('asesorias.review', $submission->id), [
+            'decision' => 'REJECT',
+            'comments' => '',
+        ]);
+
+    $response
+        ->assertRedirect('/asesorias')
+        ->assertSessionHasErrors('comments');
+
+    expect($submission->fresh()->status)->toBe(SubmissionStatus::SUBMITTED);
+});
+
+it('forbids jefe oficina from registering final approval', function () {
+    $submission = createReviewableSubmission();
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    /** @var EvidenceService $service */
+    $service = app(EvidenceService::class);
+    $service->review($submission, $jefeOficina, ReviewDecision::APPROVE, 'Aprobado por oficina');
+
+    $this
+        ->actingAs($jefeOficina)
+        ->post(route('asesorias.final-approval', $submission->id), [
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    expect($submission->fresh()->final_approved_at)->toBeNull();
+});
+
+it('forbids jefe oficina from setting final review statuses manually', function () {
+    $submission = createReviewableSubmission();
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    $this
+        ->actingAs($jefeOficina)
+        ->post(route('asesorias.cells.status'), [
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'status' => 'VF',
+            'comments' => 'No autorizado',
+        ])
+        ->assertForbidden();
+
+    expect($submission->fresh()->final_approved_at)->toBeNull();
+});
+
 it('allows jefe depto to register final approval after office approval', function () {
     $submission = createReviewableSubmission();
 

@@ -214,16 +214,17 @@ class AdvisoryController extends Controller
 
         $request->validate([
             'decision' => 'required|in:APPROVE,REJECT',
-            'comments' => 'nullable|string|max:500',
+            'comments' => 'required_if:decision,REJECT|nullable|string|max:500',
         ]);
 
         $decision = ReviewDecision::from($request->decision);
+        $comments = $request->string('comments')->trim()->toString() ?: null;
 
         $evidenceService->review(
             $submission,
             $request->user(),
             $decision,
-            $request->comments
+            $comments
         );
 
         return back()->with('success', $decision === ReviewDecision::APPROVE
@@ -251,7 +252,7 @@ class AdvisoryController extends Controller
             'teaching_load_id' => 'required|exists:teaching_loads,id',
             'evidence_item_id' => 'required|integer',
             'status' => 'required|in:AO,VF,REV,PA,BL,R,NE,NA,DRAFT',
-            'comments' => 'nullable|string|max:500',
+            'comments' => 'required_if:status,R|nullable|string|max:500',
         ]);
 
         /** @var \App\Models\User $user */
@@ -276,6 +277,8 @@ class AdvisoryController extends Controller
         abort_unless($user->can('markAsNA', $submission), 403);
 
         $manualStatus = $validated['status'];
+        abort_if($user->isJefeOficina() && in_array($manualStatus, ['VF', 'REV'], true), 403);
+
         $targetStatus = match ($manualStatus) {
             'AO', 'VF', 'REV' => SubmissionStatus::APPROVED,
             'PA' => SubmissionStatus::SUBMITTED,
@@ -286,7 +289,9 @@ class AdvisoryController extends Controller
             'DRAFT' => SubmissionStatus::DRAFT,
         };
 
-        $reason = $validated['comments']
+        $comments = trim((string) ($validated['comments'] ?? '')) ?: null;
+
+        $reason = $comments
             ?: "Marcado manualmente como {$manualStatus} desde seguimiento docente.";
 
         $evidenceService->changeStatus($submission, $targetStatus, $user, $reason, enforceTransition: false);
@@ -322,7 +327,7 @@ class AdvisoryController extends Controller
         $this->notifyTeacherForManualStatusChange(
             $submission->fresh(['teacher', 'evidenceItem']),
             $manualStatus,
-            $validated['comments'] ?? null,
+            $comments,
             $notificationService
         );
 

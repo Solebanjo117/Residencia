@@ -155,6 +155,16 @@ const cellStatusOptions = [
     { value: 'NA', label: 'NA', description: 'No aplica' },
 ];
 
+const availableCellStatusOptions = computed(() => {
+    if (canFinalApprove.value) {
+        return cellStatusOptions;
+    }
+
+    return cellStatusOptions.filter(
+        (option) => !['VF', 'REV'].includes(option.value),
+    );
+});
+
 function openCellDetail(row, col) {
     const cell = row.cells[col.key];
     if (!cell) return;
@@ -169,7 +179,7 @@ function openCellDetail(row, col) {
     uploadForm.clearErrors();
     uploadFileName.value = '';
     cellStatusForm.reset();
-    cellStatusForm.status = cellStatusOptions.some(
+    cellStatusForm.status = availableCellStatusOptions.value.some(
         (option) => option.value === cell.status,
     )
         ? cell.status
@@ -256,6 +266,11 @@ function submitFinalApproval() {
 
 function updateCellStatus() {
     if (!cellModalData.value) return;
+
+    if (cellStatusForm.status === 'R' && !cellStatusForm.comments.trim()) {
+        alert('Debes escribir un motivo para rechazar la evidencia.');
+        return;
+    }
 
     cellStatusForm.teaching_load_id = cellModalData.value.teaching_load_id;
     cellStatusForm.evidence_item_id = cellModalData.value.evidence_item_id;
@@ -1075,7 +1090,7 @@ function formatBytes(bytes) {
                         </h3>
                         <div class="grid gap-2 sm:grid-cols-2">
                             <label
-                                v-for="option in cellStatusOptions"
+                                v-for="option in availableCellStatusOptions"
                                 :key="option.value"
                                 class="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50"
                                 :class="
@@ -1104,13 +1119,27 @@ function formatBytes(bytes) {
                             v-model="cellStatusForm.comments"
                             rows="2"
                             class="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
-                            placeholder="Comentario opcional para el cambio de estado..."
+                            :placeholder="
+                                cellStatusForm.status === 'R'
+                                    ? 'Motivo obligatorio para rechazar...'
+                                    : 'Comentario opcional para el cambio de estado...'
+                            "
                         ></textarea>
+                        <p
+                            v-if="cellStatusForm.errors.comments"
+                            class="mt-2 text-sm text-red-600"
+                        >
+                            {{ cellStatusForm.errors.comments }}
+                        </p>
                         <div class="mt-3 flex items-center gap-2">
                             <button
                                 type="button"
                                 class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                                :disabled="cellStatusForm.processing"
+                                :disabled="
+                                    cellStatusForm.processing ||
+                                    (cellStatusForm.status === 'R' &&
+                                        !cellStatusForm.comments.trim())
+                                "
                                 @click="updateCellStatus"
                             >
                                 Actualizar estado

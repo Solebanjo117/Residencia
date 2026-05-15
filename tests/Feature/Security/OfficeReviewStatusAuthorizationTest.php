@@ -117,6 +117,25 @@ it('allows jefe oficina to update submission status in office review endpoint', 
     ]);
 });
 
+it('requires a reason when rejecting from office review endpoint', function () {
+    $submission = createOfficeReviewSubmission();
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    $this
+        ->from('/oficina/revisiones')
+        ->actingAs($jefeOficina)
+        ->post(route('oficina.revisiones.status', $submission->id), [
+            'status' => 'REJECTED',
+            'comments' => '',
+        ])
+        ->assertRedirect('/oficina/revisiones')
+        ->assertSessionHasErrors('comments');
+
+    expect($submission->fresh()->status)->toBe(SubmissionStatus::SUBMITTED);
+});
+
 it('allows jefe depto to access office review queue', function () {
     createOfficeReviewSubmission();
 

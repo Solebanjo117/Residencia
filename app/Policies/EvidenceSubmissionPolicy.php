@@ -55,7 +55,7 @@ class EvidenceSubmissionPolicy
 
     public function finalApprove(User $user, EvidenceSubmission $submission): bool
     {
-        return $user->isAdministrativeAuthority()
+        return $user->isJefeDepto()
             && $submission->status === SubmissionStatus::APPROVED
             && $submission->office_reviewed_at !== null
             && $submission->final_approved_at === null;

@@ -2,18 +2,22 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Enums\NotificationType;
 use App\Enums\SemesterStatus;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
+use App\Models\User;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
+use App\Services\NotificationService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -292,8 +296,13 @@ class EvidenceController extends Controller
         return back()->with('success', 'Entrega inicializada.')->with('submission_id', $submission->id);
     }
 
-    public function submit(Request $request, EvidenceSubmission $submission, EvidenceService $evidenceService, EvidenceFlowService $flowService)
-    {
+    public function submit(
+        Request $request,
+        EvidenceSubmission $submission,
+        EvidenceService $evidenceService,
+        EvidenceFlowService $flowService,
+        NotificationService $notificationService
+    ) {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
         $actor = $request->user();
@@ -365,6 +374,11 @@ class EvidenceController extends Controller
             'last_updated_at' => now(),
         ]);
 
+        $this->notifyOfficeAboutSubmission(
+            $submission->fresh(['teacher.departments', 'evidenceItem', 'teachingLoad.subject']),
+            $notificationService
+        );
+
         Log::channel('operations')->info('evidence.submitted', [
             'actor_user_id' => $actor?->id,
             'actor_role_id' => $actor?->role_id,
@@ -382,6 +396,33 @@ class EvidenceController extends Controller
             ? 'Evidencia enviada exitosamente de forma extemporanea.'
             : 'Evidencia enviada exitosamente para revision.'
         );
+    }
+
+    private function notifyOfficeAboutSubmission(EvidenceSubmission $submission, NotificationService $notificationService): void
+    {
+        $teacherDepartmentIds = $submission->teacher?->departments?->pluck('id') ?? collect();
+
+        $officeUsers = User::query()
+            ->where('is_active', true)
+            ->whereHas('role', fn ($query) => $query->where('name', Role::JEFE_OFICINA))
+            ->where(function ($query) use ($teacherDepartmentIds) {
+                $query->whereDoesntHave('departments');
+
+                if ($teacherDepartmentIds->isNotEmpty()) {
+                    $query->orWhereHas('departments', fn ($departmentQuery) => $departmentQuery->whereIn('departments.id', $teacherDepartmentIds));
+                }
+            })
+            ->get();
+
+        foreach ($officeUsers as $officeUser) {
+            $notificationService->notifyImmediate(
+                $officeUser,
+                NotificationType::GENERAL,
+                'Nueva evidencia enviada',
+                $submission->teacher?->name.' envio '.$submission->evidenceItem?->name.' para revision.',
+                $submission
+            );
+        }
     }
 
     public function storeFile(Request $request, EvidenceSubmission $submission, StorageService $storageService, EvidenceFlowService $flowService)

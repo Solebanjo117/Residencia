@@ -123,7 +123,7 @@ class ReviewController extends Controller
 
         $request->validate([
             'status' => 'required|in:APPROVED,REJECTED,NA,NE',
-            'comments' => 'nullable|string|max:500',
+            'comments' => 'required_if:status,REJECTED|nullable|string|max:500',
         ]);
 
         $submission = EvidenceSubmission::findOrFail($submission_id);
@@ -151,7 +151,9 @@ class ReviewController extends Controller
                     ? ReviewDecision::APPROVE
                     : ReviewDecision::REJECT;
 
-                $this->evidenceService->review($submission, $reviewer, $decision, $request->comments);
+                $comments = $request->string('comments')->trim()->toString() ?: null;
+
+                $this->evidenceService->review($submission, $reviewer, $decision, $comments);
 
                 // If rejected, create an unlock record so the teacher can re-submit
                 if ($newStatus === SubmissionStatus::REJECTED) {

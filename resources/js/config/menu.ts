@@ -69,6 +69,16 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             return [
                 ...common,
                 {
+                    title: 'Ventanas de Entrega',
+                    href: '/admin/windows',
+                    icon: CalendarClock,
+                },
+                {
+                    title: 'Configuración Semestre',
+                    href: '/admin/semesters',
+                    icon: BookOpen,
+                },
+                {
                     title: 'Pendientes Revisión',
                     href: '/oficina/revisiones',
                     icon: FileCheck,
