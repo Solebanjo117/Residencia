@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\FolderManagerService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class FolderController extends Controller
@@ -27,7 +28,9 @@ class FolderController extends Controller
             return redirect()->route('folders.show', $defaultFolder->id);
         }
 
-        $roots = $this->storageService->getAccessibleRoots($user);
+        $roots = $this->decorateFolderTree(
+            $this->storageService->getAccessibleRoots($user)
+        );
 
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
@@ -67,7 +70,11 @@ class FolderController extends Controller
             ->unique(fn (array $entry) => $entry[0]->id)
             ->values();
 
-        $roots = $this->storageService->getAccessibleRoots($user);
+        $roots = $this->decorateFolderTree(
+            $this->storageService->getAccessibleRoots($user)
+        );
+        $displayPath = $this->readableFolderPath($folder);
+        $readableUrl = $this->readableFolderUrl($folder);
 
         return Inertia::render('FileManager/Index', [
             'folderTree' => $roots,
@@ -75,6 +82,10 @@ class FolderController extends Controller
                 'id' => $folder->id,
                 'name' => $folder->name,
                 'parent_id' => $folder->parent_id,
+                'display_path' => $displayPath,
+                'readable_url' => $readableUrl,
+                'icon_key' => $folder->icon_key,
+                'color_key' => $folder->color_key,
                 'can_upload' => $user->can('upload', $folder),
                 'can_create_folder' => $user->can('create', $folder),
                 'can_rename' => $user->can('update', $folder),
@@ -92,6 +103,10 @@ class FolderController extends Controller
                     'can_rename' => $user->can('update', $child),
                     'can_move' => $user->can('move', $child),
                     'can_delete' => $user->can('delete', $child),
+                    'display_path' => $this->readableFolderPath($child),
+                    'readable_url' => $this->readableFolderUrl($child),
+                    'icon_key' => $child->icon_key,
+                    'color_key' => $child->color_key,
                     'move_url' => route('folders.move', $child->id),
                     'update_url' => route('folders.update', $child->id),
                     'delete_url' => route('folders.destroy', $child->id),
@@ -123,6 +138,8 @@ class FolderController extends Controller
                         'can_preview' => $canPreview,
                         'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
                         'docx_editor_url' => $isDocx ? route('files.docx.show', $file->id) : null,
+                        'file_url' => route('files.download', $file->id),
+                        'folder_url' => $file->folderNode ? $this->readableFolderUrl($file->folderNode) : null,
                         'can_edit_docx' => $isDocx && $user->can('replace', $file),
                         'can_replace' => $user->can('replace', $file),
                         'can_delete' => $user->can('delete', $file),
@@ -133,6 +150,15 @@ class FolderController extends Controller
                 }),
             ],
         ]);
+    }
+
+    public function showByPath(Request $request, string $folderPath)
+    {
+        $folder = $this->resolveFolderByReadablePath($folderPath);
+
+        abort_unless($folder, 404);
+
+        return $this->show($request, $folder);
     }
 
     private function defaultFolderFor(User $user): ?FolderNode
@@ -201,7 +227,7 @@ class FolderController extends Controller
         $this->authorize('create', $folder);
 
         $request->validate([
-            'name' => 'required|string|max:200',
+            'name' => 'required|string|max:160',
         ]);
 
         try {
@@ -220,11 +246,17 @@ class FolderController extends Controller
         $this->authorize('update', $folder);
 
         $request->validate([
-            'name' => 'required|string|max:200',
+            'name' => 'required|string|max:160',
+            'icon_key' => ['nullable', 'string', Rule::in(['folder', 'book', 'file', 'calendar', 'users', 'checklist'])],
+            'color_key' => ['nullable', 'string', Rule::in(['yellow', 'blue', 'green', 'purple', 'red', 'gray'])],
         ]);
 
         try {
-            $this->folderManagerService->renameFolder($request->user(), $folder, $request->input('name'));
+            $this->folderManagerService->updateFolder($request->user(), $folder, [
+                'name' => $request->input('name'),
+                'icon_key' => $request->exists('icon_key') ? $request->input('icon_key') : $folder->icon_key,
+                'color_key' => $request->exists('color_key') ? $request->input('color_key') : $folder->color_key,
+            ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -280,6 +312,10 @@ class FolderController extends Controller
                 'id' => $current->id,
                 'name' => $current->name,
                 'can_view' => $user->can('view', $current),
+                'display_path' => $this->readableFolderPath($current),
+                'readable_url' => $this->readableFolderUrl($current),
+                'icon_key' => $current->icon_key,
+                'color_key' => $current->color_key,
             ];
 
             $current->loadMissing('parent');
@@ -287,6 +323,104 @@ class FolderController extends Controller
         }
 
         return array_reverse($ancestors);
+    }
+
+    private function resolveFolderByReadablePath(string $folderPath): ?FolderNode
+    {
+        $segments = collect(explode('/', trim($folderPath, '/')))
+            ->map(fn (string $segment) => rawurldecode($segment))
+            ->filter(fn (string $segment) => $segment !== '')
+            ->values();
+
+        if ($segments->isEmpty()) {
+            return null;
+        }
+
+        $folder = FolderNode::query()
+            ->whereNull('parent_id')
+            ->where('name', $segments->first())
+            ->orderBy('id')
+            ->first();
+
+        foreach ($segments->skip(1) as $segment) {
+            if (! $folder) {
+                return null;
+            }
+
+            $folder = FolderNode::query()
+                ->where('parent_id', $folder->id)
+                ->where('name', $segment)
+                ->orderBy('id')
+                ->first();
+        }
+
+        return $folder;
+    }
+
+    private function readableFolderPath(FolderNode $folder): string
+    {
+        return implode(' / ', $this->folderPathSegments($folder));
+    }
+
+    private function readableFolderUrl(FolderNode $folder): string
+    {
+        $encodedSegments = array_map(
+            fn (string $segment) => rawurlencode($segment),
+            $this->folderPathSegments($folder)
+        );
+
+        return '/files/folders/'.implode('/', $encodedSegments);
+    }
+
+    private function folderPathSegments(FolderNode $folder): array
+    {
+        $segments = [];
+        $current = $folder;
+
+        while ($current) {
+            array_unshift($segments, $current->name);
+            $current->loadMissing('parent');
+            $current = $current->parent;
+        }
+
+        return $segments;
+    }
+
+    private function decorateFolderTree(array $nodes): array
+    {
+        return array_map(function ($node) {
+            if (is_array($node)) {
+                $node['children'] = $this->decorateFolderTree($node['children'] ?? []);
+
+                return $node;
+            }
+
+            if ($node instanceof FolderNode) {
+                $node->setAttribute('display_path', $this->readableFolderPath($node));
+                $node->setAttribute('readable_url', $this->readableFolderUrl($node));
+                $node->setAttribute('icon_key', $node->icon_key);
+                $node->setAttribute('color_key', $node->color_key);
+
+                if ($node->relationLoaded('children')) {
+                    $children = $node->children->map(function (FolderNode $child) {
+                        $child->setAttribute('display_path', $this->readableFolderPath($child));
+                        $child->setAttribute('readable_url', $this->readableFolderUrl($child));
+                        $child->setAttribute('icon_key', $child->icon_key);
+                        $child->setAttribute('color_key', $child->color_key);
+
+                        if ($child->relationLoaded('children')) {
+                            $child->setRelation('children', collect($this->decorateFolderTree($child->children->all())));
+                        }
+
+                        return $child;
+                    });
+
+                    $node->setRelation('children', $children);
+                }
+            }
+
+            return $node;
+        }, $nodes);
     }
 
     private function linkedAdvanceFilesFor(FolderNode $folder, User $user)

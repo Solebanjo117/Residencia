@@ -1,10 +1,12 @@
 # Diagnostico Tecnico Del Estado Real Y Plan De Endurecimiento (2026-04-18)
 
+> Nota de vigencia 2026-05-18: este diagnostico queda como documento historico. La prioridad P0 aqui descrita sobre adjuntos de asesorias no aparece como flujo vivo en el codigo actual: `Docente/MyAdvisories.vue` ya no enlaza adjuntos por `/storage/...`. El pendiente vigente es confirmar si `AdvisoryFile` sigue en alcance funcional antes de crear endpoints/policies. Ver `PROJECT_STATUS.md`.
+
 ## 1. Objetivo
 
 Documentar el estado real del sistema Residencia con base en codigo vivo (backend, rutas, policies, frontend y pruebas), identificar discrepancias contra documentacion interna y dejar un plan seguro para la prioridad:
 
-- Blindar adjuntos de asesorias (evitar acceso publico por /storage).
+- Historico: blindar adjuntos de asesorias (evitar acceso publico por /storage). El corte 2026-05-18 reclasifica esto como pendiente condicionado, no como P0 vigente.
 
 Este documento no propone reescritura del sistema ni cambio de stack.
 
@@ -132,7 +134,7 @@ Evidencia:
 
 ---
 
-## 4. Hallazgo Critico Vigente (Prioridad P0 Operativa)
+## 4. Hallazgo Historico Reclasificado (antes P0 operativo)
 
 ## Adjuntos de asesorias expuestos por storage publico
 

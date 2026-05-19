@@ -5,8 +5,8 @@ import {
     ArrowLeft,
     Clock3,
     Download,
+    Link2,
     FileText,
-    History,
     ListOrdered,
     List,
     Table2,
@@ -47,18 +47,6 @@ const props = defineProps<{
             tables: number;
             unsupported_blocks: number;
         } | null;
-        version_history: Array<{
-            id: number;
-            file_name: string;
-            uploaded_at: string | null;
-            uploaded_by: string | null;
-            last_edited_at: string | null;
-            last_edited_by: string | null;
-            is_current_version: boolean;
-            editor_source: string | null;
-            download_url: string;
-            editor_url: string;
-        }>;
         load_error: string | null;
         sections: {
             has_header: boolean;
@@ -179,7 +167,50 @@ function insertSimpleTable() {
     syncEditorHtml();
 }
 
-function save(mode: 'replace_current' | 'new_version') {
+function escapeHtml(value: string) {
+    const div = document.createElement('div');
+    div.textContent = value;
+    return div.innerHTML;
+}
+
+function escapeAttribute(value: string) {
+    return escapeHtml(value).replaceAll('"', '&quot;');
+}
+
+function insertLink() {
+    if (readOnly.value) {
+        return;
+    }
+
+    const url = window.prompt('URL del archivo o carpeta');
+    if (!url) {
+        return;
+    }
+
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl.startsWith('/') && !/^https?:\/\//i.test(trimmedUrl)) {
+        return;
+    }
+
+    focusEditor();
+
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) {
+        document.execCommand('createLink', false, trimmedUrl);
+    } else {
+        const label =
+            window.prompt('Texto del enlace', trimmedUrl) || trimmedUrl;
+        document.execCommand(
+            'insertHTML',
+            false,
+            `<a href="${escapeAttribute(trimmedUrl)}">${escapeHtml(label)}</a>`,
+        );
+    }
+
+    syncEditorHtml();
+}
+
+function save(mode: 'replace_current') {
     if (readOnly.value || !editorRef.value) {
         return;
     }
@@ -285,16 +316,6 @@ onMounted(() => {
                             <Download class="h-4 w-4" />
                             Descargar
                         </a>
-                        <button
-                            v-if="capabilities.can_edit && !document.load_error"
-                            type="button"
-                            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                            :disabled="saveForm.processing"
-                            @click="save('new_version')"
-                        >
-                            <History class="h-4 w-4" />
-                            Guardar como nueva version
-                        </button>
                         <button
                             v-if="capabilities.can_edit && !document.load_error"
                             type="button"
@@ -572,6 +593,14 @@ onMounted(() => {
                                     >
                                         <Table2 class="h-4 w-4" /> Tabla
                                     </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                                        :disabled="readOnly"
+                                        @click="insertLink"
+                                    >
+                                        <Link2 class="h-4 w-4" /> Link
+                                    </button>
                                 </div>
                             </div>
 
@@ -680,101 +709,6 @@ onMounted(() => {
                             </div>
                         </div>
                     </div>
-
-                    <aside class="space-y-4">
-                        <div
-                            class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                        >
-                            <h2
-                                class="mb-3 text-sm font-semibold tracking-wider text-slate-500 uppercase"
-                            >
-                                Historial de versiones
-                            </h2>
-                            <div
-                                v-if="document.version_history.length === 0"
-                                class="text-sm text-slate-500"
-                            >
-                                No hay versiones registradas todavia.
-                            </div>
-                            <ul v-else class="space-y-3">
-                                <li
-                                    v-for="version in document.version_history"
-                                    :key="version.id"
-                                    class="rounded-xl border p-3"
-                                    :class="
-                                        version.is_current_version
-                                            ? 'border-indigo-200 bg-indigo-50/70'
-                                            : 'border-slate-200 bg-white'
-                                    "
-                                >
-                                    <div
-                                        class="mb-2 flex items-start justify-between gap-3"
-                                    >
-                                        <div class="min-w-0">
-                                            <div
-                                                class="truncate text-sm font-semibold text-slate-900"
-                                            >
-                                                {{ version.file_name }}
-                                            </div>
-                                            <div
-                                                class="mt-1 text-xs text-slate-500"
-                                            >
-                                                {{
-                                                    formatDateTime(
-                                                        version.last_edited_at ||
-                                                            version.uploaded_at,
-                                                    )
-                                                }}
-                                            </div>
-                                        </div>
-                                        <span
-                                            class="inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold"
-                                            :class="
-                                                version.is_current_version
-                                                    ? 'bg-indigo-100 text-indigo-700'
-                                                    : 'bg-slate-100 text-slate-600'
-                                            "
-                                        >
-                                            {{
-                                                version.is_current_version
-                                                    ? 'Actual'
-                                                    : 'Revision'
-                                            }}
-                                        </span>
-                                    </div>
-                                    <div class="text-xs text-slate-500">
-                                        <div>
-                                            Subido por:
-                                            {{
-                                                version.uploaded_by ||
-                                                'Sin usuario'
-                                            }}
-                                        </div>
-                                        <div v-if="version.last_edited_by">
-                                            Editado por:
-                                            {{ version.last_edited_by }}
-                                        </div>
-                                    </div>
-                                    <div
-                                        class="mt-3 flex flex-wrap items-center gap-2"
-                                    >
-                                        <Link
-                                            :href="version.editor_url"
-                                            class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                        >
-                                            Abrir
-                                        </Link>
-                                        <a
-                                            :href="version.download_url"
-                                            class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                        >
-                                            Descargar
-                                        </a>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
-                    </aside>
                 </div>
             </div>
         </div>

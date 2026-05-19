@@ -26,11 +26,17 @@ class EvidenceFlowService
             ->get();
 
         return $requirements
-            ->sortBy([
-                fn (EvidenceRequirement $requirement) => $requirement->department_id === $departmentId ? 0 : 1,
-                fn (EvidenceRequirement $requirement) => $this->stageOrder($requirement->evidenceItem?->name),
-                fn (EvidenceRequirement $requirement) => $requirement->evidenceItem?->name ?? '',
-            ])
+            ->sort(function (EvidenceRequirement $left, EvidenceRequirement $right) use ($departmentId) {
+                return [
+                    $left->department_id === $departmentId ? 0 : 1,
+                    $this->stageOrder($left->evidenceItem?->name),
+                    $left->evidenceItem?->name ?? '',
+                ] <=> [
+                    $right->department_id === $departmentId ? 0 : 1,
+                    $this->stageOrder($right->evidenceItem?->name),
+                    $right->evidenceItem?->name ?? '',
+                ];
+            })
             ->unique('evidence_item_id')
             ->values();
     }
@@ -100,6 +106,30 @@ class EvidenceFlowService
             50 => 'Etapa final',
             default => $stage < 50 ? 'SD1' : 'Etapa final',
         };
+    }
+
+    public function currentStageOrder(Collection $windows): ?int
+    {
+        $now = now();
+
+        $currentWindow = $windows
+            ->filter(fn (SubmissionWindow $window) => $window->opens_at && $window->closes_at)
+            ->filter(fn (SubmissionWindow $window) => $now->between($window->opens_at, $window->closes_at))
+            ->sortBy('opens_at')
+            ->first();
+
+        if ($currentWindow) {
+            return $this->stageOrder($currentWindow->evidenceItem?->name);
+        }
+
+        $upcomingWindow = $windows
+            ->filter(fn (SubmissionWindow $window) => $window->opens_at && $now->lessThan($window->opens_at))
+            ->sortBy('opens_at')
+            ->first();
+
+        return $upcomingWindow
+            ? $this->stageOrder($upcomingWindow->evidenceItem?->name)
+            : null;
     }
 
     public function isStageUnlocked(

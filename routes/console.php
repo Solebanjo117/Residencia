@@ -80,7 +80,6 @@ Artisan::command('residencia:bootstrap {--admin-name=Jefe de Departamento : Nomb
                 ['SEG 04 FINAL', 'Seguimiento final de evidencias.', true],
                 ['CALIF. PARCIALES FINAL', 'Calificaciones finales.', true],
                 ['REPORTES EVIDENCIAS ASIGNATURAS', 'Reporte de evidencias por asignatura.', true],
-                ['PROY IND', 'Proyecto individual del docente.', false],
                 ['REP FINAL', 'Reporte final.', true],
                 ['ASESORIAS', 'Evidencia de asesorias academicas.', true],
                 ['ACTAS FINALES', 'Actas finales.', true],

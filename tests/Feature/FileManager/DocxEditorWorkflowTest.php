@@ -326,7 +326,7 @@ XML,
             ->where('file.can_edit', true)
             ->where('document.load_error', null)
             ->where('document.stats.images', 1)
-            ->where('document.version_history.0.id', $file->id)
+            ->missing('document.version_history')
             ->where('document.html', fn (string $html) => str_contains($html, 'Titulo de prueba')
                 && str_contains($html, 'Texto en negritas')
                 && str_contains($html, 'data-docx-font-family="Arial"')
@@ -334,7 +334,7 @@ XML,
         );
 });
 
-it('saves an edited docx as a new current revision without deleting the original', function () {
+it('saves an edited docx in place without creating another evidence file record', function () {
     Storage::fake('local');
     $ctx = createDocxEditorContext();
 
@@ -352,6 +352,8 @@ it('saves an edited docx as a new current revision without deleting the original
         'uploaded_at' => now(),
         'uploaded_by_user_id' => $ctx['teacher']->id,
     ]);
+    $originalId = $file->id;
+    $originalPath = $file->stored_relative_path;
 
     $response = $this
         ->actingAs($ctx['teacher'])
@@ -360,25 +362,22 @@ it('saves an edited docx as a new current revision without deleting the original
             'save_mode' => 'replace_current',
         ]);
 
-    $newFile = EvidenceFile::query()
-        ->where('previous_version_file_id', $file->id)
-        ->first();
+    $response->assertRedirect(route('files.docx.show', $originalId));
 
-    expect($newFile)->not->toBeNull();
+    $file->refresh();
+    expect($file->id)->toBe($originalId);
+    expect($file->previous_version_file_id)->toBeNull();
+    expect($file->root_file_id)->toBeNull();
+    expect($file->is_current_version)->toBeTrue();
+    expect($file->last_edited_by_user_id)->toBe($ctx['teacher']->id);
+    expect(EvidenceFile::query()->where('submission_id', $ctx['submission']->id)->count())->toBe(1);
 
-    $response->assertRedirect(route('files.docx.show', $newFile->id));
-
-    expect($file->fresh()->is_current_version)->toBeFalse();
-    expect($newFile->is_current_version)->toBeTrue();
-    expect($newFile->root_file_id)->toBe($file->id);
-    expect($newFile->last_edited_by_user_id)->toBe($ctx['teacher']->id);
-
+    Storage::disk('local')->assertMissing($originalPath);
     Storage::disk('local')->assertExists($file->stored_relative_path);
-    Storage::disk('local')->assertExists($newFile->stored_relative_path);
 
     /** @var DocxEditorService $service */
     $service = app(DocxEditorService::class);
-    $loaded = $service->loadDocument($newFile);
+    $loaded = $service->loadDocument($file);
 
     expect($loaded['html'])->toContain('Documento actualizado');
     expect($loaded['html'])->toContain('Contenido nuevo');
@@ -434,14 +433,11 @@ XML,
             'save_mode' => 'replace_current',
         ]);
 
-    $newFile = EvidenceFile::query()
-        ->where('previous_version_file_id', $file->id)
-        ->first();
+    $response->assertRedirect(route('files.docx.show', $file->id));
+    $file->refresh();
+    expect(EvidenceFile::query()->where('submission_id', $ctx['submission']->id)->count())->toBe(1);
 
-    expect($newFile)->not->toBeNull();
-    $response->assertRedirect(route('files.docx.show', $newFile->id));
-
-    $reloaded = $service->loadDocument($newFile);
+    $reloaded = $service->loadDocument($file);
 
     expect($reloaded['html'])->toContain('data-docx-font-family="Aptos"');
     expect($reloaded['html'])->toContain('data-docx-kind="image"');
@@ -449,7 +445,7 @@ XML,
     expect($reloaded['html'])->toContain('Primer elemento');
 
     $zip = new \ZipArchive;
-    $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
+    $opened = $zip->open(Storage::disk('local')->path($file->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/numbering.xml'))->not->toBeFalse();
     $zip->close();
@@ -504,21 +500,18 @@ XML, sampleSimpleTableXml());
             'save_mode' => 'replace_current',
         ]);
 
-    $newFile = EvidenceFile::query()
-        ->where('previous_version_file_id', $file->id)
-        ->first();
+    $response->assertRedirect(route('files.docx.show', $file->id));
+    $file->refresh();
+    expect(EvidenceFile::query()->where('submission_id', $ctx['submission']->id)->count())->toBe(1);
 
-    expect($newFile)->not->toBeNull();
-    $response->assertRedirect(route('files.docx.show', $newFile->id));
-
-    $reloaded = $service->loadDocument($newFile);
+    $reloaded = $service->loadDocument($file);
 
     expect($reloaded['html'])->toContain('Celda B2 editada');
     expect($reloaded['html'])->toContain('data-docx-align="center"');
     expect($reloaded['html'])->toContain('<table class="docx-table"');
 
     $zip = new \ZipArchive;
-    $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
+    $opened = $zip->open(Storage::disk('local')->path($file->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/document.xml'))->toContain('<w:tbl>');
     expect($zip->getFromName('word/document.xml'))->toContain('w:jc w:val="center"');
@@ -592,15 +585,12 @@ it('loads and saves editable header and footer content when the docx already def
             'save_mode' => 'replace_current',
         ]);
 
-    $newFile = EvidenceFile::query()
-        ->where('previous_version_file_id', $file->id)
-        ->first();
-
-    expect($newFile)->not->toBeNull();
-    $response->assertRedirect(route('files.docx.show', $newFile->id));
+    $response->assertRedirect(route('files.docx.show', $file->id));
+    $file->refresh();
+    expect(EvidenceFile::query()->where('submission_id', $ctx['submission']->id)->count())->toBe(1);
 
     $zip = new \ZipArchive;
-    $opened = $zip->open(Storage::disk('local')->path($newFile->stored_relative_path));
+    $opened = $zip->open(Storage::disk('local')->path($file->stored_relative_path));
     expect($opened)->toBeTrue();
     expect($zip->getFromName('word/header1.xml'))->toContain('Encabezado editado');
     expect($zip->getFromName('word/footer1.xml'))->toContain('Pie editado');
@@ -705,12 +695,8 @@ it('allows saving a docx when submission is pending and window is open', functio
             'save_mode' => 'replace_current',
         ]);
 
-    $newFile = EvidenceFile::query()
-        ->where('previous_version_file_id', $file->id)
-        ->first();
-
-    expect($newFile)->not->toBeNull();
-    $response->assertRedirect(route('files.docx.show', $newFile->id));
+    $response->assertRedirect(route('files.docx.show', $file->id));
+    expect(EvidenceFile::query()->where('submission_id', $ctx['submission']->id)->count())->toBe(1);
 });
 
 it('renders the docx editor in read only mode when teacher can no longer replace the file', function () {

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\NotificationType;
 use App\Http\Controllers\Controller;
 use App\Models\EvidenceItem;
+use App\Models\NotificationSchedule;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
@@ -77,7 +79,8 @@ class SubmissionWindowController extends Controller
 
         $validated['created_by_user_id'] = Auth::id();
 
-        SubmissionWindow::create($validated);
+        $window = SubmissionWindow::create($validated);
+        $this->syncNotificationSchedules($window);
 
         return redirect()->back()->with('success', 'Ventana de entrega creada correctamente.');
     }
@@ -97,6 +100,7 @@ class SubmissionWindowController extends Controller
         $this->ensureNoActiveWindowOverlap($validated, $window->id);
 
         $window->update($validated);
+        $this->syncNotificationSchedules($window->refresh());
 
         return redirect()->back()->with('success', 'Ventana de entrega actualizada correctamente.');
     }
@@ -140,6 +144,43 @@ class SubmissionWindowController extends Controller
         $data['closes_at'] = CarbonImmutable::parse($data['closes_at'])->endOfDay();
 
         return $data;
+    }
+
+    private function syncNotificationSchedules(SubmissionWindow $window): void
+    {
+        NotificationSchedule::query()
+            ->where('semester_id', $window->semester_id)
+            ->where('evidence_item_id', $window->evidence_item_id)
+            ->where('is_sent', false)
+            ->whereIn('notification_type', [
+                NotificationType::WINDOW_OPEN->value,
+                NotificationType::WINDOW_CLOSING->value,
+            ])
+            ->delete();
+
+        $status = $window->status instanceof \BackedEnum
+            ? $window->status->value
+            : $window->status;
+
+        if ($status !== 'ACTIVE') {
+            return;
+        }
+
+        NotificationSchedule::create([
+            'semester_id' => $window->semester_id,
+            'evidence_item_id' => $window->evidence_item_id,
+            'notify_at' => $window->opens_at,
+            'notification_type' => NotificationType::WINDOW_OPEN,
+            'is_sent' => false,
+        ]);
+
+        NotificationSchedule::create([
+            'semester_id' => $window->semester_id,
+            'evidence_item_id' => $window->evidence_item_id,
+            'notify_at' => CarbonImmutable::parse($window->closes_at)->subDays(3),
+            'notification_type' => NotificationType::WINDOW_CLOSING,
+            'is_sent' => false,
+        ]);
     }
 
     private function applyOperationalStatusFilter($query, mixed $status): void

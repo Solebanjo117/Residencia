@@ -2,7 +2,10 @@
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import {
     Folder,
+    BookOpen,
+    Calendar,
     FileText,
+    File as FileIcon,
     Eye,
     Download,
     Trash2,
@@ -14,6 +17,10 @@ import {
     ArrowRightLeft,
     Move,
     AlertTriangle,
+    Copy,
+    Check,
+    Users,
+    ListChecks,
 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import FolderTree from '@/components/FileManager/FolderTree.vue';
@@ -26,6 +33,8 @@ const props = defineProps<{
         id: number;
         name: string;
         parent_id?: number | null;
+        display_path?: string;
+        readable_url?: string;
         can_upload: boolean;
         can_create_folder?: boolean;
         can_rename?: boolean;
@@ -35,6 +44,8 @@ const props = defineProps<{
             id: number;
             name: string;
             can_view: boolean;
+            display_path?: string;
+            readable_url?: string;
         }>;
     } | null;
     semesterName?: string | null;
@@ -209,10 +220,14 @@ onMounted(() => {
     loadExpandedFolders();
     loadLeftPanelWidth();
     expandAncestorsFromCurrentFolder();
+    window.addEventListener('click', closeFolderContextMenu);
+    window.addEventListener('keydown', closeFolderContextMenuOnEscape);
 });
 
 onBeforeUnmount(() => {
     stopResizing();
+    window.removeEventListener('click', closeFolderContextMenu);
+    window.removeEventListener('keydown', closeFolderContextMenuOnEscape);
 });
 
 watch(
@@ -266,6 +281,77 @@ const isIndividualProjectsFolder = (folder: any) => {
     );
 };
 
+const folderColorOptions = [
+    {
+        key: 'yellow',
+        label: 'Amarillo',
+        card: 'border-gray-200 hover:border-blue-200 hover:bg-blue-50',
+        icon: 'text-yellow-500',
+        swatch: 'bg-yellow-400',
+    },
+    {
+        key: 'blue',
+        label: 'Azul',
+        card: 'border-blue-200 bg-blue-50 hover:border-blue-300 hover:bg-blue-100',
+        icon: 'text-blue-600',
+        swatch: 'bg-blue-500',
+    },
+    {
+        key: 'green',
+        label: 'Verde',
+        card: 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100',
+        icon: 'text-emerald-600',
+        swatch: 'bg-emerald-500',
+    },
+    {
+        key: 'purple',
+        label: 'Morado',
+        card: 'border-purple-200 bg-purple-50 hover:border-purple-300 hover:bg-purple-100',
+        icon: 'text-purple-600',
+        swatch: 'bg-purple-500',
+    },
+    {
+        key: 'red',
+        label: 'Rojo',
+        card: 'border-red-200 bg-red-50 hover:border-red-300 hover:bg-red-100',
+        icon: 'text-red-600',
+        swatch: 'bg-red-500',
+    },
+    {
+        key: 'gray',
+        label: 'Gris',
+        card: 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100',
+        icon: 'text-slate-500',
+        swatch: 'bg-slate-500',
+    },
+];
+
+const folderIconOptions = [
+    { key: 'folder', label: 'Carpeta', component: Folder },
+    { key: 'book', label: 'Libro', component: BookOpen },
+    { key: 'file', label: 'Archivo', component: FileIcon },
+    { key: 'calendar', label: 'Calendario', component: Calendar },
+    { key: 'users', label: 'Grupo', component: Users },
+    { key: 'checklist', label: 'Lista', component: ListChecks },
+];
+
+const folderColorOption = (folder: any) => {
+    const fallback = isIndividualProjectsFolder(folder) ? 'green' : 'yellow';
+    const key = folder?.color_key || fallback;
+
+    return (
+        folderColorOptions.find((option) => option.key === key) ||
+        folderColorOptions[0]
+    );
+};
+
+const folderCardClasses = (folder: any) => folderColorOption(folder).card;
+const folderIconClasses = (folder: any) => folderColorOption(folder).icon;
+const folderIconComponent = (folder: any) =>
+    folderIconOptions.find(
+        (option) => option.key === (folder?.icon_key || 'folder'),
+    )?.component || Folder;
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Gestor de Archivos',
@@ -273,13 +359,17 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
     ...((props.currentFolder?.ancestors ?? []).map((ancestor) => ({
         title: ancestor.name,
-        href: ancestor.can_view ? `/files/folders/${ancestor.id}` : undefined,
+        href: ancestor.can_view
+            ? ancestor.readable_url || `/files/folders/${ancestor.id}`
+            : undefined,
     })) as BreadcrumbItem[]),
     ...(props.currentFolder
         ? [
               {
                   title: props.currentFolder.name,
-                  href: `/files/folders/${props.currentFolder.id}`,
+                  href:
+                      props.currentFolder.readable_url ||
+                      `/files/folders/${props.currentFolder.id}`,
               },
           ]
         : []),
@@ -338,6 +428,27 @@ const replaceForm = useForm({
 
 const uploadError = ref('');
 const uploadSuccess = ref('');
+const copiedFolderPath = ref(false);
+
+const copyCurrentFolderPath = async () => {
+    if (!props.currentFolder) {
+        return;
+    }
+
+    const path =
+        props.currentFolder.readable_url ||
+        `/files/folders/${props.currentFolder.id}`;
+
+    try {
+        await navigator.clipboard.writeText(path);
+        copiedFolderPath.value = true;
+        window.setTimeout(() => {
+            copiedFolderPath.value = false;
+        }, 1800);
+    } catch {
+        uploadError.value = 'No se pudo copiar la ruta de la carpeta.';
+    }
+};
 
 const uploadSingleFile = (file: File): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -566,7 +677,7 @@ const onContentDrop = async (event: DragEvent) => {
 
 type ModalType =
     | 'createFolder'
-    | 'renameFolder'
+    | 'editFolder'
     | 'moveFolder'
     | 'deleteFolder'
     | 'moveFile'
@@ -577,7 +688,11 @@ const processingAction = ref(false);
 const modalError = ref('');
 
 const createFolderForm = useForm({ name: '' });
-const renameFolderForm = useForm({ name: '' });
+const editFolderForm = useForm({
+    name: '',
+    icon_key: 'folder',
+    color_key: 'yellow',
+});
 const moveFolderForm = useForm({ target_folder_id: '' });
 const moveFileForm = useForm({ target_folder_id: '' });
 const moveTargetId = ref('');
@@ -591,13 +706,17 @@ const openCreateFolderModal = () => {
     activeModal.value = 'createFolder';
 };
 
-const openRenameFolderModal = (folder?: any) => {
+const openEditFolderModal = (folder?: any) => {
     const target = folder || props.currentFolder;
     if (!target || !target.can_rename) return;
     selectedFolder.value = target;
-    renameFolderForm.name = target.name;
+    editFolderForm.name = target.name;
+    editFolderForm.icon_key = target.icon_key || 'folder';
+    editFolderForm.color_key =
+        target.color_key ||
+        (isIndividualProjectsFolder(target) ? 'green' : 'yellow');
     modalError.value = '';
-    activeModal.value = 'renameFolder';
+    activeModal.value = 'editFolder';
 };
 
 const openMoveFolderModal = (folder?: any) => {
@@ -652,17 +771,21 @@ const submitCreateFolder = () => {
     });
 };
 
-const submitRenameFolder = () => {
+const submitEditFolder = () => {
     if (!selectedFolder.value) return;
     processingAction.value = true;
-    renameFolderForm.patch(`/files/folders/${selectedFolder.value.id}`, {
+    editFolderForm.patch(`/files/folders/${selectedFolder.value.id}`, {
         preserveScroll: true,
         onSuccess: () => {
             closeModal();
             router.reload({ preserveScroll: true });
         },
         onError: (errors: any) => {
-            modalError.value = errors.name || 'Error al renombrar carpeta.';
+            modalError.value =
+                errors.name ||
+                errors.icon_key ||
+                errors.color_key ||
+                'Error al editar carpeta.';
             processingAction.value = false;
         },
         onFinish: () => {
@@ -778,6 +901,17 @@ const moveTargets = computed(() => {
 // Internal drag-and-drop for move
 const dragItem = ref<any>(null);
 const dragType = ref<'file' | 'folder' | null>(null);
+const folderContextMenu = ref<{
+    visible: boolean;
+    x: number;
+    y: number;
+    folder: any | null;
+}>({
+    visible: false,
+    x: 0,
+    y: 0,
+    folder: null,
+});
 
 const onDragStart = (event: DragEvent, item: any, type: 'file' | 'folder') => {
     dragItem.value = item;
@@ -853,10 +987,36 @@ const onDropOnFolder = (targetFolderId: number) => {
     dragType.value = null;
 };
 
+const openFolderContextMenu = (event: MouseEvent, folder: any) => {
+    if (!folder.can_rename && !folder.can_move && !folder.can_delete) {
+        return;
+    }
+
+    folderContextMenu.value = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        folder,
+    };
+};
+
+const closeFolderContextMenu = () => {
+    folderContextMenu.value.visible = false;
+};
+
+const closeFolderContextMenuOnEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+        closeFolderContextMenu();
+    }
+};
+
 const onFolderAction = (action: string, folder: any) => {
+    closeFolderContextMenu();
+
     switch (action) {
+        case 'edit':
         case 'rename':
-            openRenameFolderModal(folder);
+            openEditFolderModal(folder);
             break;
         case 'move':
             openMoveFolderModal(folder);
@@ -876,6 +1036,44 @@ const onFolderAction = (action: string, folder: any) => {
             ref="containerRef"
             class="flex h-[calc(100vh-4rem)] overflow-hidden"
         >
+            <div
+                v-if="folderContextMenu.visible && folderContextMenu.folder"
+                class="fixed z-50 min-w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+                :style="{
+                    left: `${folderContextMenu.x}px`,
+                    top: `${folderContextMenu.y}px`,
+                }"
+                @click.stop
+            >
+                <button
+                    v-if="folderContextMenu.folder.can_rename"
+                    type="button"
+                    class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    @click="onFolderAction('edit', folderContextMenu.folder)"
+                >
+                    <Pencil class="h-4 w-4" />
+                    Editar
+                </button>
+                <button
+                    v-if="folderContextMenu.folder.can_move"
+                    type="button"
+                    class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    @click="onFolderAction('move', folderContextMenu.folder)"
+                >
+                    <ArrowRightLeft class="h-4 w-4" />
+                    Mover
+                </button>
+                <button
+                    v-if="folderContextMenu.folder.can_delete"
+                    type="button"
+                    class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                    @click="onFolderAction('delete', folderContextMenu.folder)"
+                >
+                    <Trash2 class="h-4 w-4" />
+                    Eliminar
+                </button>
+            </div>
+
             <div
                 class="shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-4"
                 :style="{ width: `${leftPanelWidth}%` }"
@@ -941,6 +1139,13 @@ const onFolderAction = (action: string, folder: any) => {
                                     : 'Selecciona una carpeta'
                             }}
                         </h2>
+                        <span
+                            v-if="currentFolder?.display_path"
+                            class="block max-w-[52rem] truncate text-xs text-gray-500"
+                            :title="currentFolder.display_path"
+                        >
+                            {{ currentFolder.display_path }}
+                        </span>
                         <span v-if="semesterName" class="text-xs text-gray-500">
                             Semestre: <b>{{ semesterName }}</b>
                         </span>
@@ -982,6 +1187,20 @@ const onFolderAction = (action: string, folder: any) => {
                         </div>
                         <template v-if="currentFolder">
                             <button
+                                type="button"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                title="Copiar ruta legible de la carpeta"
+                                @click="copyCurrentFolderPath"
+                            >
+                                <component
+                                    :is="copiedFolderPath ? Check : Copy"
+                                    class="mr-1.5 h-4 w-4"
+                                />
+                                {{
+                                    copiedFolderPath ? 'Copiada' : 'Copiar ruta'
+                                }}
+                            </button>
+                            <button
                                 v-if="canCreateFolder"
                                 type="button"
                                 class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
@@ -995,11 +1214,11 @@ const onFolderAction = (action: string, folder: any) => {
                                 v-if="canRenameCurrentFolder"
                                 type="button"
                                 class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                                title="Renombrar carpeta"
-                                @click="openRenameFolderModal()"
+                                title="Editar carpeta"
+                                @click="openEditFolderModal()"
                             >
                                 <Pencil class="mr-1.5 h-4 w-4" />
-                                Renombrar
+                                Editar
                             </button>
                             <button
                                 v-if="canMoveCurrentFolder"
@@ -1091,35 +1310,27 @@ const onFolderAction = (action: string, folder: any) => {
                                 <div
                                     v-for="folder in contents.folders"
                                     :key="folder.id"
-                                    class="group/folder relative flex items-center gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:border-blue-200 hover:bg-blue-50"
-                                    :class="
-                                        isIndividualProjectsFolder(folder)
-                                            ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100'
-                                            : ''
-                                    "
+                                    class="group/folder relative flex items-center gap-3 rounded-lg border p-3 transition-colors"
+                                    :class="folderCardClasses(folder)"
                                     draggable="true"
                                     @dragstart="
                                         onDragStart($event, folder, 'folder')
                                     "
+                                    @contextmenu.prevent="
+                                        openFolderContextMenu($event, folder)
+                                    "
                                 >
                                     <Link
-                                        :href="`/files/folders/${folder.id}`"
-                                        class="flex flex-1 items-center gap-3 text-gray-700 hover:text-blue-600"
-                                        :class="
-                                            isIndividualProjectsFolder(folder)
-                                                ? 'text-emerald-800 hover:text-emerald-700'
-                                                : ''
+                                        :href="
+                                            folder.readable_url ||
+                                            `/files/folders/${folder.id}`
                                         "
+                                        class="flex flex-1 items-center gap-3 text-gray-700 hover:text-blue-600"
                                     >
-                                        <Folder
+                                        <component
+                                            :is="folderIconComponent(folder)"
                                             class="h-8 w-8"
-                                            :class="
-                                                isIndividualProjectsFolder(
-                                                    folder,
-                                                )
-                                                    ? 'text-emerald-600'
-                                                    : 'text-yellow-500'
-                                            "
+                                            :class="folderIconClasses(folder)"
                                         />
                                         <span class="truncate font-medium">{{
                                             folder.name
@@ -1137,9 +1348,9 @@ const onFolderAction = (action: string, folder: any) => {
                                             v-if="folder.can_rename"
                                             type="button"
                                             class="p-1 text-gray-400 hover:text-blue-600"
-                                            title="Renombrar"
+                                            title="Editar"
                                             @click.prevent="
-                                                onFolderAction('rename', folder)
+                                                onFolderAction('edit', folder)
                                             "
                                         >
                                             <Pencil class="h-3.5 w-3.5" />
@@ -1271,7 +1482,9 @@ const onFolderAction = (action: string, folder: any) => {
                                                                 file.folder_path
                                                             "
                                                         >
-                                                            {{ file.folder_path }}
+                                                            {{
+                                                                file.folder_path
+                                                            }}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1488,15 +1701,15 @@ const onFolderAction = (action: string, folder: any) => {
             </div>
         </div>
 
-        <!-- Rename Folder Modal -->
+        <!-- Edit Folder Modal -->
         <div
-            v-if="activeModal === 'renameFolder'"
+            v-if="activeModal === 'editFolder'"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
             @click.self="closeModal"
         >
-            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
                 <h3 class="mb-4 text-lg font-semibold text-gray-900">
-                    Renombrar Carpeta
+                    Editar carpeta
                 </h3>
                 <div
                     v-if="modalError"
@@ -1504,13 +1717,77 @@ const onFolderAction = (action: string, folder: any) => {
                 >
                     {{ modalError }}
                 </div>
-                <form @submit.prevent="submitRenameFolder">
-                    <input
-                        v-model="renameFolderForm.name"
-                        type="text"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                        autofocus
-                    />
+                <form class="space-y-5" @submit.prevent="submitEditFolder">
+                    <label class="block">
+                        <span
+                            class="mb-1 block text-sm font-medium text-slate-700"
+                        >
+                            Nombre
+                        </span>
+                        <input
+                            v-model="editFolderForm.name"
+                            type="text"
+                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                            autofocus
+                        />
+                    </label>
+
+                    <div>
+                        <span
+                            class="mb-2 block text-sm font-medium text-slate-700"
+                        >
+                            Color
+                        </span>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                v-for="option in folderColorOptions"
+                                :key="option.key"
+                                type="button"
+                                class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+                                :class="
+                                    editFolderForm.color_key === option.key
+                                        ? 'border-blue-500 bg-blue-50 text-blue-800'
+                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                "
+                                @click="editFolderForm.color_key = option.key"
+                            >
+                                <span
+                                    class="h-4 w-4 rounded-full"
+                                    :class="option.swatch"
+                                ></span>
+                                {{ option.label }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span
+                            class="mb-2 block text-sm font-medium text-slate-700"
+                        >
+                            Icono
+                        </span>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                v-for="option in folderIconOptions"
+                                :key="option.key"
+                                type="button"
+                                class="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+                                :class="
+                                    editFolderForm.icon_key === option.key
+                                        ? 'border-blue-500 bg-blue-50 text-blue-800'
+                                        : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                                "
+                                @click="editFolderForm.icon_key = option.key"
+                            >
+                                <component
+                                    :is="option.component"
+                                    class="h-4 w-4"
+                                />
+                                {{ option.label }}
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="mt-4 flex justify-end gap-2">
                         <button
                             type="button"
@@ -1524,7 +1801,7 @@ const onFolderAction = (action: string, folder: any) => {
                             :disabled="processingAction"
                             class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         >
-                            Renombrar
+                            Guardar
                         </button>
                     </div>
                 </form>

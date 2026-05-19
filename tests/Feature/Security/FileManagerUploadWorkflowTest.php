@@ -6,6 +6,7 @@ use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\StorageRoot;
@@ -114,6 +115,37 @@ it('does not auto submit evidence when uploading from file manager', function ()
     $this->assertDatabaseMissing('evidence_status_history', [
         'submission_id' => $ctx['submission']->id,
     ]);
+});
+
+it('notifies office and department when a teacher uploads from file manager', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $departmentRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
+    $departmentUser = User::factory()->create(['role_id' => $departmentRoleId]);
+
+    $this
+        ->from('/files/manager')
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $ctx['folder']->id), [
+            'file' => UploadedFile::fake()->create('aviso.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect('/files/manager');
+
+    $file = EvidenceFile::where('submission_id', $ctx['submission']->id)->firstOrFail();
+
+    foreach ([$officeUser, $departmentUser] as $recipient) {
+        $notification = Notification::query()
+            ->where('user_id', $recipient->id)
+            ->where('related_entity_type', EvidenceFile::class)
+            ->where('related_entity_id', $file->id)
+            ->first();
+
+        expect($notification)->not->toBeNull();
+        expect($notification->message)->toContain($ctx['teacher']->name);
+    }
 });
 
 it('opens the active teacher folder by default in file manager', function () {
@@ -475,6 +507,91 @@ it('shows sd2 advance files inside the matching sd4 advance folder so they can b
             ->where('contents.files.0.docx_editor_url', route('files.docx.show', $file->id))
             ->where('contents.files.0.can_edit_docx', true)
         );
+});
+
+it('links sd2 and sd4 project folders to their matching seguimiento evidence items', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true, createWindow: false);
+    $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
+    $seg2 = EvidenceItem::create([
+        'category_id' => $categoryId,
+        'name' => 'SEG 02',
+        'description' => 'Segundo seguimiento',
+        'requires_subject' => true,
+        'active' => true,
+    ]);
+    $seg4 = EvidenceItem::create([
+        'category_id' => $categoryId,
+        'name' => 'SEG 04 FINAL',
+        'description' => 'Cuarto seguimiento final',
+        'requires_subject' => true,
+        'active' => true,
+    ]);
+
+    foreach ([$seg2, $seg4] as $item) {
+        SubmissionWindow::create([
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $item->id,
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
+            'created_by_user_id' => $ctx['teacher']->id,
+            'status' => 'ACTIVE',
+        ]);
+    }
+
+    $parent = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => '4.1-CAPACITACION',
+        'relative_path' => $ctx['folder']->relative_path.'/4.1-CAPACITACION',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['folder']->id,
+    ]);
+
+    $sd2Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SD2-AVANCE-50%',
+        'relative_path' => $parent->relative_path.'/SD2-AVANCE-50%',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+    $sd4Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SD4-AVANCE-100%',
+        'relative_path' => $parent->relative_path.'/SD4-AVANCE-100%',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+
+    $this
+        ->from('/files/manager')
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $sd2Folder->id), [
+            'file' => UploadedFile::fake()->create('avance-50.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect('/files/manager');
+
+    $this
+        ->from('/files/manager')
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $sd4Folder->id), [
+            'file' => UploadedFile::fake()->create('avance-100.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect('/files/manager');
+
+    $this->assertDatabaseHas('evidence_submissions', [
+        'teacher_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $seg2->id,
+    ]);
+    $this->assertDatabaseHas('evidence_submissions', [
+        'teacher_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $seg4->id,
+    ]);
 });
 
 it('forbids docente from previewing a file outside their own folder', function () {

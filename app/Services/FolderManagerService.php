@@ -64,7 +64,12 @@ class FolderManagerService
 
     public function renameFolder(User $user, FolderNode $folder, string $newName): FolderNode
     {
-        $normalized = $this->normalizeFolderName($newName);
+        return $this->updateFolder($user, $folder, ['name' => $newName]);
+    }
+
+    public function updateFolder(User $user, FolderNode $folder, array $data): FolderNode
+    {
+        $normalized = $this->normalizeFolderName((string) ($data['name'] ?? ''));
 
         if ($normalized === '') {
             throw ValidationException::withMessages(['name' => 'El nombre de la carpeta no puede estar vacio.']);
@@ -78,6 +83,8 @@ class FolderManagerService
             throw ValidationException::withMessages(['folder' => 'No se puede renombrar la carpeta raiz de semestre.']);
         }
 
+        $iconKey = $data['icon_key'] ?? null;
+        $colorKey = $data['color_key'] ?? null;
         $siblingExists = FolderNode::query()
             ->where('parent_id', $folder->parent_id)
             ->where('id', '!=', $folder->id)
@@ -90,18 +97,23 @@ class FolderManagerService
 
         $oldName = $folder->name;
         $oldRelativePath = $folder->relative_path;
+        $oldIconKey = $folder->icon_key;
+        $oldColorKey = $folder->color_key;
 
-        return DB::transaction(function () use ($folder, $normalized, $user, $oldName, $oldRelativePath) {
+        return DB::transaction(function () use ($folder, $normalized, $user, $oldName, $oldRelativePath, $oldIconKey, $oldColorKey, $iconKey, $colorKey) {
             $parent = $folder->parent;
             $newRelativePath = $parent->relative_path.'/'.$normalized;
 
-            $this->updateBranchPaths($folder, $oldRelativePath, $newRelativePath);
-
-            $this->moveBranchFiles($folder, $oldRelativePath, $newRelativePath);
+            if ($normalized !== $oldName) {
+                $this->updateBranchPaths($folder, $oldRelativePath, $newRelativePath);
+                $this->moveBranchFiles($folder, $oldRelativePath, $newRelativePath);
+            }
 
             $folder->update([
                 'name' => $normalized,
                 'relative_path' => $newRelativePath,
+                'icon_key' => $iconKey,
+                'color_key' => $colorKey,
             ]);
 
             $this->auditService->log($user, 'RENAME_FOLDER', 'FolderNode', $folder->id, [
@@ -110,6 +122,10 @@ class FolderManagerService
                 'new_name' => $normalized,
                 'old_relative_path' => $oldRelativePath,
                 'new_relative_path' => $newRelativePath,
+                'old_icon_key' => $oldIconKey,
+                'new_icon_key' => $iconKey,
+                'old_color_key' => $oldColorKey,
+                'new_color_key' => $colorKey,
             ]);
 
             return $folder->fresh();

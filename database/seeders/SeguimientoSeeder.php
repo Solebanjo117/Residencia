@@ -14,6 +14,7 @@ use App\Models\Subject;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 
 class SeguimientoSeeder extends Seeder
@@ -111,7 +112,6 @@ class SeguimientoSeeder extends Seeder
             'SEG 04 FINAL',
             'CALIF. PARCIALES FINAL',
             'REPORTES EVIDENCIAS ASIGNATURAS',
-            'PROY IND',
             'REP FINAL',
             'ASESORIAS',
             'ACTAS FINALES',
@@ -225,10 +225,7 @@ class SeguimientoSeeder extends Seeder
         }
 
         foreach ($items as $item) {
-            $closesAt = now()->addMonths(6);
-            if ($semester->end_date->endOfDay()->greaterThan($closesAt)) {
-                $closesAt = $semester->end_date->endOfDay();
-            }
+            [$opensAt, $closesAt] = $this->submissionWindowBounds($semester, $item->name);
 
             SubmissionWindow::updateOrCreate(
                 [
@@ -236,7 +233,7 @@ class SeguimientoSeeder extends Seeder
                     'evidence_item_id' => $item->id,
                 ],
                 [
-                    'opens_at' => now()->subDay(),
+                    'opens_at' => $opensAt,
                     'closes_at' => $closesAt,
                     'created_by_user_id' => $creator->id,
                     'status' => 'ACTIVE',
@@ -250,13 +247,70 @@ class SeguimientoSeeder extends Seeder
                     'modality' => TeachingLoad::MODALITY_EN_LINEA,
                 ],
                 [
-                    'opens_at' => now()->subDay(),
-                    'closes_at' => now()->addMonths(8),
+                    'opens_at' => $opensAt,
+                    'closes_at' => $closesAt,
                     'created_by_user_id' => $creator->id,
                     'status' => 'ACTIVE',
                 ]
             );
         }
+    }
+
+    private function submissionWindowBounds(Semester $semester, string $itemName): array
+    {
+        $stage = $this->stageForWindow($itemName);
+        $start = CarbonImmutable::parse($semester->start_date)->startOfDay();
+        $end = CarbonImmutable::parse($semester->end_date)->endOfDay();
+        $sd1Close = $this->semesterCut($start, $end, 0.25);
+        $sd2Close = $this->semesterCut($start, $end, 0.50);
+        $sd3Close = $this->semesterCut($start, $end, 0.75);
+
+        return match ($stage) {
+            0 => [$start, $sd2Close],
+            10 => [$start, $sd1Close],
+            20 => [$sd1Close->addSecond(), $sd2Close],
+            30 => [$sd2Close->addSecond(), $sd3Close],
+            40 => [$sd3Close->addSecond(), $end],
+            default => [$sd2Close->addSecond(), $end],
+        };
+    }
+
+    private function semesterCut(CarbonImmutable $start, CarbonImmutable $end, float $ratio): CarbonImmutable
+    {
+        $seconds = max(0, $start->diffInSeconds($end));
+
+        return $start->addSeconds((int) floor($seconds * $ratio))->endOfDay();
+    }
+
+    private function stageForWindow(string $itemName): int
+    {
+        $name = str($itemName)->ascii()->upper()->toString();
+
+        if (str_contains($name, 'INSTRUM') || str_contains($name, 'DIAGN')) {
+            return 0;
+        }
+
+        if (str_contains($name, 'HORARIO')) {
+            return 10;
+        }
+
+        if (str_contains($name, 'SEG 04') || str_contains($name, 'SD4')) {
+            return 40;
+        }
+
+        if (str_contains($name, 'SEG 03') || str_contains($name, 'SD3') || str_contains($name, 'PARCIALES 3')) {
+            return 30;
+        }
+
+        if (
+            str_contains($name, 'SEG 02')
+            || str_contains($name, 'SD2')
+            || str_contains($name, 'PARCIALES 2')
+        ) {
+            return 20;
+        }
+
+        return 10;
     }
 
     private function seedStorageRoot(): void

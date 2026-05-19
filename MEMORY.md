@@ -1,8 +1,8 @@
 # Residencia Project Memory
 
-## 📍 START HERE
+## Start Here
 
-**Full project status, architecture, problems, and next steps:** See [PROJECT_STATUS.md](PROJECT_STATUS.md)
+**Full project status, architecture, resolved work, and current pending items:** See [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
 This file is a quick reference only.
 
@@ -25,22 +25,23 @@ This file is a quick reference only.
 
 ## Route Structure
 - `/docente/*` - role:DOCENTE
-- `/oficina/*` - role:JEFE_OFICINA
-- `/depto/*` - role:JEFE_DEPTO (redirects to /admin)
-- `/admin/*` - role:JEFE_OFICINA,JEFE_DEPTO (shared admin)
-- `/files/*` - file manager (auth only, policy-based)
-- `/asesorias` - authenticated (inside auth group)
+- `/oficina/*` - role:JEFE_OFICINA,JEFE_DEPTO for review/report surfaces
+- `/depto/*` - role:JEFE_DEPTO redirects to shared admin surfaces
+- `/admin/*` - role:JEFE_OFICINA,JEFE_DEPTO
+- `/files/*` - file manager, auth plus policies
+- `/asesorias` - unified seguimiento docente surface
 
-## Recent Session Work (2026-03-16)
+## Current Operational Snapshot (2026-05-18)
 
-✅ Folder structure generation at semester creation
-✅ Teacher folder generation button in admin
-✅ File manager access control (roles can see all, depto sees all, docente sees own)
-✅ Dashboard folder structure: `Semestre > Docente > [Horario, Instrumentaciones, Evaluacion, Evidencias, Proyectos]`
+Resolved baseline:
+- Folder structure generation at semester/carga creation.
+- File manager access and evidence uploads without forcing `SUBMITTED`.
+- Protected evidence review and final approval routes.
+- Docente evidence initialization, unlocks, upload formats, window overlap checks.
+- Dashboards, office reports, audit commands, backup/restore, operational logs.
 
-⚠️ Known Issues — See PROJECT_STATUS.md for full list:
-- Dashboard.vue is empty placeholder
-- Oficina/Reports.vue is stub
-- Asesorias status changes don't persist
-- No seeders for production data
-- Notifications job never dispatched
+Current pending items are intentionally narrow; see [PROJECT_STATUS.md](PROJECT_STATUS.md):
+- Unify scheduled notification execution (`NotifyWindows` vs `SendScheduledNotificationsJob`).
+- Replace File Manager folder-name heuristics with explicit evidence-item metadata.
+- Decide whether `applies_condition` becomes a live rule or remains inactive metadata.
+- Confirm whether `AdvisoryFile` is still in functional scope before adding file endpoints.

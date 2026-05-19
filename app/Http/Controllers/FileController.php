@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\NotificationType;
 use App\Enums\SubmissionStatus;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
+use App\Models\User;
 use App\Services\AuditService;
 use App\Services\EvidenceFlowService;
 use App\Services\FolderManagerService;
+use App\Services\NotificationService;
 use App\Services\StorageService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -147,8 +151,9 @@ class FileController extends Controller
         }
 
         try {
-            $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+            $file = $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
             $submission->update(['last_updated_at' => now()]);
+            $this->notifyAdministratorsAboutFileActivity($user, 'subio', $file, $submission);
 
             return back()->with('success', $this->uploadSuccessMessage($availability));
         } catch (AuthorizationException $exception) {
@@ -168,8 +173,6 @@ class FileController extends Controller
 
         try {
             $submission = $file->submission;
-            $originalFileId = $file->id;
-            $originalFileName = $file->file_name;
 
             if (
                 $submission
@@ -181,20 +184,12 @@ class FileController extends Controller
                 ]);
             }
 
-            $this->storageService->deleteEvidence($file, $request->user());
-
-            $folder = $file->folderNode;
-            $newFile = $this->storageService->storeEvidence($request->file('file'), $folder, $request->user(), $submission);
-
-            $this->auditService->log($request->user(), 'REPLACE_FILE', 'EvidenceFile', $newFile->id, [
-                'replaced_file_id' => $originalFileId,
-                'replaced_file_name' => $originalFileName,
-                'new_file_name' => $newFile->file_name,
-            ]);
+            $updatedFile = $this->storageService->overwriteEvidence($file, $request->file('file'), $request->user());
 
             if ($submission) {
                 $submission->update(['last_updated_at' => now()]);
             }
+            $this->notifyAdministratorsAboutFileActivity($request->user(), 'reemplazo', $updatedFile, $submission);
 
             return back()->with('success', 'Archivo reemplazado correctamente.');
         } catch (AuthorizationException $exception) {
@@ -209,12 +204,14 @@ class FileController extends Controller
         $this->authorize('delete', $file);
 
         $submission = $file->submission;
+        $fileName = $file->file_name;
 
         $this->storageService->deleteEvidence($file, $request->user());
 
         if ($submission) {
             $submission->update(['last_updated_at' => now()]);
         }
+        $this->notifyAdministratorsAboutFileActivity($request->user(), 'elimino', null, $submission, $fileName);
 
         return back()->with('success', 'Archivo eliminado.');
     }
@@ -231,6 +228,7 @@ class FileController extends Controller
 
         try {
             $this->folderManagerService->moveFile($request->user(), $file, $target);
+            $this->notifyAdministratorsAboutFileActivity($request->user(), 'movio', $file, $file->submission);
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
@@ -267,6 +265,41 @@ class FileController extends Controller
         return $user->isDocente() && (int) $submission->teacher_user_id === (int) $user->id;
     }
 
+    private function notifyAdministratorsAboutFileActivity(
+        User $actor,
+        string $action,
+        ?EvidenceFile $file,
+        ?EvidenceSubmission $submission,
+        ?string $fileName = null
+    ): void {
+        if (! $actor->isDocente()) {
+            return;
+        }
+
+        $relatedEntity = $file ?? $submission;
+        if (! $relatedEntity) {
+            return;
+        }
+
+        $fileName = $fileName ?: $file?->file_name ?: 'archivo';
+        $itemName = $submission?->evidenceItem?->name ?: 'evidencia';
+        $title = 'Movimiento en expediente docente';
+        $message = "{$actor->name} {$action} {$fileName} en {$itemName}.";
+        $notificationService = app(NotificationService::class);
+
+        User::query()
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [Role::JEFE_OFICINA, Role::JEFE_DEPTO]))
+            ->where('is_active', true)
+            ->get()
+            ->each(fn (User $recipient) => $notificationService->notifyImmediate(
+                $recipient,
+                NotificationType::GENERAL,
+                $title,
+                $message,
+                $relatedEntity
+            ));
+    }
+
     private function findMateriaFolder(FolderNode $folder): ?FolderNode
     {
         $current = $folder;
@@ -293,13 +326,17 @@ class FileController extends Controller
         $name = mb_strtoupper($folderName);
 
         $mappings = [
+            'SD2-AVANCE' => 'SEG 02',
+            'AVANCE-50' => 'SEG 02',
+            'SD4-AVANCE' => 'SEG 04 FINAL',
+            'AVANCE-100' => 'SEG 04 FINAL',
             'HORARIO' => 'HORARIO',
             'INSTRUMENTACION' => 'INSTRUM',
             'EVALUACION DIAGNOSTICA' => 'EV.DIAGN',
             'EVIDENCIAS DE ASIGNATURA' => 'REPORTES EVIDENCIAS ASIGNATURAS',
-            'PROYECTOS INDIVIDUALES' => 'PROY IND',
-            'CAPACITACION' => 'PROY IND',
-            'MATERIAL DIDACTICO' => 'PROY IND',
+            'PROYECTOS INDIVIDUALES' => 'SEG 02',
+            'CAPACITACION' => 'SEG 02',
+            'MATERIAL DIDACTICO' => 'SEG 02',
             'ASESORIAS' => 'ASESORIAS',
             'ACTAS' => 'ACTAS FINALES',
             'REPORTE FINAL' => 'REP FINAL',

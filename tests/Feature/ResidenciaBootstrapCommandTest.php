@@ -22,7 +22,12 @@ it('creates institutional base data without demo teaching records', function () 
         ->and($admin->role->name)->toBe(Role::JEFE_DEPTO)
         ->and($admin->departments()->where('name', 'Sistemas')->exists())->toBeTrue()
         ->and(StorageRoot::where('name', 'local_evidence')->exists())->toBeTrue()
-        ->and(EvidenceItem::where('name', 'INSTRUM')->exists())->toBeTrue();
+        ->and(EvidenceItem::where('name', 'INSTRUM')->exists())->toBeTrue()
+        ->and(EvidenceItem::where('name', 'SEG 02')->exists())->toBeTrue()
+        ->and(EvidenceItem::where('name', 'SEG 04 FINAL')->exists())->toBeTrue()
+        ->and(EvidenceItem::where('name', 'PROY IND SD2')->exists())->toBeFalse()
+        ->and(EvidenceItem::where('name', 'PROY IND SD4')->exists())->toBeFalse()
+        ->and(EvidenceItem::where('name', 'PROY IND')->exists())->toBeFalse();
 
     $this->assertDatabaseCount('subjects', 0);
     $this->assertDatabaseCount('teaching_loads', 0);

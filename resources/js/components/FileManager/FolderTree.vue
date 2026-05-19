@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-vue-next';
+import {
+    ChevronRight,
+    ChevronDown,
+    Folder,
+    FolderOpen,
+    BookOpen,
+    Calendar,
+    File as FileIcon,
+    Users,
+    ListChecks,
+} from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 const props = defineProps<{
@@ -52,6 +62,68 @@ const isIndividualProjectsFolder = computed(() => {
     );
 });
 
+const folderColorOptions = {
+    yellow: {
+        row: '',
+        icon: 'text-yellow-500',
+    },
+    blue: {
+        row: 'border border-blue-200 bg-blue-50 hover:bg-blue-100',
+        icon: 'text-blue-600',
+    },
+    green: {
+        row: 'border border-emerald-200 bg-emerald-50 hover:bg-emerald-100',
+        icon: 'text-emerald-600',
+    },
+    purple: {
+        row: 'border border-purple-200 bg-purple-50 hover:bg-purple-100',
+        icon: 'text-purple-600',
+    },
+    red: {
+        row: 'border border-red-200 bg-red-50 hover:bg-red-100',
+        icon: 'text-red-600',
+    },
+    gray: {
+        row: 'border border-slate-200 bg-slate-50 hover:bg-slate-100',
+        icon: 'text-slate-500',
+    },
+};
+
+const folderIconOptions = {
+    folder: Folder,
+    book: BookOpen,
+    file: FileIcon,
+    calendar: Calendar,
+    users: Users,
+    checklist: ListChecks,
+};
+
+const resolvedColorKey = computed(() => {
+    if (props.node.color_key) {
+        return props.node.color_key;
+    }
+
+    return isIndividualProjectsFolder.value ? 'green' : 'yellow';
+});
+const folderRowClass = computed(
+    () =>
+        folderColorOptions[
+            resolvedColorKey.value as keyof typeof folderColorOptions
+        ]?.row || '',
+);
+const folderIconClass = computed(
+    () =>
+        folderColorOptions[
+            resolvedColorKey.value as keyof typeof folderColorOptions
+        ]?.icon || 'text-yellow-500',
+);
+const folderIconComponent = computed(
+    () =>
+        folderIconOptions[
+            (props.node.icon_key || 'folder') as keyof typeof folderIconOptions
+        ] || Folder,
+);
+
 const toggle = () => {
     if (hasChildren.value && !isVirtualNode.value) {
         emit('toggle-folder', props.node.id);
@@ -100,11 +172,10 @@ const onDrop = (event: DragEvent) => {
     <div class="pl-2">
         <div
             class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
-            :class="{
-                'bg-blue-50 ring-2 ring-blue-400': isDragOver,
-                'border border-emerald-200 bg-emerald-50 hover:bg-emerald-100':
-                    isIndividualProjectsFolder,
-            }"
+            :class="[
+                folderRowClass,
+                { 'bg-blue-50 ring-2 ring-blue-400': isDragOver },
+            ]"
             @dragover="onDragOver($event)"
             @dragleave="onDragLeave"
             @drop="onDrop"
@@ -124,22 +195,20 @@ const onDrop = (event: DragEvent) => {
 
             <Link
                 v-if="!isVirtualNode"
-                :href="`/files/folders/${node.id}`"
+                :href="node.readable_url || `/files/folders/${node.id}`"
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
                 :class="{
                     'font-semibold': isActive,
-                    'text-emerald-800 hover:text-emerald-700':
-                        isIndividualProjectsFolder,
                 }"
             >
                 <component
-                    :is="isOpen ? FolderOpen : Folder"
-                    class="h-4 w-4"
-                    :class="
-                        isIndividualProjectsFolder
-                            ? 'text-emerald-600'
-                            : 'text-yellow-500'
+                    :is="
+                        isOpen && !node.icon_key
+                            ? FolderOpen
+                            : folderIconComponent
                     "
+                    class="h-4 w-4"
+                    :class="folderIconClass"
                 />
                 {{ node.name }}
             </Link>
@@ -151,11 +220,7 @@ const onDrop = (event: DragEvent) => {
                 <component
                     :is="isOpen ? FolderOpen : Folder"
                     class="h-4 w-4"
-                    :class="
-                        isIndividualProjectsFolder
-                            ? 'text-emerald-600'
-                            : 'text-yellow-500'
-                    "
+                    :class="folderIconClass"
                 />
                 {{ node.name }}
             </div>
@@ -172,7 +237,9 @@ const onDrop = (event: DragEvent) => {
                 :has-internal-drag="hasInternalDrag"
                 @toggle-folder="emit('toggle-folder', $event)"
                 @drop-on-folder="emit('drop-on-folder', $event)"
-                @folder-action="emit('folder-action', $event)"
+                @folder-action="
+                    (action, folder) => emit('folder-action', action, folder)
+                "
             />
         </div>
     </div>

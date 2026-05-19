@@ -3,33 +3,17 @@
 Este directorio contiene un plan individual por tarea del backlog.
 El objetivo es ejecutar cambios de forma ordenada, auditable y con validacion por cada entrega.
 
-## Orden recomendado de ejecucion
-1. ASAD-P0-00
-2. ASAD-P0-01
-3. ASAD-P0-02
-4. ASAD-P0-03
-5. ASAD-P1-01
-6. ASAD-P1-02
-7. ASAD-P1-03
-8. ASAD-P1-04
-9. ASAD-P2-01
-10. ASAD-P2-02
-11. ASAD-P2-03
-12. ASAD-P2-04
-13. ASAD-P3-01
-14. ASAD-P3-02
-15. ASAD-P3-03
-16. ASAD-P3-04
-17. ASAD-P4-01
-18. ASAD-P4-02
-19. ASAD-P4-03
-20. ASAD-P5-01
-21. ASAD-P5-02
-22. ASAD-P5-03
-23. ASAD-P6-01
-24. ASAD-P6-02
-25. ASAD-P6-03
-26. ASAD-P7-01
+## Estado actual
+Los planes listados aqui son registro historico de ejecucion. Al corte 2026-05-18, los planes ASAD-P0 a ASAD-P7 estan cerrados o cerrados con limitaciones documentadas en su archivo individual.
+
+El backlog vigente ya no es este orden completo. La fuente viva de pendientes esta en [../../PROJECT_STATUS.md](../../PROJECT_STATUS.md), seccion "Pendientes Vigentes".
+
+Pendientes vigentes resumidos:
+1. `P1-NOTIF-01`: unificar `NotifyWindows` y `SendScheduledNotificationsJob`.
+2. `P1-FILE-01`: reemplazar heuristica carpeta -> rubro de evidencia.
+3. `P2-APPLIES-01`: activar o retirar del alcance operativo `applies_condition`.
+4. `P2-ADVISORY-01`: confirmar alcance real de `AdvisoryFile`.
+5. `P3-DOCS-01`: marcar documentos historicos como historicos y evitar backlog duplicado.
 
 ## Como usar cada plan
 1. Ejecutar primero la seccion "Investigacion previa".
@@ -66,9 +50,7 @@ El objetivo es ejecutar cambios de forma ordenada, auditable y con validacion po
 - ASAD-P7-01-hardening-seguridad-archivos.md
 
 ## Nota del reanalisis
-Con el contexto adicional del proyecto, se agrega ASAD-P0-00 como paso obligatorio:
-primero se congela el alcance sobre rutas y vistas vivas (por ejemplo, `SeguimientoDocente.vue` en `/asesorias`) y se cataloga legado (`Asesorias2.vue`), para evitar implementar en pantallas no activas.
+Con el contexto adicional del proyecto, ASAD-P0-00 sirvio para congelar el alcance sobre rutas y vistas vivas. Esa decision ya fue incorporada al codigo: `/asesorias` usa `SeguimientoDocente.vue` como vista viva y la ruta legacy `asesorias2` no debe reabrirse.
 
 ## Baselines generados
 - baseline-rutas-vivas-legado-2026-04-12.md
-
