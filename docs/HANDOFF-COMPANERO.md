@@ -1,5 +1,7 @@
 # HANDOFF TECNICO DEL PROYECTO RESIDENCIA
 
+> Nota de vigencia 2026-05-18: este handoff conserva contexto historico y de dominio, pero no es backlog vivo. Para estado actual, hallazgos resueltos y pendientes vigentes, usar `PROJECT_STATUS.md`. En particular, las menciones antiguas a `PROJECT_STATUS.md`/`MEMORY.md` como desactualizados y al P0 de adjuntos de asesorias deben leerse como historicas; el codigo actual no muestra consumo vivo de adjuntos por `/storage/...` en `resources/js/pages/Docente/MyAdvisories.vue`.
+
 ## 1. Resumen ejecutivo
 
 `Residencia` es un sistema institucional para gestion de evidencia docente, revision administrativa, asesorias y organizacion documental por semestre. El sistema esta pensado para operar con persistencia real, reglas de estado, roles institucionales y trazabilidad, no como una demo visual aislada.
@@ -817,7 +819,7 @@ Estado vigente:
 
 ### P0
 
-#### 1. Blindar adjuntos de asesorias
+#### 1. Blindar adjuntos de asesorias (historico; reclasificado el 2026-05-18)
 - Problema: `resources/js/pages/Docente/MyAdvisories.vue` enlaza archivos via `/storage/{path}` y `AdvisorySessionController` guarda en disco `public`.
 - Impacto: acceso menos controlado que el flujo de `EvidenceFile`; posible exposicion por URL si se conoce la ruta.
 - Archivos involucrados: `app/Http/Controllers/Teacher/AdvisorySessionController.php`, `resources/js/pages/Docente/MyAdvisories.vue`.
@@ -1001,4 +1003,3 @@ npm run build
 - `playwright.config.ts`
 - `tests/Feature/**/*`
 - `tests/e2e/*`
-

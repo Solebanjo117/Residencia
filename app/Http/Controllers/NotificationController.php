@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\Notification;
 use App\Models\NotificationSchedule;
@@ -113,6 +114,12 @@ class NotificationController extends Controller
             }
         }
 
+        if ($notification->related_entity_type === EvidenceFile::class) {
+            $file = EvidenceFile::find($notification->related_entity_id);
+
+            return $file ? route('files.download', $file->id, false) : null;
+        }
+
         if ($notification->related_entity_type === SubmissionWindow::class) {
             $window = SubmissionWindow::find($notification->related_entity_id);
 
@@ -148,6 +155,10 @@ class NotificationController extends Controller
 
         if ($notification->related_entity_type === EvidenceSubmission::class) {
             return $user->isDocente() ? 'Ver evidencia' : 'Abrir revisión';
+        }
+
+        if ($notification->related_entity_type === EvidenceFile::class) {
+            return 'Abrir archivo';
         }
 
         return $user->isDocente() ? 'Ver mis evidencias' : 'Abrir ventana';

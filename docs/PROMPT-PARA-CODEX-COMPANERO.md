@@ -232,12 +232,12 @@ Si el cambio es de admin/configuracion, agrega:
 
 ### Modulos parciales
 - matriz de evidencias avanzada: no hay UI viva para `applies_condition`
-- notificaciones programadas: existen comando y job, no una sola estrategia
+- notificaciones programadas: el comando `notify:windows` es la ruta programada viva, pero sigue existiendo `SendScheduledNotificationsJob` con logica paralela
 - editor DOCX: muy util, pero sigue siendo un MVP documental
-- dashboard docente: funcional, pero solapado con dashboard general
+- dashboard docente: funcional, pero convive con dashboard general por rol
 
 ### Modulos inciertos o delicados
-- adjuntos de asesorias: hoy usan `/storage/...` directo y no el mismo control de acceso del file manager
+- `AdvisoryFile`: existe modelo/tabla heredada, pero el flujo vivo de `/docente/asesorias` trabaja con horarios semanales; confirmar alcance antes de reactivar adjuntos
 - mapping carpeta -> evidencia: depende de nombre de carpeta
 - `DocxEditorService`: grande, potente y facil de romper
 
@@ -249,18 +249,16 @@ Si el cambio es de admin/configuracion, agrega:
 - tocar DOCX sin ampliar pruebas de round-trip
 
 ### Discrepancias conocidas
-- `PROJECT_STATUS.md` y `MEMORY.md` quedaron desactualizados
 - los planes de `docs/planes-implementacion/*` son historicos, no backlog vigente exacto
 - `docs/legacy-notes/estructura-detectada-actualizada2.txt` es referencia de negocio, no estado tecnico actual
 
 ## G. Proximas prioridades sugeridas
 
-1. Blindar adjuntos de asesorias para que no sigan saliendo por `/storage/...`.
+1. Unificar estrategia de notificaciones programadas (`NotifyWindows` vs `SendScheduledNotificationsJob`).
 2. Reducir la heuristica carpeta -> rubro en `FileController`.
-3. Unificar estrategia de notificaciones programadas.
-4. Volver viva la logica de `applies_condition` y automatizacion de aplicabilidad.
-5. Limpiar encoding/idioma en vistas y mensajes.
-6. Refinar la convivencia entre `Dashboard.vue` y `Teacher/Dashboard.vue`.
+3. Volver viva o retirar del alcance operativo la logica de `applies_condition`.
+4. Confirmar si `AdvisoryFile` sigue en alcance antes de crear endpoints de adjuntos.
+5. Limpiar documentos historicos que todavia parecen backlog vigente.
 
 ## H. Instrucciones de salida
 
@@ -279,4 +277,3 @@ Si el cambio afecta seguridad, workflow de evidencias, file manager, DOCX o seme
 
 Tu objetivo no es "limpiar" el proyecto idealmente.
 Tu objetivo es **mejorar el sistema real sin romper lo que ya esta operando**.
-

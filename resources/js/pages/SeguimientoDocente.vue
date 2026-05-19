@@ -9,6 +9,7 @@ const props = defineProps({
     semesters: { type: Array, default: () => [] },
     columns: { type: Array, default: () => [] },
     currentSemester: { type: String, default: '' },
+    currentStage: { type: String, default: null },
     userRole: { type: String, default: '' },
 });
 
@@ -22,6 +23,10 @@ function statusPillClasses(status) {
     if (status === 'VF')
         return 'bg-emerald-100 text-emerald-800 ring-emerald-300';
     if (status === 'AO') return 'bg-green-100 text-green-800 ring-green-300';
+    if (status === 'Completo')
+        return 'bg-emerald-100 text-emerald-800 ring-emerald-300';
+    if (status === 'Incompleto')
+        return 'bg-rose-100 text-rose-800 ring-rose-300';
     if (status === 'REV') return 'bg-cyan-100 text-cyan-800 ring-cyan-300';
     if (status === 'PA') return 'bg-amber-100 text-amber-800 ring-amber-300';
     if (status === 'R') return 'bg-rose-100 text-rose-800 ring-rose-300';
@@ -40,6 +45,8 @@ function statusLabel(status) {
         BL: 'BL',
         NE: 'NE',
         NA: 'NA',
+        Completo: 'Completo',
+        Incompleto: 'Incompleto',
     };
 
     return labels[status] || status;
@@ -351,7 +358,7 @@ function exportCSV() {
                     exportStatus(row.cells[column.key]),
                 ),
                 departmentReviewLabel(row.department_review?.status),
-                statusLabel(row.estado_final),
+                row.final_completion_status || statusLabel(row.estado_final),
             ].map((value) => `"${String(value).replaceAll('"', '""')}"`);
 
             return values.join(',');
@@ -383,7 +390,8 @@ function exportXLSX() {
         result.REV_JEFE_DEPTO = departmentReviewLabel(
             row.department_review?.status,
         );
-        result.ESTADO_FINAL = statusLabel(row.estado_final);
+        result.ESTADO_FINAL =
+            row.final_completion_status || statusLabel(row.estado_final);
 
         return result;
     });
@@ -456,6 +464,12 @@ function formatBytes(bytes) {
                     <h1 class="text-2xl font-semibold text-slate-900">
                         Control de Seguimiento Docente
                     </h1>
+                    <div
+                        v-if="currentStage"
+                        class="mt-2 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"
+                    >
+                        Seguimiento actual: {{ currentStage }}
+                    </div>
                     <p class="mt-1 text-sm text-slate-600">
                         <span class="inline-flex items-center gap-1"
                             ><span
@@ -628,6 +642,11 @@ function formatBytes(bytes) {
                                         v-for="col in orderedColumns"
                                         :key="col.key"
                                         class="max-w-[96px] min-w-[88px] px-2 py-3 text-center"
+                                        :class="
+                                            col.is_current_stage
+                                                ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+                                                : ''
+                                        "
                                     >
                                         <span class="block leading-tight">{{
                                             col.label
@@ -636,6 +655,12 @@ function formatBytes(bytes) {
                                             class="mt-1 block text-[10px] text-slate-400 normal-case"
                                             >{{ col.stage_label }}</span
                                         >
+                                        <span
+                                            v-if="col.is_current_stage"
+                                            class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800"
+                                        >
+                                            Actual
+                                        </span>
                                     </th>
                                     <th
                                         class="min-w-[118px] px-3 py-3 text-center"
@@ -704,12 +729,15 @@ function formatBytes(bytes) {
                                         <button
                                             type="button"
                                             class="inline-flex items-center justify-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 transition-colors hover:opacity-85"
-                                            :class="
+                                            :class="[
                                                 statusPillClasses(
                                                     row.cells[col.key]
                                                         ?.status || 'NE',
-                                                )
-                                            "
+                                                ),
+                                                col.is_current_stage
+                                                    ? 'ring-2 ring-amber-300'
+                                                    : '',
+                                            ]"
                                             :title="
                                                 statusTooltip(
                                                     row.cells[col.key],
@@ -764,11 +792,15 @@ function formatBytes(bytes) {
                                             class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1"
                                             :class="
                                                 statusPillClasses(
-                                                    row.estado_final,
+                                                    row.final_completion_status ||
+                                                        row.estado_final,
                                                 )
                                             "
                                         >
-                                            {{ statusLabel(row.estado_final) }}
+                                            {{
+                                                row.final_completion_status ||
+                                                statusLabel(row.estado_final)
+                                            }}
                                         </span>
                                     </td>
                                 </tr>
@@ -970,7 +1002,17 @@ function formatBytes(bytes) {
                                     </div>
                                 </div>
                                 <a
-                                    :href="`/files/${file.id}/download`"
+                                    v-if="file.folder_url"
+                                    :href="file.folder_url"
+                                    class="ml-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                >
+                                    Carpeta
+                                </a>
+                                <a
+                                    :href="
+                                        file.file_url ||
+                                        `/files/${file.id}/download`
+                                    "
                                     class="ml-3 rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                                 >
                                     Descargar

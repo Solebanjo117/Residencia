@@ -36,6 +36,7 @@ Estandarizar trazabilidad de flujos criticos (evidencias, revisiones, notificaci
 - Servicio de evidencias:
   - `evidence.status_changed`
   - `evidence.review_completed`
+  - `evidence.final_approval_completed`
   - `evidence.resubmission_unlocked`
 - Notificaciones:
   - `notifications.scheduled`
@@ -50,11 +51,18 @@ Estandarizar trazabilidad de flujos criticos (evidencias, revisiones, notificaci
   - `notify_windows.window_not_found`
   - `notify_windows.completed`
 
+## Estado operativo 2026-05-18
+- El scheduler vivo ejecuta `notify:windows` desde `routes/console.php`.
+- `SendScheduledNotificationsJob` todavia existe y registra eventos `notifications.job.*`, pero no es la ruta programada principal.
+- Pendiente vigente: unificar esa doble estrategia para que comando/job/servicio compartan la misma logica y pruebas.
+- Las acciones de revision, envio, aprobacion final, carga de archivos y notificaciones accionables ya tienen trazas o pruebas dedicadas.
+
 ## Verificacion rapida
 1. Ejecutar flujo docente de carga/envio y revisar `evidence.*` en el log.
 2. Ejecutar revision de oficina (aprobar/rechazar) y validar eventos `review.*`.
-3. Ejecutar `php artisan notify:windows` y validar trazas de inicio/fin + latencia por schedule.
-4. Forzar un error controlado (por ejemplo, ventana inexistente) y confirmar evento `*.failed` o `*.window_not_found`.
+3. Ejecutar visto bueno final de jefatura y validar `evidence.final_approval_completed`.
+4. Ejecutar `php artisan notify:windows` y validar trazas de inicio/fin + latencia por schedule.
+5. Forzar un error controlado (por ejemplo, ventana inexistente) y confirmar evento `*.failed` o `*.window_not_found`.
 
 ## Comandos utiles
 ```bash

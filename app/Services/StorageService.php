@@ -84,6 +84,161 @@ class StorageService
         return $evidenceFile;
     }
 
+    public function overwriteEvidence(EvidenceFile $file, UploadedFile $upload, User $user): EvidenceFile
+    {
+        $validatedUpload = $this->validateUpload($upload);
+        $folderNode = $file->folderNode;
+
+        if (! $folderNode) {
+            throw new AuthorizationException('El archivo no tiene carpeta asociada.');
+        }
+
+        $root = $folderNode->root;
+        if (! $root || ! $root->is_active) {
+            throw new \RuntimeException('Storage root not active or defined.');
+        }
+
+        $oldPath = $file->stored_relative_path;
+        $oldName = $file->file_name;
+        $oldHash = $file->file_hash;
+        $oldSize = $file->size_bytes;
+        $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
+        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
+        $path = $upload->storeAs($normalizedFolderPath, $storedName, 'local');
+
+        if (! $path) {
+            throw new \RuntimeException('No se pudo guardar el archivo en disco.');
+        }
+
+        $normalizedStoredPath = $this->normalizeRelativePath($path);
+        $this->assertPathInsideFolder($folderNode, $normalizedStoredPath);
+
+        $hashSourcePath = $upload->getRealPath();
+        $fileHash = $hashSourcePath ? hash_file('sha256', $hashSourcePath) : null;
+
+        try {
+            DB::transaction(function () use ($file, $validatedUpload, $normalizedStoredPath, $fileHash, $user) {
+                $file->forceFill([
+                    'file_name' => $validatedUpload['safe_file_name'],
+                    'stored_relative_path' => $normalizedStoredPath,
+                    'mime_type' => $validatedUpload['mime_type'],
+                    'size_bytes' => $validatedUpload['size_bytes'],
+                    'file_hash' => $fileHash,
+                    'uploaded_at' => now(),
+                    'uploaded_by_user_id' => $user->id,
+                    'previous_version_file_id' => null,
+                    'root_file_id' => null,
+                    'last_edited_at' => null,
+                    'last_edited_by_user_id' => null,
+                    'editor_source' => null,
+                    'editor_meta' => null,
+                    'is_current_version' => true,
+                ])->save();
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($normalizedStoredPath);
+
+            throw $exception;
+        }
+
+        if ($oldPath !== $normalizedStoredPath && Storage::disk('local')->exists($oldPath)) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        $this->auditService->log($user, 'REPLACE_FILE', 'EvidenceFile', $file->id, [
+            'old_file_name' => $oldName,
+            'new_file_name' => $file->file_name,
+            'old_file_hash' => $oldHash,
+            'new_file_hash' => $file->file_hash,
+            'old_size_bytes' => $oldSize,
+            'new_size_bytes' => $file->size_bytes,
+            'old_stored_relative_path' => $oldPath,
+            'new_stored_relative_path' => $file->stored_relative_path,
+        ]);
+
+        return $file->fresh();
+    }
+
+    public function overwriteGeneratedEvidence(
+        EvidenceFile $file,
+        string $binaryContents,
+        string $fileName,
+        string $mimeType,
+        User $user,
+        ?string $editorSource = null,
+        ?array $editorMeta = null
+    ): EvidenceFile {
+        $validatedUpload = $this->validateGeneratedUpload($fileName, $mimeType, $binaryContents);
+        $folderNode = $file->folderNode;
+
+        if (! $folderNode) {
+            throw new AuthorizationException('El archivo no tiene carpeta asociada.');
+        }
+
+        $root = $folderNode->root;
+        if (! $root || ! $root->is_active) {
+            throw new \RuntimeException('Storage root not active or defined.');
+        }
+
+        $oldPath = $file->stored_relative_path;
+        $oldName = $file->file_name;
+        $oldHash = $file->file_hash;
+        $oldSize = $file->size_bytes;
+        $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
+        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
+        $normalizedStoredPath = $this->normalizeRelativePath($normalizedFolderPath.'/'.$storedName);
+
+        if (! Storage::disk('local')->put($normalizedStoredPath, $binaryContents)) {
+            throw new \RuntimeException('No se pudo guardar el archivo en disco.');
+        }
+
+        $this->assertPathInsideFolder($folderNode, $normalizedStoredPath);
+        $fileHash = hash('sha256', $binaryContents);
+
+        try {
+            DB::transaction(function () use ($file, $validatedUpload, $normalizedStoredPath, $fileHash, $user, $editorSource, $editorMeta) {
+                $file->forceFill([
+                    'file_name' => $validatedUpload['safe_file_name'],
+                    'stored_relative_path' => $normalizedStoredPath,
+                    'mime_type' => $validatedUpload['mime_type'],
+                    'size_bytes' => $validatedUpload['size_bytes'],
+                    'file_hash' => $fileHash,
+                    'uploaded_at' => now(),
+                    'last_edited_at' => now(),
+                    'last_edited_by_user_id' => $user->id,
+                    'editor_source' => $editorSource,
+                    'editor_meta' => $editorMeta,
+                    'previous_version_file_id' => null,
+                    'root_file_id' => null,
+                    'is_current_version' => true,
+                    'uploaded_by_user_id' => $user->id,
+                ])->save();
+            });
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($normalizedStoredPath);
+
+            throw $exception;
+        }
+
+        if ($oldPath !== $normalizedStoredPath && Storage::disk('local')->exists($oldPath)) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        $this->auditService->log($user, 'REPLACE_FILE', 'EvidenceFile', $file->id, [
+            'old_file_name' => $oldName,
+            'new_file_name' => $file->file_name,
+            'old_file_hash' => $oldHash,
+            'new_file_hash' => $file->file_hash,
+            'old_size_bytes' => $oldSize,
+            'new_size_bytes' => $file->size_bytes,
+            'old_stored_relative_path' => $oldPath,
+            'new_stored_relative_path' => $file->stored_relative_path,
+            'editor_source' => $editorSource,
+        ]);
+
+        return $file->fresh();
+    }
+
     public function storeGeneratedEvidenceVersion(
         string $binaryContents,
         string $fileName,
@@ -95,6 +250,18 @@ class StorageService
         ?string $editorSource = null,
         ?array $editorMeta = null
     ): EvidenceFile {
+        if ($baseFile) {
+            return $this->overwriteGeneratedEvidence(
+                $baseFile,
+                $binaryContents,
+                $fileName,
+                $mimeType,
+                $user,
+                $editorSource,
+                $editorMeta
+            );
+        }
+
         $validatedUpload = $this->validateGeneratedUpload($fileName, $mimeType, $binaryContents);
 
         $root = $folderNode->root;

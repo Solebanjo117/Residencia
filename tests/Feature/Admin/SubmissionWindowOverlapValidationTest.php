@@ -2,6 +2,7 @@
 
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
+use App\Models\NotificationSchedule;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
@@ -160,6 +161,70 @@ it('stores date windows as full-day ranges and allows a same-day window', functi
     expect($window->opens_at->format('H:i:s'))->toBe('00:00:00');
     expect($window->closes_at->toDateString())->toBe($deliveryDate);
     expect($window->closes_at->format('H:i:s'))->toBe('23:59:59');
+
+    $this->assertDatabaseHas('notification_schedules', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notification_type' => 'WINDOW_OPEN',
+        'is_sent' => false,
+    ]);
+    $this->assertDatabaseHas('notification_schedules', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notification_type' => 'WINDOW_CLOSING',
+        'is_sent' => false,
+    ]);
+});
+
+it('refreshes pending notification schedules when updating a window', function () {
+    $ctx = createSubmissionWindowContext();
+
+    $window = SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'opens_at' => now()->addDays(5),
+        'closes_at' => now()->addDays(8),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    NotificationSchedule::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notify_at' => now()->addDays(5),
+        'notification_type' => 'WINDOW_OPEN',
+        'is_sent' => false,
+    ]);
+
+    $newOpen = now()->addDays(12)->toDateString();
+    $newClose = now()->addDays(16)->toDateString();
+
+    $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->put(route('admin.windows.update', $window->id), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'opens_at' => $newOpen,
+            'closes_at' => $newClose,
+            'status' => 'ACTIVE',
+        ])
+        ->assertRedirect(route('admin.windows.index'));
+
+    expect(NotificationSchedule::query()
+        ->where('semester_id', $ctx['semester']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->where('notification_type', 'WINDOW_OPEN')
+        ->where('is_sent', false)
+        ->count())->toBe(1);
+
+    $this->assertDatabaseHas('notification_schedules', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notification_type' => 'WINDOW_OPEN',
+        'notify_at' => Carbon\CarbonImmutable::parse($newOpen)->startOfDay()->toDateTimeString(),
+        'is_sent' => false,
+    ]);
 });
 
 it('filters submission windows by operational status', function () {

@@ -73,6 +73,20 @@ function createSeguimientoCellUploadContext(): array
     return compact('teacher', 'semester', 'load', 'item', 'subject');
 }
 
+function readableFolderUrlForSeguimientoCellTest($folder): string
+{
+    $segments = [];
+    $current = $folder;
+
+    while ($current) {
+        array_unshift($segments, rawurlencode($current->name));
+        $current->loadMissing('parent');
+        $current = $current->parent;
+    }
+
+    return '/files/folders/'.implode('/', $segments);
+}
+
 it('lets a teacher upload a seguimiento cell file and exposes it in file manager folders', function () {
     Storage::fake('local');
     $ctx = createSeguimientoCellUploadContext();
@@ -123,6 +137,16 @@ it('lets a teacher upload a seguimiento cell file and exposes it in file manager
             ->has('contents.files', 1)
             ->where('contents.files.0.id', $file->id)
             ->where('contents.files.0.folder_path', $ctx['subject']->name.' / ASESORIAS')
+        );
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('asesorias', ['semester' => $ctx['semester']->name]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.file_url', route('files.download', $file->id, false))
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.folder_url', readableFolderUrlForSeguimientoCellTest($file->folderNode))
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.submitted_at', $file->uploaded_at?->toDateTimeString())
         );
 });
 

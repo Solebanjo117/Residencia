@@ -12,6 +12,7 @@ use App\Models\StorageRoot;
 use App\Models\Subject;
 use App\Models\TeachingLoad;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -210,6 +211,53 @@ it('allows jefe oficina to rename a folder and updates relative_path', function 
     $subfolder->refresh();
     expect($subfolder->name)->toBe('Nombre Nuevo');
     expect($subfolder->relative_path)->toBe($ctx['teacherFolder']->relative_path.'/Nombre Nuevo');
+});
+
+it('allows jefe oficina to edit folder appearance without renaming path', function () {
+    $ctx = createFolderContext();
+
+    $subfolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => 'Apariencia',
+        'relative_path' => $ctx['teacherFolder']->relative_path.'/Apariencia',
+        'owner_user_id' => $ctx['teacherFolder']->owner_user_id,
+        'semester_id' => $ctx['teacherFolder']->semester_id,
+        'parent_id' => $ctx['teacherFolder']->id,
+    ]);
+
+    $response = $this
+        ->from('/files/folders/'.$subfolder->id)
+        ->actingAs($ctx['jefeOficina'])
+        ->patch(route('folders.update', $subfolder->id), [
+            'name' => 'Apariencia',
+            'icon_key' => 'book',
+            'color_key' => 'blue',
+        ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    $subfolder->refresh();
+    expect($subfolder->name)->toBe('Apariencia');
+    expect($subfolder->relative_path)->toBe($ctx['teacherFolder']->relative_path.'/Apariencia');
+    expect($subfolder->icon_key)->toBe('book');
+    expect($subfolder->color_key)->toBe('blue');
+});
+
+it('rejects unsupported folder icon and color keys', function () {
+    $ctx = createFolderContext();
+
+    $response = $this
+        ->from('/files/folders/'.$ctx['teacherFolder']->id)
+        ->actingAs($ctx['jefeOficina'])
+        ->patch(route('folders.update', $ctx['teacherFolder']->id), [
+            'name' => $ctx['teacherFolder']->name,
+            'icon_key' => 'rocket',
+            'color_key' => 'black',
+        ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHasErrors(['icon_key', 'color_key']);
 });
 
 it('blocks renaming to a duplicate name under the same parent', function () {
@@ -691,6 +739,38 @@ it('preserves submission_id when moving a file', function () {
     expect($file->is_current_version)->toBeTrue();
 });
 
+it('replaces a file in place without creating another evidence file record', function () {
+    Storage::fake('local');
+    $ctx = createFolderContext();
+    $submission = createSubmission($ctx['teacher'], $ctx['semester']);
+    $file = createFileInFolder($ctx['teacherFolder'], $ctx['teacher'], $submission);
+    $originalId = $file->id;
+    $originalPath = $file->stored_relative_path;
+    $originalHash = $file->file_hash;
+
+    $response = $this
+        ->from(route('folders.show', $ctx['teacherFolder']->id))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('files.replace', $file->id), [
+            'file' => UploadedFile::fake()->create('actualizado.pdf', 300, 'application/pdf'),
+        ]);
+
+    $response->assertRedirect(route('folders.show', $ctx['teacherFolder']->id));
+
+    $file->refresh();
+    expect($file->id)->toBe($originalId);
+    expect($file->file_name)->toBe('actualizado.pdf');
+    expect($file->stored_relative_path)->not->toBe($originalPath);
+    expect($file->file_hash)->not->toBe($originalHash);
+    expect($file->previous_version_file_id)->toBeNull();
+    expect($file->root_file_id)->toBeNull();
+    expect($file->is_current_version)->toBeTrue();
+    expect(EvidenceFile::query()->where('submission_id', $submission->id)->count())->toBe(1);
+
+    Storage::disk('local')->assertMissing($originalPath);
+    Storage::disk('local')->assertExists($file->stored_relative_path);
+});
+
 it('preview and download still work after moving a file', function () {
     Storage::fake('local');
     $ctx = createFolderContext();
@@ -1001,4 +1081,93 @@ it('exposes can_rename on subfolder entries for jefe oficina', function () {
         ->where('contents.folders.0.can_move', true)
         ->where('contents.folders.0.can_delete', true)
     );
+});
+
+it('exposes folder appearance keys on current folder and subfolder entries', function () {
+    $ctx = createFolderContext();
+
+    $ctx['teacherFolder']->update([
+        'icon_key' => 'users',
+        'color_key' => 'purple',
+    ]);
+
+    FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => 'Con Color',
+        'relative_path' => $ctx['teacherFolder']->relative_path.'/Con Color',
+        'owner_user_id' => $ctx['teacherFolder']->owner_user_id,
+        'semester_id' => $ctx['teacherFolder']->semester_id,
+        'parent_id' => $ctx['teacherFolder']->id,
+        'icon_key' => 'calendar',
+        'color_key' => 'green',
+    ]);
+
+    $response = $this
+        ->actingAs($ctx['jefeOficina'])
+        ->get(route('folders.show', $ctx['teacherFolder']->id));
+
+    $response->assertInertia(fn ($page) => $page
+        ->component('FileManager/Index')
+        ->where('currentFolder.icon_key', 'users')
+        ->where('currentFolder.color_key', 'purple')
+        ->where('contents.folders.0.icon_key', 'calendar')
+        ->where('contents.folders.0.color_key', 'green')
+    );
+});
+
+it('opens a folder using its readable folder path', function () {
+    $ctx = createFolderContext();
+
+    $subfolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => 'Instrumentacion Didactica',
+        'relative_path' => $ctx['teacherFolder']->relative_path.'/Instrumentacion Didactica',
+        'owner_user_id' => $ctx['teacherFolder']->owner_user_id,
+        'semester_id' => $ctx['teacherFolder']->semester_id,
+        'parent_id' => $ctx['teacherFolder']->id,
+    ]);
+
+    $readablePath = implode('/', [
+        $ctx['semesterFolder']->name,
+        $ctx['teacherFolder']->name,
+        $subfolder->name,
+    ]);
+    $readableUrl = '/files/folders/'.implode('/', array_map('rawurlencode', explode('/', $readablePath)));
+
+    $response = $this
+        ->actingAs($ctx['jefeOficina'])
+        ->get($readableUrl);
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('FileManager/Index')
+        ->where('currentFolder.id', $subfolder->id)
+        ->where('currentFolder.display_path', str_replace('/', ' / ', $readablePath))
+        ->where('currentFolder.readable_url', $readableUrl)
+    );
+});
+
+it('keeps docentes from opening readable paths outside their folders', function () {
+    $ctx = createFolderContext();
+
+    $otherTeacherFolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => $ctx['otherTeacher']->name,
+        'relative_path' => $ctx['semesterFolder']->relative_path.'/'.Str::slug($ctx['otherTeacher']->name),
+        'owner_user_id' => $ctx['otherTeacher']->id,
+        'semester_id' => $ctx['teacherFolder']->semester_id,
+        'parent_id' => $ctx['semesterFolder']->id,
+    ]);
+
+    $readablePath = implode('/', [
+        $ctx['semesterFolder']->name,
+        $otherTeacherFolder->name,
+    ]);
+    $readableUrl = '/files/folders/'.implode('/', array_map('rawurlencode', explode('/', $readablePath)));
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->get($readableUrl);
+
+    $response->assertForbidden();
 });

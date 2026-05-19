@@ -67,7 +67,7 @@ class AdvisoryController extends Controller
         $teachingLoads = $loadsQuery->get();
 
         $submissions = EvidenceSubmission::with([
-            'files',
+            'files.folderNode',
             'reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
             'officeReviewer',
             'finalApprover',
@@ -78,11 +78,13 @@ class AdvisoryController extends Controller
             ->get()
             ->groupBy('teaching_load_id');
 
-        $windows = SubmissionWindow::query()
+        $activeWindows = SubmissionWindow::query()
             ->where('semester_id', $semester->id)
             ->where('status', 'ACTIVE')
-            ->get()
-            ->groupBy('evidence_item_id');
+            ->with('evidenceItem')
+            ->get();
+        $windows = $activeWindows->groupBy('evidence_item_id');
+        $currentStageOrder = $flowService->currentStageOrder($activeWindows);
         $departmentReviews = TeachingLoadReview::with('reviewer')
             ->whereIn('teaching_load_id', $teachingLoads->pluck('id'))
             ->orderByDesc('reviewed_at')
@@ -122,6 +124,8 @@ class AdvisoryController extends Controller
                         'reviewer_name' => $review->reviewer?->name,
                     ])->values()->toArray(),
                 ],
+                'efficiency_label' => 'Nivel de cumplimiento',
+                'final_completion_status' => $latestLoadReview?->decision === 'APPROVE' ? 'Completo' : 'Incompleto',
             ];
 
             foreach ($requirements as $requirement) {
@@ -159,6 +163,10 @@ class AdvisoryController extends Controller
                         'file_name' => $file->file_name,
                         'size' => $file->size_bytes,
                         'uploaded_at' => $file->uploaded_at?->toDateTimeString(),
+                        'submitted_at' => $file->uploaded_at?->toDateTimeString(),
+                        'file_url' => route('files.download', $file->id, false),
+                        'folder_url' => $file->folderNode ? $this->readableFolderUrl($file->folderNode) : null,
+                        'linked_from' => null,
                     ])->values()->toArray() : [],
                     'last_review' => $lastReview ? [
                         'stage' => $lastReview->stage,
@@ -202,8 +210,12 @@ class AdvisoryController extends Controller
                 'item_id' => $item->id,
                 'stage_order' => $flowService->stageOrder($item->name),
                 'stage_label' => $flowService->stageLabel($flowService->stageOrder($item->name)),
+                'is_current_stage' => $currentStageOrder !== null
+                    && $flowService->stageOrder($item->name) === $currentStageOrder,
             ])->values()->toArray(),
             'currentSemester' => $semester->name,
+            'current_stage' => $currentStageOrder !== null ? $flowService->stageLabel($currentStageOrder) : null,
+            'currentStage' => $currentStageOrder !== null ? $flowService->stageLabel($currentStageOrder) : null,
             'userRole' => $user->role->name ?? '',
         ]);
     }
@@ -451,6 +463,20 @@ class AdvisoryController extends Controller
         return $load->teacher->departments()->whereIn('departments.id', $departmentIds)->exists();
     }
 
+    private function readableFolderUrl(FolderNode $folder): string
+    {
+        $segments = [];
+        $current = $folder;
+
+        while ($current) {
+            array_unshift($segments, rawurlencode($current->name));
+            $current->loadMissing('parent');
+            $current = $current->parent;
+        }
+
+        return '/files/folders/'.implode('/', $segments);
+    }
+
     private function notifyTeacherForManualStatusChange(
         EvidenceSubmission $submission,
         string $manualStatus,
@@ -566,9 +592,7 @@ class AdvisoryController extends Controller
         $candidates = collect($this->evidenceFolderNameCandidates($item->name))
             ->map(fn (string $name) => $this->normalizeFolderLookupName($name))
             ->all();
-        $folder = $subjectFolder->children()
-            ->get()
-            ->first(fn (FolderNode $child) => in_array($this->normalizeFolderLookupName($child->name), $candidates, true));
+        $folder = $this->findEvidenceFolder($subjectFolder, $candidates);
 
         if ($folder) {
             return $folder;
@@ -601,9 +625,25 @@ class AdvisoryController extends Controller
             str_contains($name, 'ASESOR') => ['ASESORIAS'],
             str_contains($name, 'CALIF') || str_contains($name, 'PARCIAL') => ['CALIFICACIONES PARCIALES', 'CALIF. PARCIALES'],
             str_contains($name, 'EVIDENCIAS') => ['3.EVIDENCIAS DE ASIGNATURAS', 'EVIDENCIAS DE ASIGNATURAS'],
+            str_contains($name, 'PROY') && (str_contains($name, 'SD4') || str_contains($name, '100')) => ['SD4-AVANCE-100%'],
+            str_contains($name, 'PROY') && (str_contains($name, 'SD2') || str_contains($name, '50')) => ['SD2-AVANCE-50%'],
             str_contains($name, 'PROY') => ['4.PROYECTOS INDIVIDUALES', 'PROYECTOS INDIVIDUALES'],
             default => [$itemName],
         };
+    }
+
+    private function findEvidenceFolder(FolderNode $subjectFolder, array $normalizedCandidates): ?FolderNode
+    {
+        return $subjectFolder->children()
+            ->orderBy('relative_path')
+            ->get()
+            ->first(fn (FolderNode $child) => in_array($this->normalizeFolderLookupName($child->name), $normalizedCandidates, true))
+            ?? FolderNode::query()
+                ->where('storage_root_id', $subjectFolder->storage_root_id)
+                ->where('relative_path', 'like', $subjectFolder->relative_path.'/%')
+                ->orderBy('relative_path')
+                ->get()
+                ->first(fn (FolderNode $child) => in_array($this->normalizeFolderLookupName($child->name), $normalizedCandidates, true));
     }
 
     private function defaultEvidenceFolderName(string $itemName): string

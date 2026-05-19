@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\NotificationType;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
+use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\SubmissionWindow;
+use App\Models\User;
 use App\Services\DocxEditorService;
 use App\Services\EvidenceFlowService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use RuntimeException;
@@ -48,7 +53,9 @@ class DocxEditorController extends Controller
                 'last_edited_at' => $file->last_edited_at?->toDateTimeString(),
                 'last_edited_by' => $file->editedBy?->name,
                 'download_url' => route('files.download', $file->id),
-                'folder_url' => route('folders.show', $file->folder_node_id),
+                'folder_url' => $file->folderNode
+                    ? $this->readableFolderUrl($file->folderNode)
+                    : route('folders.show', $file->folder_node_id),
                 'is_current_version' => (bool) $file->is_current_version,
                 'can_edit' => $canEdit,
             ],
@@ -58,7 +65,6 @@ class DocxEditorController extends Controller
                 'footer_html' => $payload['footer_html'] ?? '',
                 'warnings' => $payload['warnings'] ?? [],
                 'stats' => $payload['stats'] ?? null,
-                'version_history' => $payload['version_history'] ?? [],
                 'load_error' => $loadError,
                 'sections' => $payload['sections'] ?? [
                     'has_header' => false,
@@ -91,7 +97,7 @@ class DocxEditorController extends Controller
             'html' => 'required|string',
             'header_html' => 'nullable|string',
             'footer_html' => 'nullable|string',
-            'save_mode' => 'required|in:replace_current,new_version',
+            'save_mode' => 'required|in:replace_current',
         ]);
 
         try {
@@ -99,7 +105,6 @@ class DocxEditorController extends Controller
                 $file,
                 $validated['html'],
                 $request->user(),
-                $validated['save_mode'] === 'new_version',
                 $validated['header_html'] ?? null,
                 $validated['footer_html'] ?? null
             );
@@ -107,6 +112,7 @@ class DocxEditorController extends Controller
             $savedFile->submission?->update([
                 'last_updated_at' => now(),
             ]);
+            $this->notifyAdministratorsAboutDocxEdit($request->user(), $savedFile);
         } catch (RuntimeException $exception) {
             return back()->withErrors([
                 'docx' => $exception->getMessage(),
@@ -115,15 +121,50 @@ class DocxEditorController extends Controller
 
         return redirect()
             ->route('files.docx.show', $savedFile->id)
-            ->with('success', $validated['save_mode'] === 'new_version'
-                ? 'Nueva version DOCX guardada correctamente.'
-                : 'Documento DOCX guardado correctamente.'
-            );
+            ->with('success', 'Documento DOCX guardado correctamente.');
     }
 
     private function canBypassAvailability($user): bool
     {
         return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    private function readableFolderUrl(FolderNode $folder): string
+    {
+        $segments = [];
+        $current = $folder;
+
+        while ($current) {
+            array_unshift($segments, rawurlencode($current->name));
+            $current->loadMissing('parent');
+            $current = $current->parent;
+        }
+
+        return '/files/folders/'.implode('/', $segments);
+    }
+
+    private function notifyAdministratorsAboutDocxEdit(User $actor, EvidenceFile $file): void
+    {
+        if (! $actor->isDocente()) {
+            return;
+        }
+
+        $submission = $file->submission;
+        $itemName = $submission?->evidenceItem?->name ?: 'evidencia';
+        $message = "{$actor->name} modifico {$file->file_name} en {$itemName}.";
+        $notificationService = app(NotificationService::class);
+
+        User::query()
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [Role::JEFE_OFICINA, Role::JEFE_DEPTO]))
+            ->where('is_active', true)
+            ->get()
+            ->each(fn (User $recipient) => $notificationService->notifyImmediate(
+                $recipient,
+                NotificationType::GENERAL,
+                'Movimiento en expediente docente',
+                $message,
+                $file
+            ));
     }
 
     private function submissionAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array

@@ -67,7 +67,6 @@ class DocxEditorService
                 : '',
             'warnings' => $rendered['warnings'],
             'stats' => $rendered['stats'],
-            'version_history' => $this->versionHistory($file),
             'sections' => [
                 'has_header' => $package['header_part']['xml'] !== null,
                 'has_footer' => $package['footer_part']['xml'] !== null,
@@ -79,7 +78,6 @@ class DocxEditorService
         EvidenceFile $file,
         string $html,
         User $user,
-        bool $saveAsNewVersion = false,
         ?string $headerHtml = null,
         ?string $footerHtml = null
     ): EvidenceFile {
@@ -111,20 +109,17 @@ class DocxEditorService
             $needsNumbering,
             $extraParts
         );
-        $targetFileName = $saveAsNewVersion ? $this->versionedFileName($file) : $file->file_name;
 
-        return $this->storageService->storeGeneratedEvidenceVersion(
-            $binary,
-            $targetFileName,
-            self::DOCX_MIME,
-            $file->folderNode,
-            $user,
-            $file->submission,
+        return $this->storageService->overwriteGeneratedEvidence(
             $file,
+            $binary,
+            $file->file_name,
+            self::DOCX_MIME,
+            $user,
             'DOCX_EDITOR',
             [
                 'source_file_id' => $file->id,
-                'save_mode' => $saveAsNewVersion ? 'new_version' : 'replace_current',
+                'save_mode' => 'replace_current',
                 'warnings' => $parsed['warnings'],
                 'normalized_block_count' => count($parsed['blocks']),
             ]
@@ -2321,52 +2316,6 @@ class DocxEditorService
     <w:num w:numId="9201"><w:abstractNumId w:val="9200"/></w:num>
 </w:numbering>
 XML;
-    }
-
-    private function versionedFileName(EvidenceFile $file): string
-    {
-        $rootId = $file->versionRootId();
-        $rootFile = $file->rootFile ?: $file;
-        $baseName = (string) pathinfo($rootFile->file_name, PATHINFO_FILENAME);
-        $baseName = preg_replace('/ \(v\d+\)$/i', '', $baseName) ?: $baseName;
-        $extension = strtolower((string) pathinfo($rootFile->file_name, PATHINFO_EXTENSION)) ?: 'docx';
-
-        $nextVersion = EvidenceFile::withTrashed()
-            ->where(function ($query) use ($rootId) {
-                $query->where('id', $rootId)
-                    ->orWhere('root_file_id', $rootId);
-            })
-            ->count() + 1;
-
-        return $baseName.' (v'.$nextVersion.').'.$extension;
-    }
-
-    private function versionHistory(EvidenceFile $file): array
-    {
-        $rootId = $file->versionRootId();
-
-        return EvidenceFile::withTrashed()
-            ->with(['uploadedBy', 'editedBy'])
-            ->where(function ($query) use ($rootId) {
-                $query->where('id', $rootId)
-                    ->orWhere('root_file_id', $rootId);
-            })
-            ->orderByDesc('uploaded_at')
-            ->get()
-            ->map(fn (EvidenceFile $version) => [
-                'id' => $version->id,
-                'file_name' => $version->file_name,
-                'uploaded_at' => $version->uploaded_at?->toDateTimeString(),
-                'uploaded_by' => $version->uploadedBy?->name,
-                'last_edited_at' => $version->last_edited_at?->toDateTimeString(),
-                'last_edited_by' => $version->editedBy?->name,
-                'is_current_version' => (bool) $version->is_current_version,
-                'editor_source' => $version->editor_source,
-                'download_url' => route('files.download', $version->id),
-                'editor_url' => route('files.docx.show', $version->id),
-            ])
-            ->values()
-            ->toArray();
     }
 
     private function loadWordXml(string $xml): DOMDocument

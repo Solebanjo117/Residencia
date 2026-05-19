@@ -142,6 +142,15 @@ export interface FolderNode {
     relative_path: string;
     owner_user_id: number | null;
     semester_id: number | null;
+    icon_key?:
+        | 'folder'
+        | 'book'
+        | 'file'
+        | 'calendar'
+        | 'users'
+        | 'checklist'
+        | null;
+    color_key?: 'yellow' | 'blue' | 'green' | 'purple' | 'red' | 'gray' | null;
     parent?: FolderNode;
     children?: FolderNode[];
     root?: StorageRoot;

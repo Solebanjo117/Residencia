@@ -18,6 +18,8 @@ class FolderNode extends Model
         'relative_path',
         'owner_user_id',
         'semester_id',
+        'icon_key',
+        'color_key',
     ];
 
     public function parent()

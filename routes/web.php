@@ -107,7 +107,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // File Manager Routes
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
-    Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->name('folders.show');
+    Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->whereNumber('folder')->name('folders.show');
+    Route::get('/files/folders/{folderPath}', [FolderController::class, 'showByPath'])->where('folderPath', '.*')->name('folders.show-path');
     Route::post('/files/folders/{folder}/folders', [FolderController::class, 'storeSubfolder'])->name('folders.store');
     Route::patch('/files/folders/{folder}', [FolderController::class, 'update'])->name('folders.update');
     Route::patch('/files/folders/{folder}/move', [FolderController::class, 'move'])->name('folders.move');
