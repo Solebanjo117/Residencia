@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { router, useForm } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import * as XLSX from 'xlsx';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -149,6 +149,7 @@ const cellModalOpen = ref(false);
 const cellModalData = ref(null);
 const cellModalRow = ref(null);
 const cellModalCol = ref(null);
+const focusedCellOpened = ref(false);
 const departmentReviewModalOpen = ref(false);
 const departmentReviewRow = ref(null);
 const cellStatusOptions = [
@@ -193,6 +194,47 @@ function openCellDetail(row, col) {
         : 'PA';
     cellStatusForm.comments = '';
 }
+
+function openFocusedCellFromQuery() {
+    if (focusedCellOpened.value) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const submissionId = Number(params.get('submission_id') || 0);
+    const teachingLoadId = Number(params.get('teaching_load_id') || 0);
+    const evidenceItemId = Number(params.get('evidence_item_id') || 0);
+
+    if (!submissionId && (!teachingLoadId || !evidenceItemId)) {
+        return;
+    }
+
+    for (const row of props.rows) {
+        for (const col of orderedColumns.value) {
+            const cell = row.cells?.[col.key];
+            if (!cell) continue;
+
+            const matchesSubmission =
+                submissionId && Number(cell.submission_id) === submissionId;
+            const matchesCell =
+                teachingLoadId &&
+                evidenceItemId &&
+                Number(cell.teaching_load_id) === teachingLoadId &&
+                Number(cell.evidence_item_id) === evidenceItemId;
+
+            if (matchesSubmission || matchesCell) {
+                focusedCellOpened.value = true;
+                openCellDetail(row, col);
+                return;
+            }
+        }
+    }
+}
+
+onMounted(() => nextTick(openFocusedCellFromQuery));
+
+watch(
+    () => [props.rows, props.columns],
+    () => nextTick(openFocusedCellFromQuery),
+);
 
 function closeCellDetail() {
     cellModalOpen.value = false;
@@ -239,6 +281,20 @@ const uploadForm = useForm({
 });
 const uploadFileName = ref('');
 const uploadAccept = '.docx,.pdf,.jpg,.jpeg,.png,.webp';
+
+const latestRejectionComment = computed(() => {
+    const reviews = cellModalData.value?.review_trail || [];
+    const rejected = reviews.find((review) => review.decision === 'REJECT');
+
+    return rejected?.comments || cellModalData.value?.last_review?.comments || '';
+});
+
+const firstFolderUrl = computed(() => {
+    const files = cellModalData.value?.files || [];
+    const file = files.find((entry) => entry.folder_url);
+
+    return file?.folder_url || null;
+});
 
 const departmentReviewForm = useForm({
     decision: 'APPROVE',
@@ -930,6 +986,31 @@ function formatBytes(bytes) {
                     </div>
 
                     <div
+                        v-if="cellModalData.status === 'R'"
+                        class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+                    >
+                        <div class="font-semibold">
+                            Esta evidencia fue rechazada
+                        </div>
+                        <p v-if="latestRejectionComment" class="mt-1">
+                            {{ latestRejectionComment }}
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <a
+                                v-if="firstFolderUrl"
+                                :href="firstFolderUrl"
+                                class="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                            >
+                                Abrir carpeta
+                            </a>
+                            <span class="text-xs text-rose-700">
+                                Puedes subir una correccion aqui mismo o abrir
+                                la carpeta para revisar tus archivos.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div
                         v-if="
                             cellModalData.office_approved_at ||
                             cellModalData.final_approved_at
@@ -1006,7 +1087,17 @@ function formatBytes(bytes) {
                                     :href="file.folder_url"
                                     class="ml-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                                 >
-                                    Carpeta
+                                    Abrir carpeta
+                                </a>
+                                <a
+                                    v-if="
+                                        file.can_edit_docx &&
+                                        file.docx_editor_url
+                                    "
+                                    :href="file.docx_editor_url"
+                                    class="ml-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                                >
+                                    Editar
                                 </a>
                                 <a
                                     :href="
@@ -1028,7 +1119,11 @@ function formatBytes(bytes) {
                         <h3
                             class="mb-2 text-xs font-semibold text-slate-500 uppercase"
                         >
-                            Subir archivo
+                            {{
+                                cellModalData.status === 'R'
+                                    ? 'Subir correccion'
+                                    : 'Subir archivo'
+                            }}
                         </h3>
                         <div class="flex flex-col gap-3 sm:flex-row">
                             <label
@@ -1055,7 +1150,11 @@ function formatBytes(bytes) {
                                 "
                                 @click="submitCellUpload"
                             >
-                                Subir archivo
+                                {{
+                                    cellModalData.status === 'R'
+                                        ? 'Reemplazar archivo'
+                                        : 'Subir archivo'
+                                }}
                             </button>
                         </div>
                         <p

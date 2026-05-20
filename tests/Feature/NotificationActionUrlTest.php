@@ -82,6 +82,33 @@ it('returns a docente action url for submission notifications', function () {
         ->assertJsonPath('notifications.0.action_label', 'Ver evidencia');
 });
 
+it('returns a docente correction action url for rejected submissions', function () {
+    $submission = createNotificationActionSubmission();
+    $submission->update(['status' => SubmissionStatus::REJECTED]);
+
+    Notification::create([
+        'user_id' => $submission->teacher_user_id,
+        'type' => NotificationType::SUBMISSION_REJECTED,
+        'title' => 'Evidencia rechazada',
+        'message' => 'Tu evidencia fue rechazada.',
+        'related_entity_type' => EvidenceSubmission::class,
+        'related_entity_id' => $submission->id,
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+            'semester' => $submission->semester->name,
+            'submission_id' => $submission->id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Corregir evidencia');
+});
+
 it('returns an office review action url for submission notifications', function () {
     $submission = createNotificationActionSubmission();
     $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
@@ -102,5 +129,5 @@ it('returns an office review action url for submission notifications', function 
         ->getJson(route('notifications.unread'))
         ->assertOk()
         ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', $submission->teacher_user_id, false))
-        ->assertJsonPath('notifications.0.action_label', 'Abrir revisión');
+        ->assertJsonPath('notifications.0.action_label', 'Abrir revision');
 });

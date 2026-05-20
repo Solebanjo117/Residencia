@@ -163,6 +163,52 @@ it('marks open seguimiento cells as uploadable for their teacher', function () {
         );
 });
 
+it('exposes correction actions for rejected seguimiento files', function () {
+    Storage::fake('local');
+    $ctx = createSeguimientoCellUploadContext();
+
+    $this
+        ->from(route('asesorias', ['semester' => $ctx['semester']->name]))
+        ->actingAs($ctx['teacher'])
+        ->post(route('asesorias.cells.upload'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'file' => UploadedFile::fake()->create(
+                'correccion.docx',
+                200,
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ),
+        ])
+        ->assertRedirect(route('asesorias', ['semester' => $ctx['semester']->name]));
+
+    $submission = EvidenceSubmission::query()
+        ->where('teaching_load_id', $ctx['load']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->firstOrFail();
+    $submission->update(['status' => SubmissionStatus::REJECTED]);
+
+    $file = EvidenceFile::where('submission_id', $submission->id)->firstOrFail();
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('asesorias', [
+            'semester' => $ctx['semester']->name,
+            'submission_id' => $submission->id,
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.status', 'R')
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.can_upload', true)
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.is_docx', true)
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.docx_editor_url', route('files.docx.show', $file->id, false))
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.can_edit_docx', true)
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.can_replace', true)
+            ->where('rows.0.cells.item_'.$ctx['item']->id.'.files.0.folder_url', readableFolderUrlForSeguimientoCellTest($file->folderNode))
+        );
+});
+
 it('does not let a different teacher upload into another seguimiento row', function () {
     Storage::fake('local');
     $ctx = createSeguimientoCellUploadContext();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\NotificationType;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\Notification;
@@ -97,6 +98,15 @@ class NotificationController extends Controller
             }
 
             if ($user->isDocente()) {
+                if ($this->isRejectedSubmissionNotification($notification)) {
+                    return route('asesorias', [
+                        'semester' => $submission->semester?->name,
+                        'submission_id' => $submission->id,
+                        'teaching_load_id' => $submission->teaching_load_id,
+                        'evidence_item_id' => $submission->evidence_item_id,
+                    ], false);
+                }
+
                 return route('docente.evidencias', [
                     'semester_id' => $submission->semester_id,
                     'teaching_load_id' => $submission->teaching_load_id,
@@ -154,7 +164,11 @@ class NotificationController extends Controller
         }
 
         if ($notification->related_entity_type === EvidenceSubmission::class) {
-            return $user->isDocente() ? 'Ver evidencia' : 'Abrir revisión';
+            if ($user->isDocente() && $this->isRejectedSubmissionNotification($notification)) {
+                return 'Corregir evidencia';
+            }
+
+            return $user->isDocente() ? 'Ver evidencia' : 'Abrir revision';
         }
 
         if ($notification->related_entity_type === EvidenceFile::class) {
@@ -162,5 +176,14 @@ class NotificationController extends Controller
         }
 
         return $user->isDocente() ? 'Ver mis evidencias' : 'Abrir ventana';
+    }
+
+    private function isRejectedSubmissionNotification(Notification $notification): bool
+    {
+        $type = $notification->type instanceof \BackedEnum
+            ? $notification->type->value
+            : $notification->type;
+
+        return $type === NotificationType::SUBMISSION_REJECTED->value;
     }
 }
