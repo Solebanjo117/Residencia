@@ -169,12 +169,23 @@ class DocxEditorController extends Controller
 
     private function submissionAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
     {
-        $requirements = $flowService->requirementsForDepartment(
+        $baseRequirements = $flowService->requirementsForDepartment(
             $submission->semester_id,
             $submission->teacher->departments()->first()?->id
         );
+        $requirements = $flowService->requirementsForDepartment(
+            $submission->semester_id,
+            $submission->teacher->departments()->first()?->id,
+            $submission->teachingLoad
+        );
 
         $requirement = $requirements->firstWhere('evidence_item_id', $submission->evidence_item_id);
+
+        if (! $requirement instanceof EvidenceRequirement) {
+            if ($baseRequirements->contains('evidence_item_id', $submission->evidence_item_id)) {
+                return $flowService->notApplicableAvailability();
+            }
+        }
 
         $loadSubmissions = EvidenceSubmission::query()
             ->where('teacher_user_id', $submission->teacher_user_id)

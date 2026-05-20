@@ -509,6 +509,65 @@ it('shows sd2 advance files inside the matching sd4 advance folder so they can b
         );
 });
 
+it('shows seguimiento segment files across sibling segment folders as one editable chain', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+
+    $parent = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'Seguimientos',
+        'relative_path' => $ctx['folder']->relative_path.'/seguimientos',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['folder']->id,
+    ]);
+
+    $seg01Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SEG 01',
+        'relative_path' => $parent->relative_path.'/SEG 01',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+
+    $seg03Folder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'SEG 03',
+        'relative_path' => $parent->relative_path.'/SEG 03',
+        'owner_user_id' => $ctx['teacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $parent->id,
+    ]);
+
+    $storedPath = $seg01Folder->relative_path.'/seguimiento.docx';
+    Storage::disk('local')->put($storedPath, 'docx-content');
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $seg01Folder->id,
+        'file_name' => 'seguimiento.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 120,
+        'file_hash' => hash('sha256', 'docx-content'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $seg03Folder->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('contents.files.0.id', $file->id)
+            ->where('contents.files.0.linked_from', 'SEG 01')
+            ->where('contents.files.0.docx_editor_url', route('files.docx.show', $file->id))
+            ->where('contents.files.0.can_edit_docx', true)
+        );
+});
+
 it('links sd2 and sd4 project folders to their matching seguimiento evidence items', function () {
     Storage::fake('local');
 

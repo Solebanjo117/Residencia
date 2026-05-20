@@ -7,6 +7,7 @@ use App\Models\FolderNode;
 use App\Models\Semester;
 use App\Models\User;
 use App\Services\FolderManagerService;
+use App\Services\SeguimientoSharedFileService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,7 @@ class FolderController extends Controller
     public function __construct(
         private StorageService $storageService,
         private FolderManagerService $folderManagerService,
+        private SeguimientoSharedFileService $seguimientoSharedFiles,
     ) {}
 
     public function index(Request $request)
@@ -425,18 +427,25 @@ class FolderController extends Controller
 
     private function linkedAdvanceFilesFor(FolderNode $folder, User $user)
     {
+        $seguimientoFiles = $this->seguimientoSharedFiles->sharedFilesForFolder($folder, $user);
         $sourceFolder = $this->sourceAdvanceFolderFor($folder);
 
         if (! $sourceFolder || ! $user->can('view', $sourceFolder)) {
-            return collect();
+            return $seguimientoFiles;
         }
 
-        return $sourceFolder
+        $projectFiles = $sourceFolder
             ->files()
-            ->with(['uploadedBy', 'submission'])
+            ->with(['uploadedBy', 'submission', 'folderNode'])
+            ->currentVersion()
             ->get()
             ->filter(fn (EvidenceFile $file) => $user->can('view', $file))
             ->map(fn (EvidenceFile $file) => [$file, 'SD2-AVANCE-50%'])
+            ->values();
+
+        return $seguimientoFiles
+            ->merge($projectFiles)
+            ->unique(fn (array $entry) => $entry[0]->id)
             ->values();
     }
 

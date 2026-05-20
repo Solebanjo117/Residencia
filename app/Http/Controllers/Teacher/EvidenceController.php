@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use App\Services\NotificationService;
+use App\Services\SeguimientoSharedFileService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -27,7 +28,7 @@ use Inertia\Inertia;
 
 class EvidenceController extends Controller
 {
-    public function index(Request $request, EvidenceFlowService $flowService)
+    public function index(Request $request, EvidenceFlowService $flowService, SeguimientoSharedFileService $seguimientoSharedFiles)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -80,10 +81,11 @@ class EvidenceController extends Controller
             ])
             ->values();
 
-        $requirements = $flowService->requirementsForDepartment($selectedSemester->id, $department->id);
+        $baseRequirements = $flowService->requirementsForDepartment($selectedSemester->id, $department->id);
 
         $submissions = EvidenceSubmission::with([
-            'files',
+            'evidenceItem',
+            'files.folderNode',
             'statusHistory',
             'reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
             'officeReviewer',
@@ -105,6 +107,9 @@ class EvidenceController extends Controller
 
         foreach ($loads as $load) {
             $loadSubmissions = ($submissions->get($load->id) ?? collect())->keyBy('evidence_item_id');
+            $requirements = $baseRequirements
+                ->filter(fn ($requirement) => $flowService->requirementAppliesToLoad($requirement, $load))
+                ->values();
 
             foreach ($requirements as $requirement) {
                 $submission = $loadSubmissions->get($requirement->evidence_item_id);
@@ -121,6 +126,11 @@ class EvidenceController extends Controller
                 );
 
                 $latestReview = $submission?->reviews?->first();
+                $sharedFileEntries = $seguimientoSharedFiles->sharedFilesForCell(
+                    $submission,
+                    $loadSubmissions->values(),
+                    $requirement->evidenceItem->name
+                );
 
                 $isPendingEditable = $submission && $this->isPendingEditable($submission);
 
@@ -141,23 +151,28 @@ class EvidenceController extends Controller
                     'submission' => [
                         'status' => $submission?->status?->value,
                         'ui_status' => $flowService->uiStatus($submission, $availability),
-                        'files_count' => $submission?->files->count() ?? 0,
-                        'files' => $submission
-                            ? $submission->files->map(fn ($file) => [
-                                'id' => $file->id,
-                                'file_name' => $file->file_name,
-                                'size' => $file->size_bytes,
-                                'uploaded_at' => $file->uploaded_at,
-                                'download_url' => route('files.download', $file->id),
-                                'mime_type' => $file->mime_type,
-                                'is_docx' => $file->isDocx(),
-                                'editor_url' => $file->isDocx() ? route('files.docx.show', $file->id) : null,
-                                'can_edit_docx' => $file->isDocx()
-                                    && $user->can('replace', $file)
-                                    && $availability['is_available'],
-                                'can_delete' => $user->can('delete', $file),
-                            ])->values()->toArray()
-                            : [],
+                        'files_count' => $sharedFileEntries->count(),
+                        'files' => $sharedFileEntries
+                            ->map(function (array $entry) use ($user, $availability) {
+                                /** @var \App\Models\EvidenceFile $file */
+                                [$file, $linkedFrom] = $entry;
+
+                                return [
+                                    'id' => $file->id,
+                                    'file_name' => $file->file_name,
+                                    'size' => $file->size_bytes,
+                                    'uploaded_at' => $file->uploaded_at,
+                                    'download_url' => route('files.download', $file->id),
+                                    'mime_type' => $file->mime_type,
+                                    'is_docx' => $file->isDocx(),
+                                    'editor_url' => $file->isDocx() ? route('files.docx.show', $file->id) : null,
+                                    'can_edit_docx' => $file->isDocx()
+                                        && $user->can('replace', $file)
+                                        && $availability['is_available'],
+                                    'can_delete' => $user->can('delete', $file),
+                                    'linked_from' => $linkedFrom,
+                                ];
+                            })->values()->toArray(),
                         'submitted_late' => (bool) $submission?->submitted_late,
                         'office_approved_at' => $submission?->office_reviewed_at?->toDateTimeString(),
                         'office_approved_by' => $submission?->officeReviewer?->name,
@@ -194,7 +209,7 @@ class EvidenceController extends Controller
                         && $availability['is_available'],
                     'can_submit' => $submission
                         && in_array($submission->status, [SubmissionStatus::DRAFT, SubmissionStatus::REJECTED], true)
-                        && $submission->files->count() > 0
+                        && $sharedFileEntries->count() > 0
                         && $availability['is_available'],
                 ];
             }
@@ -301,7 +316,8 @@ class EvidenceController extends Controller
         EvidenceSubmission $submission,
         EvidenceService $evidenceService,
         EvidenceFlowService $flowService,
-        NotificationService $notificationService
+        NotificationService $notificationService,
+        SeguimientoSharedFileService $seguimientoSharedFiles
     ) {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
@@ -349,7 +365,20 @@ class EvidenceController extends Controller
             return back()->with('error', 'La evidencia no esta disponible para envio: '.$context['availability']['label'].'.');
         }
 
-        if ($submission->files()->count() === 0) {
+        $sharedFileCount = $seguimientoSharedFiles->isSharedItem($submission->evidenceItem?->name)
+            ? (int) $seguimientoSharedFiles->sharedFilesForCell(
+                $submission,
+                EvidenceSubmission::query()
+                    ->with(['evidenceItem', 'files'])
+                    ->where('teacher_user_id', $submission->teacher_user_id)
+                    ->where('semester_id', $submission->semester_id)
+                    ->where('teaching_load_id', $submission->teaching_load_id)
+                    ->get(),
+                $submission->evidenceItem?->name
+            )->count()
+            : $submission->files()->count();
+
+        if ($sharedFileCount === 0) {
             Log::channel('operations')->warning('evidence.submit_without_files', [
                 'actor_user_id' => $actor?->id,
                 'actor_role_id' => $actor?->role_id,
@@ -425,8 +454,13 @@ class EvidenceController extends Controller
         }
     }
 
-    public function storeFile(Request $request, EvidenceSubmission $submission, StorageService $storageService, EvidenceFlowService $flowService)
-    {
+    public function storeFile(
+        Request $request,
+        EvidenceSubmission $submission,
+        StorageService $storageService,
+        EvidenceFlowService $flowService,
+        SeguimientoSharedFileService $seguimientoSharedFiles
+    ) {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
         $actor = $request->user();
@@ -502,7 +536,13 @@ class EvidenceController extends Controller
 
         try {
             $uploadedFile = $request->file('file');
-            $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
+            $existingSharedFile = $seguimientoSharedFiles->currentSharedFileForSubmission($submission);
+
+            if ($existingSharedFile) {
+                $storageService->overwriteEvidence($existingSharedFile, $uploadedFile, $request->user());
+            } else {
+                $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
+            }
 
             $submission->update(['last_updated_at' => now()]);
 
@@ -547,14 +587,19 @@ class EvidenceController extends Controller
     {
         $department = $user->departments()->first();
 
-        return $flowService->requirementsForDepartment($load->semester_id, $department?->id);
+        return $flowService->requirementsForDepartment($load->semester_id, $department?->id, $load);
     }
 
     private function resolveSubmissionContext(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
     {
-        $requirements = $flowService->requirementsForDepartment(
+        $baseRequirements = $flowService->requirementsForDepartment(
             $submission->semester_id,
             $submission->teacher->departments()->first()?->id
+        );
+        $requirements = $flowService->requirementsForDepartment(
+            $submission->semester_id,
+            $submission->teacher->departments()->first()?->id,
+            $submission->teachingLoad
         );
 
         $requirement = $requirements->firstWhere('evidence_item_id', $submission->evidence_item_id);
@@ -576,16 +621,19 @@ class EvidenceController extends Controller
         $stageUnlocked = $requirement
             ? $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions)
             : true;
-
-        return [
-            'requirement' => $requirement,
-            'window' => $window,
-            'availability' => $flowService->resolveAvailability(
+        $availability = ! $requirement && $baseRequirements->contains('evidence_item_id', $submission->evidence_item_id)
+            ? $flowService->notApplicableAvailability()
+            : $flowService->resolveAvailability(
                 $window,
                 $stageUnlocked,
                 $this->hasActiveUnlock($submission),
                 $submission
-            ),
+            );
+
+        return [
+            'requirement' => $requirement,
+            'window' => $window,
+            'availability' => $availability,
         ];
     }
 

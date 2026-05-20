@@ -6,6 +6,7 @@ import {
     Info,
     AlertTriangle,
     ChevronDown,
+    Users,
 } from 'lucide-vue-next';
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
@@ -13,6 +14,14 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -33,6 +42,7 @@ const props = defineProps<{
     departments: any[];
     categories: any[];
     requirements: any[];
+    teachers: any[];
     selectedSemester: string | null;
 }>();
 
@@ -101,6 +111,7 @@ const normalizeReqs = (reqs: any[]) =>
                 department_id: r.department_id,
                 evidence_item_id: r.evidence_item_id,
                 is_mandatory: r.is_mandatory,
+                applies_condition: normalizeCondition(r.applies_condition),
             }))
             .sort(
                 (a: any, b: any) =>
@@ -153,6 +164,9 @@ const initializeRequirements = () => {
                     department_id: null,
                     evidence_item_id: item.id,
                     is_mandatory: globalReq.is_mandatory,
+                    applies_condition: normalizeCondition(
+                        globalReq.applies_condition,
+                    ),
                 });
             }
 
@@ -163,6 +177,9 @@ const initializeRequirements = () => {
                         department_id: dept.id,
                         evidence_item_id: item.id,
                         is_mandatory: deptReq.is_mandatory,
+                        applies_condition: normalizeCondition(
+                            deptReq.applies_condition,
+                        ),
                     });
                 }
             });
@@ -205,6 +222,7 @@ const toggleRequirement = (itemId: number, deptId: number | null) => {
             department_id: deptId,
             evidence_item_id: itemId,
             is_mandatory: true,
+            applies_condition: null,
         });
     }
 };
@@ -240,6 +258,7 @@ const applyGlobalCategory = (category: any) => {
                 department_id: null,
                 evidence_item_id: item.id,
                 is_mandatory: true,
+                applies_condition: null,
             });
         }
         form.requirements = form.requirements.filter(
@@ -297,6 +316,180 @@ const semesterSummary = computed(() => {
         optional: optionalCount,
     };
 });
+
+const selectedApplicabilityItem = ref<any>(null);
+const showApplicabilityDialog = ref(false);
+
+const normalizeCondition = (condition: any) => {
+    const teacherOverrides = condition?.teacher_overrides ?? {};
+    const loadOverrides = condition?.teaching_load_overrides ?? {};
+    const normalized: any = {};
+
+    if (Object.keys(teacherOverrides).length > 0) {
+        normalized.teacher_overrides = Object.fromEntries(
+            Object.entries(teacherOverrides).map(([id, value]) => [
+                String(id),
+                Boolean(value),
+            ]),
+        );
+    }
+
+    if (Object.keys(loadOverrides).length > 0) {
+        normalized.teaching_load_overrides = Object.fromEntries(
+            Object.entries(loadOverrides).map(([id, value]) => [
+                String(id),
+                Boolean(value),
+            ]),
+        );
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : null;
+};
+
+const requirementForApplicability = (itemId: number, deptId: number | null) => {
+    return form.requirements.find(
+        (r) => r.evidence_item_id === itemId && r.department_id === deptId,
+    );
+};
+
+const baseRequirementForTeacher = (itemId: number, teacher: any) => {
+    const globalReq = requirementForApplicability(itemId, null);
+    if (globalReq) return globalReq;
+
+    const departmentIds = teacher.departments?.map((dept: any) => dept.id) ?? [];
+
+    return form.requirements.find(
+        (r) =>
+            r.evidence_item_id === itemId &&
+            r.department_id !== null &&
+            departmentIds.includes(r.department_id),
+    );
+};
+
+const ensureCondition = (req: any) => {
+    if (!req.applies_condition) {
+        req.applies_condition = {};
+    }
+    if (!req.applies_condition.teacher_overrides) {
+        req.applies_condition.teacher_overrides = {};
+    }
+    if (!req.applies_condition.teaching_load_overrides) {
+        req.applies_condition.teaching_load_overrides = {};
+    }
+};
+
+const cleanupCondition = (req: any) => {
+    if (!req.applies_condition) return;
+
+    if (Object.keys(req.applies_condition.teacher_overrides ?? {}).length === 0) {
+        delete req.applies_condition.teacher_overrides;
+    }
+    if (
+        Object.keys(req.applies_condition.teaching_load_overrides ?? {})
+            .length === 0
+    ) {
+        delete req.applies_condition.teaching_load_overrides;
+    }
+    if (Object.keys(req.applies_condition).length === 0) {
+        req.applies_condition = null;
+    }
+};
+
+const teacherApplies = (itemId: number, teacher: any) => {
+    const req = baseRequirementForTeacher(itemId, teacher);
+    if (!req) return false;
+
+    const override =
+        req.applies_condition?.teacher_overrides?.[String(teacher.id)];
+
+    return override === undefined ? true : Boolean(override);
+};
+
+const loadApplies = (itemId: number, teacher: any, load: any) => {
+    const req = baseRequirementForTeacher(itemId, teacher);
+    if (!req) return false;
+
+    const loadOverride =
+        req.applies_condition?.teaching_load_overrides?.[String(load.id)];
+
+    if (loadOverride !== undefined) {
+        return Boolean(loadOverride);
+    }
+
+    return teacherApplies(itemId, teacher);
+};
+
+const setTeacherApplicability = (
+    itemId: number,
+    teacher: any,
+    applies: boolean,
+) => {
+    const req = baseRequirementForTeacher(itemId, teacher);
+    if (!req) return;
+
+    ensureCondition(req);
+
+    if (applies) {
+        delete req.applies_condition.teacher_overrides[String(teacher.id)];
+    } else {
+        req.applies_condition.teacher_overrides[String(teacher.id)] = false;
+    }
+
+    teacher.loads?.forEach((load: any) => {
+        delete req.applies_condition.teaching_load_overrides[String(load.id)];
+    });
+
+    cleanupCondition(req);
+};
+
+const setLoadApplicability = (
+    itemId: number,
+    teacher: any,
+    load: any,
+    applies: boolean,
+) => {
+    const req = baseRequirementForTeacher(itemId, teacher);
+    if (!req) return;
+
+    ensureCondition(req);
+    const teacherDefault = teacherApplies(itemId, teacher);
+
+    if (applies === teacherDefault) {
+        delete req.applies_condition.teaching_load_overrides[String(load.id)];
+    } else {
+        req.applies_condition.teaching_load_overrides[String(load.id)] = applies;
+    }
+
+    cleanupCondition(req);
+};
+
+const openApplicabilityDialog = (item: any) => {
+    selectedApplicabilityItem.value = item;
+    showApplicabilityDialog.value = true;
+};
+
+const teachersInScopeForSelectedItem = computed(() => {
+    if (!selectedApplicabilityItem.value) return [];
+
+    return props.teachers.filter((teacher) =>
+        Boolean(baseRequirementForTeacher(selectedApplicabilityItem.value.id, teacher)),
+    );
+});
+
+const itemExceptionCount = (itemId: number) => {
+    return form.requirements
+        .filter((r) => r.evidence_item_id === itemId)
+        .reduce((total, req) => {
+            const teacherCount = Object.keys(
+                req.applies_condition?.teacher_overrides ?? {},
+            ).length;
+            const loadCount = Object.keys(
+                req.applies_condition?.teaching_load_overrides ?? {},
+            ).length;
+
+            return total + teacherCount + loadCount;
+        }, 0);
+};
 </script>
 
 <template>
@@ -524,6 +717,53 @@ const semesterSummary = computed(() => {
                                             >
                                                 {{ item.description }}
                                             </div>
+                                            <div
+                                                class="mt-2 flex flex-wrap items-center gap-2"
+                                            >
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    :disabled="
+                                                        !isChecked(
+                                                            item.id,
+                                                            null,
+                                                        ) &&
+                                                        !departments.some(
+                                                            (dept) =>
+                                                                isChecked(
+                                                                    item.id,
+                                                                    dept.id,
+                                                                ),
+                                                        )
+                                                    "
+                                                    @click="
+                                                        openApplicabilityDialog(
+                                                            item,
+                                                        )
+                                                    "
+                                                >
+                                                    <Users
+                                                        class="mr-1 h-3 w-3"
+                                                    />
+                                                    Docentes
+                                                </Button>
+                                                <Badge
+                                                    v-if="
+                                                        itemExceptionCount(
+                                                            item.id,
+                                                        ) > 0
+                                                    "
+                                                    variant="secondary"
+                                                >
+                                                    {{
+                                                        itemExceptionCount(
+                                                            item.id,
+                                                        )
+                                                    }}
+                                                    excepciones
+                                                </Badge>
+                                            </div>
                                         </td>
 
                                         <td
@@ -740,6 +980,136 @@ const semesterSummary = computed(() => {
             </div>
         </div>
     </AppLayout>
+
+    <Dialog
+        :open="showApplicabilityDialog"
+        @update:open="showApplicabilityDialog = $event"
+    >
+        <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>
+                    {{
+                        selectedApplicabilityItem
+                            ? selectedApplicabilityItem.name
+                            : 'Aplicabilidad por docente'
+                    }}
+                </DialogTitle>
+                <DialogDescription>
+                    Ajusta que docentes o asignaciones deben entregar este
+                    rubro dentro del semestre seleccionado.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div
+                v-if="!selectedApplicabilityItem"
+                class="rounded-md border border-border p-6 text-sm text-muted-foreground"
+            >
+                Selecciona un rubro para editar su aplicabilidad.
+            </div>
+
+            <div
+                v-else-if="teachersInScopeForSelectedItem.length === 0"
+                class="rounded-md border border-border p-6 text-sm text-muted-foreground"
+            >
+                Primero activa este rubro en la columna global o en al menos un
+                departamento con docentes asignados.
+            </div>
+
+            <div v-else class="space-y-3">
+                <div
+                    v-for="teacher in teachersInScopeForSelectedItem"
+                    :key="teacher.id"
+                    class="rounded-md border border-border"
+                >
+                    <div
+                        class="flex flex-col gap-3 border-b border-border bg-muted/40 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                    >
+                        <div>
+                            <div class="font-medium text-foreground">
+                                {{ teacher.name }}
+                            </div>
+                            <div class="text-xs text-muted-foreground">
+                                {{
+                                    teacher.departments
+                                        ?.map((dept: any) => dept.name)
+                                        .join(', ') || 'Sin departamento'
+                                }}
+                            </div>
+                        </div>
+                        <label
+                            class="flex items-center gap-2 text-sm text-foreground"
+                        >
+                            <Checkbox
+                                :model-value="
+                                    teacherApplies(
+                                        selectedApplicabilityItem.id,
+                                        teacher,
+                                    )
+                                "
+                                @update:model-value="
+                                    setTeacherApplicability(
+                                        selectedApplicabilityItem.id,
+                                        teacher,
+                                        Boolean($event),
+                                    )
+                                "
+                            />
+                            Aplica al docente
+                        </label>
+                    </div>
+
+                    <div class="divide-y divide-border">
+                        <div
+                            v-for="load in teacher.loads"
+                            :key="load.id"
+                            class="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                        >
+                            <div>
+                                <div class="text-sm font-medium text-foreground">
+                                    {{ load.subject_name }}
+                                </div>
+                                <div class="text-xs text-muted-foreground">
+                                    {{ load.subject_code }} · Grupo
+                                    {{ load.group_code }}
+                                </div>
+                            </div>
+                            <label
+                                class="flex items-center gap-2 text-sm text-foreground"
+                            >
+                                <Checkbox
+                                    :model-value="
+                                        loadApplies(
+                                            selectedApplicabilityItem.id,
+                                            teacher,
+                                            load,
+                                        )
+                                    "
+                                    @update:model-value="
+                                        setLoadApplicability(
+                                            selectedApplicabilityItem.id,
+                                            teacher,
+                                            load,
+                                            Boolean($event),
+                                        )
+                                    "
+                                />
+                                Aplica a esta asignación
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button
+                    variant="outline"
+                    @click="showApplicabilityDialog = false"
+                >
+                    Cerrar
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
     <ConfirmDialog
         :open="showSemesterConfirm"

@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class EvidenceFlowService
 {
-    public function requirementsForDepartment(int $semesterId, ?int $departmentId): Collection
+    public function requirementsForDepartment(int $semesterId, ?int $departmentId, ?TeachingLoad $load = null): Collection
     {
         $requirements = EvidenceRequirement::with('evidenceItem')
             ->where('semester_id', $semesterId)
@@ -38,7 +38,43 @@ class EvidenceFlowService
                 ];
             })
             ->unique('evidence_item_id')
+            ->filter(fn (EvidenceRequirement $requirement) => $this->requirementAppliesToLoad($requirement, $load))
             ->values();
+    }
+
+    public function requirementAppliesToLoad(EvidenceRequirement $requirement, ?TeachingLoad $load = null): bool
+    {
+        if (! $load) {
+            return true;
+        }
+
+        $condition = $requirement->applies_condition ?? [];
+        $teacherOverrides = $condition['teacher_overrides'] ?? [];
+        $loadOverrides = $condition['teaching_load_overrides'] ?? [];
+        $teacherId = (string) $load->teacher_user_id;
+        $loadId = (string) $load->id;
+
+        if (array_key_exists($loadId, $loadOverrides)) {
+            return (bool) $loadOverrides[$loadId];
+        }
+
+        if (array_key_exists($teacherId, $teacherOverrides)) {
+            return (bool) $teacherOverrides[$teacherId];
+        }
+
+        return true;
+    }
+
+    public function notApplicableAvailability(): array
+    {
+        return [
+            'code' => 'NOT_APPLICABLE',
+            'label' => 'No aplica por matriz',
+            'is_available' => false,
+            'is_late' => false,
+            'is_future' => false,
+            'tone' => 'slate',
+        ];
     }
 
     public function stageOrder(?string $itemName): int
@@ -205,17 +241,6 @@ class EvidenceFlowService
             ];
         }
 
-        if (! $stageUnlocked) {
-            return [
-                'code' => 'STAGE_LOCKED',
-                'label' => 'Bloqueado por etapa previa',
-                'is_available' => false,
-                'is_late' => false,
-                'is_future' => true,
-                'tone' => 'slate',
-            ];
-        }
-
         $now = now();
 
         if ($hasUnlock) {
@@ -297,14 +322,22 @@ class EvidenceFlowService
         }
 
         if ($submission?->status === SubmissionStatus::DRAFT) {
-            return $availability['is_available'] ? 'PA' : 'BL';
+            return match ($availability['code'] ?? null) {
+                'UPCOMING' => 'BL',
+                'NOT_APPLICABLE' => 'NA',
+                default => $availability['is_available'] ? 'PA' : 'NE',
+            };
         }
 
         if ($submission?->status === SubmissionStatus::NE) {
             return 'NE';
         }
 
-        if (! $submission && in_array($availability['code'], ['UPCOMING', 'STAGE_LOCKED'], true)) {
+        if (($availability['code'] ?? null) === 'NOT_APPLICABLE') {
+            return 'NA';
+        }
+
+        if (! $submission && ($availability['code'] ?? null) === 'UPCOMING') {
             return 'BL';
         }
 

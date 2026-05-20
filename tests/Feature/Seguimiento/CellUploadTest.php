@@ -238,3 +238,109 @@ it('keeps a late flag when a seguimiento cell file is uploaded after the regular
 
     expect($submission->submitted_late)->toBeTrue();
 });
+
+it('reuses one uploaded file across seg 01 through seg 04 cells', function () {
+    Storage::fake('local');
+
+    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $department = Department::create(['name' => 'DEP SEG '.Str::upper(Str::random(6))]);
+    $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
+    $teacher->departments()->attach($department->id);
+
+    $semester = Semester::create([
+        'name' => 'SEM SEG '.Str::upper(Str::random(6)),
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->addMonth()->toDateString(),
+        'status' => 'OPEN',
+    ]);
+
+    $subject = Subject::create([
+        'code' => 'SEG-'.Str::upper(Str::random(6)),
+        'name' => 'SEGUIMIENTO COMPARTIDO '.Str::upper(Str::random(4)),
+    ]);
+
+    $load = TeachingLoad::create([
+        'teacher_user_id' => $teacher->id,
+        'semester_id' => $semester->id,
+        'subject_id' => $subject->id,
+        'group_code' => 'A',
+        'hours_per_week' => 4,
+    ]);
+
+    $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
+    $items = collect(['SEG 01', 'SEG 02', 'SEG 03', 'SEG 04 FINAL'])->mapWithKeys(function (string $name) use ($categoryId, $semester, $department, $teacher) {
+        $item = EvidenceItem::create([
+            'category_id' => $categoryId,
+            'name' => $name,
+            'description' => 'Seguimiento compartido '.$name,
+            'requires_subject' => true,
+            'active' => true,
+        ]);
+
+        EvidenceRequirement::create([
+            'semester_id' => $semester->id,
+            'department_id' => $department->id,
+            'evidence_item_id' => $item->id,
+            'is_mandatory' => true,
+        ]);
+
+        SubmissionWindow::create([
+            'semester_id' => $semester->id,
+            'evidence_item_id' => $item->id,
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
+            'created_by_user_id' => $teacher->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        return [$name => $item];
+    });
+
+    $this
+        ->from(route('asesorias', ['semester' => $semester->name]))
+        ->actingAs($teacher)
+        ->post(route('asesorias.cells.upload'), [
+            'teaching_load_id' => $load->id,
+            'evidence_item_id' => $items['SEG 01']->id,
+            'file' => UploadedFile::fake()->create('seg-01.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect(route('asesorias', ['semester' => $semester->name]));
+
+    $firstFile = EvidenceFile::firstOrFail();
+    EvidenceSubmission::query()
+        ->where('evidence_item_id', $items['SEG 01']->id)
+        ->where('teaching_load_id', $load->id)
+        ->update([
+            'status' => SubmissionStatus::SUBMITTED,
+            'submitted_at' => now(),
+        ]);
+
+    $this
+        ->from(route('asesorias', ['semester' => $semester->name]))
+        ->actingAs($teacher)
+        ->post(route('asesorias.cells.upload'), [
+            'teaching_load_id' => $load->id,
+            'evidence_item_id' => $items['SEG 02']->id,
+            'file' => UploadedFile::fake()->create('seg-02.pdf', 240, 'application/pdf'),
+        ])
+        ->assertRedirect(route('asesorias', ['semester' => $semester->name]));
+
+    expect(EvidenceFile::count())->toBe(1);
+
+    $updatedFile = $firstFile->fresh();
+    expect($updatedFile->file_name)->toBe('seg-02.pdf')
+        ->and($updatedFile->id)->toBe($firstFile->id);
+
+    $this
+        ->actingAs($teacher)
+        ->get(route('asesorias', ['semester' => $semester->name]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('rows.0.cells.item_'.$items['SEG 01']->id.'.files.0.id', $updatedFile->id)
+            ->where('rows.0.cells.item_'.$items['SEG 01']->id.'.files.0.linked_from', null)
+            ->where('rows.0.cells.item_'.$items['SEG 02']->id.'.files.0.id', $updatedFile->id)
+            ->where('rows.0.cells.item_'.$items['SEG 02']->id.'.files.0.linked_from', 'SEG 01')
+            ->where('rows.0.cells.item_'.$items['SEG 04 FINAL']->id.'.files.0.id', $updatedFile->id)
+            ->where('rows.0.cells.item_'.$items['SEG 04 FINAL']->id.'.files.0.linked_from', 'SEG 01')
+        );
+});

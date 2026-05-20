@@ -17,6 +17,7 @@ use App\Services\AuditService;
 use App\Services\EvidenceFlowService;
 use App\Services\FolderManagerService;
 use App\Services\NotificationService;
+use App\Services\SeguimientoSharedFileService;
 use App\Services\StorageService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -31,11 +32,18 @@ class FileController extends Controller
 
     protected $folderManagerService;
 
-    public function __construct(StorageService $storageService, AuditService $auditService, FolderManagerService $folderManagerService)
-    {
+    protected $seguimientoSharedFiles;
+
+    public function __construct(
+        StorageService $storageService,
+        AuditService $auditService,
+        FolderManagerService $folderManagerService,
+        SeguimientoSharedFileService $seguimientoSharedFiles
+    ) {
         $this->storageService = $storageService;
         $this->auditService = $auditService;
         $this->folderManagerService = $folderManagerService;
+        $this->seguimientoSharedFiles = $seguimientoSharedFiles;
     }
 
     public function download(Request $request, EvidenceFile $file)
@@ -151,7 +159,11 @@ class FileController extends Controller
         }
 
         try {
-            $file = $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+            $existingSharedFile = $this->seguimientoSharedFiles->currentSharedFileForSubmission($submission);
+            $file = $existingSharedFile
+                ? $this->storageService->overwriteEvidence($existingSharedFile, $request->file('file'), $user)
+                : $this->storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+
             $submission->update(['last_updated_at' => now()]);
             $this->notifyAdministratorsAboutFileActivity($user, 'subio', $file, $submission);
 
@@ -363,12 +375,23 @@ class FileController extends Controller
 
     private function submissionAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array
     {
-        $requirements = $flowService->requirementsForDepartment(
+        $baseRequirements = $flowService->requirementsForDepartment(
             $submission->semester_id,
             $submission->teacher->departments()->first()?->id
         );
+        $requirements = $flowService->requirementsForDepartment(
+            $submission->semester_id,
+            $submission->teacher->departments()->first()?->id,
+            $submission->teachingLoad
+        );
 
         $requirement = $requirements->firstWhere('evidence_item_id', $submission->evidence_item_id);
+
+        if (! $requirement instanceof EvidenceRequirement) {
+            if ($baseRequirements->contains('evidence_item_id', $submission->evidence_item_id)) {
+                return $flowService->notApplicableAvailability();
+            }
+        }
         $loadSubmissions = EvidenceSubmission::query()
             ->where('teacher_user_id', $submission->teacher_user_id)
             ->where('semester_id', $submission->semester_id)

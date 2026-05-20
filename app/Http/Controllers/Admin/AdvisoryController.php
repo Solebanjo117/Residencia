@@ -19,6 +19,7 @@ use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use App\Services\FolderStructureService;
 use App\Services\NotificationService;
+use App\Services\SeguimientoSharedFileService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -28,7 +29,7 @@ use Inertia\Inertia;
 
 class AdvisoryController extends Controller
 {
-    public function index(Request $request, EvidenceFlowService $flowService)
+    public function index(Request $request, EvidenceFlowService $flowService, SeguimientoSharedFileService $seguimientoSharedFiles)
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -67,6 +68,7 @@ class AdvisoryController extends Controller
         $teachingLoads = $loadsQuery->get();
 
         $submissions = EvidenceSubmission::with([
+            'evidenceItem',
             'files.folderNode',
             'reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
             'officeReviewer',
@@ -130,19 +132,28 @@ class AdvisoryController extends Controller
 
             foreach ($requirements as $requirement) {
                 $item = $requirement->evidenceItem;
+                $requirementApplies = $flowService->requirementAppliesToLoad($requirement, $load);
                 $submission = $loadSubmissions->get($item->id);
-                $stageUnlocked = $flowService->isStageUnlocked($requirement, $requirements, $loadSubmissions);
+                $loadRequirements = $requirements
+                    ->filter(fn (EvidenceRequirement $candidate) => $flowService->requirementAppliesToLoad($candidate, $load))
+                    ->values();
+                $stageUnlocked = $requirementApplies
+                    ? $flowService->isStageUnlocked($requirement, $loadRequirements, $loadSubmissions)
+                    : false;
                 $window = $flowService->resolveWindowForLoad($windows->get($item->id) ?? collect(), $load);
-                $availability = $flowService->resolveAvailability(
-                    $window,
-                    $stageUnlocked,
-                    $submission?->activeResubmissionUnlock !== null,
-                    $submission,
-                    $isHistoricalSemester
-                );
+                $availability = $requirementApplies
+                    ? $flowService->resolveAvailability(
+                        $window,
+                        $stageUnlocked,
+                        $submission?->activeResubmissionUnlock !== null,
+                        $submission,
+                        $isHistoricalSemester
+                    )
+                    : $flowService->notApplicableAvailability();
 
                 $uiStatus = $flowService->uiStatus($submission, $availability);
                 $lastReview = $submission?->reviews?->first();
+                $cellFiles = $seguimientoSharedFiles->sharedFilesForCell($submission, $loadSubmissions->values(), $item->name);
 
                 $rowData['cells']['item_'.$item->id] = [
                     'status' => $uiStatus,
@@ -158,16 +169,16 @@ class AdvisoryController extends Controller
                     'office_approved_by' => $submission?->officeReviewer?->name,
                     'final_approved_at' => $submission?->final_approved_at?->toDateTimeString(),
                     'final_approved_by' => $submission?->finalApprover?->name,
-                    'files' => $submission ? $submission->files->map(fn ($file) => [
-                        'id' => $file->id,
-                        'file_name' => $file->file_name,
-                        'size' => $file->size_bytes,
-                        'uploaded_at' => $file->uploaded_at?->toDateTimeString(),
-                        'submitted_at' => $file->uploaded_at?->toDateTimeString(),
-                        'file_url' => route('files.download', $file->id, false),
-                        'folder_url' => $file->folderNode ? $this->readableFolderUrl($file->folderNode) : null,
-                        'linked_from' => null,
-                    ])->values()->toArray() : [],
+                    'files' => $cellFiles->map(fn (array $entry) => [
+                        'id' => $entry[0]->id,
+                        'file_name' => $entry[0]->file_name,
+                        'size' => $entry[0]->size_bytes,
+                        'uploaded_at' => $entry[0]->uploaded_at?->toDateTimeString(),
+                        'submitted_at' => $entry[0]->uploaded_at?->toDateTimeString(),
+                        'file_url' => route('files.download', $entry[0]->id, false),
+                        'folder_url' => $entry[0]->folderNode ? $this->readableFolderUrl($entry[0]->folderNode) : null,
+                        'linked_from' => $entry[1],
+                    ])->values()->toArray(),
                     'last_review' => $lastReview ? [
                         'stage' => $lastReview->stage,
                         'decision' => $lastReview->decision->value,
@@ -189,7 +200,8 @@ class AdvisoryController extends Controller
                     'can_final_approve' => $user->isJefeDepto()
                         && $submission?->isOfficeApproved()
                         && ! $submission?->isFinalApproved(),
-                    'can_mark_na' => ($user->isJefeOficina() || $user->isJefeDepto())
+                    'can_mark_na' => $requirementApplies
+                        && ($user->isJefeOficina() || $user->isJefeDepto())
                         && ! $submission?->isFinalApproved(),
                     'can_reactivate' => ($user->isJefeOficina() || $user->isJefeDepto())
                         && $submission?->status === SubmissionStatus::NA,
@@ -353,7 +365,8 @@ class AdvisoryController extends Controller
         Request $request,
         StorageService $storageService,
         FolderStructureService $folderStructureService,
-        EvidenceFlowService $flowService
+        EvidenceFlowService $flowService,
+        SeguimientoSharedFileService $seguimientoSharedFiles
     ) {
         $validated = $request->validate([
             'teaching_load_id' => 'required|exists:teaching_loads,id',
@@ -395,7 +408,13 @@ class AdvisoryController extends Controller
         $folder = $this->resolveEvidenceFolderForCell($load, $evidenceItem, $folderStructureService);
 
         try {
-            $storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+            $existingSharedFile = $seguimientoSharedFiles->currentSharedFileForSubmission($submission);
+
+            if ($existingSharedFile) {
+                $storageService->overwriteEvidence($existingSharedFile, $request->file('file'), $user);
+            } else {
+                $storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
+            }
         } catch (\Throwable $exception) {
             return back()->withErrors(['file' => $exception->getMessage()]);
         }
@@ -544,8 +563,16 @@ class AdvisoryController extends Controller
         ?EvidenceSubmission $submission,
         EvidenceFlowService $flowService
     ): array {
-        $requirements = $flowService->requirementsForDepartment($load->semester_id, $load->teacher->departments()->first()?->id);
+        $baseRequirements = $flowService->requirementsForDepartment($load->semester_id, $load->teacher->departments()->first()?->id);
+        $requirements = $flowService->requirementsForDepartment($load->semester_id, $load->teacher->departments()->first()?->id, $load);
         $requirement = $requirements->firstWhere('evidence_item_id', $item->id);
+
+        if (! $requirement instanceof EvidenceRequirement) {
+            if ($baseRequirements->contains('evidence_item_id', $item->id)) {
+                return $flowService->notApplicableAvailability();
+            }
+        }
+
         $loadSubmissions = EvidenceSubmission::query()
             ->where('teacher_user_id', $load->teacher_user_id)
             ->where('semester_id', $load->semester_id)

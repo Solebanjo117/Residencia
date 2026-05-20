@@ -52,24 +52,35 @@ class DashboardController extends Controller
             $department = $user->departments()->first();
 
             if ($department) {
-                // Get Requirements for this department and semester
-                $requirements = $flowService->requirementsForDepartment($currentSemester->id, $department->id);
+                $requirements = $teachingLoads
+                    ->flatMap(fn (TeachingLoad $load) => $flowService
+                        ->requirementsForDepartment($currentSemester->id, $department->id, $load)
+                        ->where('is_mandatory', true)
+                        ->map(fn ($requirement) => [
+                            'teaching_load_id' => $load->id,
+                            'evidence_item_id' => $requirement->evidence_item_id,
+                        ]))
+                    ->values();
 
-                $mandatoryIds = $requirements->where('is_mandatory', true)->pluck('evidence_item_id');
+                $mandatoryIds = $requirements->pluck('evidence_item_id')->unique();
                 $mandatorySubmissions = EvidenceSubmission::where('teacher_user_id', $user->id)
                     ->where('semester_id', $currentSemester->id)
                     ->whereIn('evidence_item_id', $mandatoryIds)
                     ->get()
-                    ->keyBy('evidence_item_id');
+                    ->keyBy(fn (EvidenceSubmission $submission) => $submission->teaching_load_id.':'.$submission->evidence_item_id);
 
-                $applicableMandatory = $mandatoryIds->reject(function ($itemId) use ($mandatorySubmissions) {
-                    return $mandatorySubmissions->get($itemId)?->status === \App\Enums\SubmissionStatus::NA;
+                $applicableMandatory = $requirements->reject(function (array $requirement) use ($mandatorySubmissions) {
+                    $key = $requirement['teaching_load_id'].':'.$requirement['evidence_item_id'];
+
+                    return $mandatorySubmissions->get($key)?->status === \App\Enums\SubmissionStatus::NA;
                 });
 
                 $progress['total'] = $applicableMandatory->count();
 
-                $progress['submitted'] = $applicableMandatory->filter(function ($itemId) use ($mandatorySubmissions) {
-                    return in_array($mandatorySubmissions->get($itemId)?->status?->value, ['SUBMITTED', 'APPROVED'], true);
+                $progress['submitted'] = $applicableMandatory->filter(function (array $requirement) use ($mandatorySubmissions) {
+                    $key = $requirement['teaching_load_id'].':'.$requirement['evidence_item_id'];
+
+                    return in_array($mandatorySubmissions->get($key)?->status?->value, ['SUBMITTED', 'APPROVED'], true);
                 })->count();
 
                 $progress['percentage'] = $progress['total'] > 0

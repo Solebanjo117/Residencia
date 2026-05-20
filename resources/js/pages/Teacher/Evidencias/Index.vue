@@ -267,7 +267,6 @@ const availabilityClasses: Record<string, string> = {
     LATE: 'bg-amber-50 text-amber-700 border-amber-200',
     UNLOCKED: 'bg-amber-50 text-amber-700 border-amber-200',
     UPCOMING: 'bg-blue-50 text-blue-700 border-blue-200',
-    STAGE_LOCKED: 'bg-blue-50 text-blue-700 border-blue-200',
     NOT_CONFIGURED: 'bg-rose-50 text-rose-700 border-rose-200',
     NA: 'bg-slate-50 text-slate-700 border-slate-200',
 };
