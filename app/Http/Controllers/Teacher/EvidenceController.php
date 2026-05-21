@@ -433,7 +433,10 @@ class EvidenceController extends Controller
 
         $officeUsers = User::query()
             ->where('is_active', true)
-            ->whereHas('role', fn ($query) => $query->where('name', Role::JEFE_OFICINA))
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [
+                Role::JEFE_OFICINA,
+                Role::JEFE_DEPTO,
+            ]))
             ->where(function ($query) use ($teacherDepartmentIds) {
                 $query->whereDoesntHave('departments');
 

@@ -11,7 +11,7 @@ import {
     ShieldCheck,
     XCircle,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { nextTick, onMounted, ref } from 'vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
@@ -29,6 +29,8 @@ const props = defineProps<{
         id: number;
         name: string;
     };
+    focusSubmissionId?: number | null;
+    focusFileId?: number | null;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -50,6 +52,31 @@ const approveForm = useForm({
     status: 'APPROVED',
     comments: '',
 });
+
+onMounted(() => {
+    nextTick(() => {
+        const targetId = props.focusSubmissionId
+            ? `submission-${props.focusSubmissionId}`
+            : props.focusFileId
+              ? `file-${props.focusFileId}`
+              : null;
+
+        if (!targetId) return;
+
+        document.getElementById(targetId)?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+        });
+    });
+});
+
+function isFocusedSubmission(submissionId: number) {
+    return Number(props.focusSubmissionId || 0) === Number(submissionId);
+}
+
+function isFocusedFile(fileId: number) {
+    return Number(props.focusFileId || 0) === Number(fileId);
+}
 
 function openRejectModal(submissionId: number) {
     rejectingSubmissionId.value = submissionId;
@@ -182,7 +209,13 @@ function statusColor(status: string) {
                             <div
                                 v-for="sub in load.submissions"
                                 :key="sub.id"
-                                class="rounded-xl border border-slate-100 p-5 transition-colors hover:bg-slate-50/50"
+                                :id="`submission-${sub.id}`"
+                                class="rounded-xl border p-5 transition-colors hover:bg-slate-50/50"
+                                :class="
+                                    isFocusedSubmission(sub.id)
+                                        ? 'border-blue-300 bg-blue-50/70 shadow-sm ring-2 ring-blue-200'
+                                        : 'border-slate-100'
+                                "
                             >
                                 <div
                                     class="flex flex-col gap-6 lg:flex-row lg:items-start"
@@ -289,7 +322,13 @@ function statusColor(status: string) {
                                             <li
                                                 v-for="file in sub.files"
                                                 :key="file.id"
-                                                class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2"
+                                                :id="`file-${file.id}`"
+                                                class="flex items-center justify-between rounded-lg border bg-white p-2"
+                                                :class="
+                                                    isFocusedFile(file.id)
+                                                        ? 'border-blue-300 ring-2 ring-blue-200'
+                                                        : 'border-slate-200'
+                                                "
                                             >
                                                 <div
                                                     class="flex items-center gap-3 overflow-hidden"

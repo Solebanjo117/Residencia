@@ -79,7 +79,7 @@ class ReviewController extends Controller
         ]);
     }
 
-    public function show($teacher_id)
+    public function show(Request $request, $teacher_id)
     {
         /** @var \App\Models\User $reviewer */
         $reviewer = Auth::user();
@@ -114,6 +114,8 @@ class ReviewController extends Controller
             'teacher' => $teacher,
             'teaching_loads' => $teacherLoads,
             'semester' => $activeSemester,
+            'focusSubmissionId' => $request->integer('focus_submission_id') ?: null,
+            'focusFileId' => $request->integer('focus_file_id') ?: null,
         ]);
     }
 

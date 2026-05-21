@@ -113,21 +113,26 @@ class NotificationController extends Controller
                 ], false);
             }
 
-            if ($user->isJefeOficina()) {
-                return route('oficina.revisiones.show', $submission->teacher_user_id, false);
-            }
-
-            if ($user->isJefeDepto()) {
-                return route('asesorias', [
-                    'semester' => $submission->semester?->name,
-                ], false);
+            if ($user->isJefeOficina() || $user->isJefeDepto()) {
+                return $this->reviewDetailUrl($submission);
             }
         }
 
         if ($notification->related_entity_type === EvidenceFile::class) {
-            $file = EvidenceFile::find($notification->related_entity_id);
+            $file = EvidenceFile::with('submission.semester')
+                ->find($notification->related_entity_id);
 
-            return $file ? route('files.download', $file->id, false) : null;
+            if (! $file) {
+                return null;
+            }
+
+            if (($user->isJefeOficina() || $user->isJefeDepto()) && $file->submission) {
+                return $this->reviewDetailUrl($file->submission, [
+                    'focus_file_id' => $file->id,
+                ]);
+            }
+
+            return route('files.download', $file->id, false);
         }
 
         if ($notification->related_entity_type === SubmissionWindow::class) {
@@ -168,11 +173,13 @@ class NotificationController extends Controller
                 return 'Corregir evidencia';
             }
 
-            return $user->isDocente() ? 'Ver evidencia' : 'Abrir revision';
+            return $user->isDocente() ? 'Ver evidencia' : 'Revisar entrega';
         }
 
         if ($notification->related_entity_type === EvidenceFile::class) {
-            return 'Abrir archivo';
+            return $user->isJefeOficina() || $user->isJefeDepto()
+                ? 'Revisar entrega'
+                : 'Abrir archivo';
         }
 
         return $user->isDocente() ? 'Ver mis evidencias' : 'Abrir ventana';
@@ -185,5 +192,16 @@ class NotificationController extends Controller
             : $notification->type;
 
         return $type === NotificationType::SUBMISSION_REJECTED->value;
+    }
+
+    private function reviewDetailUrl(EvidenceSubmission $submission, array $extraQuery = []): string
+    {
+        return route('oficina.revisiones.show', [
+            'submission' => $submission->teacher_user_id,
+            'focus_submission_id' => $submission->id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            ...$extraQuery,
+        ], false);
     }
 }

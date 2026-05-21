@@ -109,7 +109,7 @@ it('returns a docente correction action url for rejected submissions', function 
         ->assertJsonPath('notifications.0.action_label', 'Corregir evidencia');
 });
 
-it('returns an office review action url for submission notifications', function () {
+it('returns a focused office review action url for office submission notifications', function () {
     $submission = createNotificationActionSubmission();
     $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
     $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
@@ -128,6 +128,39 @@ it('returns an office review action url for submission notifications', function 
         ->actingAs($officeUser)
         ->getJson(route('notifications.unread'))
         ->assertOk()
-        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', $submission->teacher_user_id, false))
-        ->assertJsonPath('notifications.0.action_label', 'Abrir revision');
+        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
+            'submission' => $submission->teacher_user_id,
+            'focus_submission_id' => $submission->id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
+});
+
+it('returns the same focused review action url for department head submission notifications', function () {
+    $submission = createNotificationActionSubmission();
+    $departmentRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $departmentUser = User::factory()->create(['role_id' => $departmentRoleId]);
+
+    Notification::create([
+        'user_id' => $departmentUser->id,
+        'type' => NotificationType::GENERAL,
+        'title' => 'Nueva evidencia enviada',
+        'message' => 'Hay una evidencia para revisar.',
+        'related_entity_type' => EvidenceSubmission::class,
+        'related_entity_id' => $submission->id,
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($departmentUser)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
+            'submission' => $submission->teacher_user_id,
+            'focus_submission_id' => $submission->id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
 });
