@@ -1548,9 +1548,11 @@ const onFolderAction = (action: string, folder: any) => {
                                                     <Link
                                                         v-if="
                                                             file.is_docx &&
-                                                            file.docx_editor_url
+                                                            (file.onlyoffice_editor_url ||
+                                                                file.docx_editor_url)
                                                         "
                                                         :href="
+                                                            file.onlyoffice_editor_url ||
                                                             file.docx_editor_url
                                                         "
                                                         class="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
@@ -1562,7 +1564,9 @@ const onFolderAction = (action: string, folder: any) => {
                                                     >
                                                         {{
                                                             file.can_edit_docx
-                                                                ? 'Editar DOCX'
+                                                                ? file.onlyoffice_editor_url
+                                                                    ? 'Editar Word'
+                                                                    : 'Editar DOCX'
                                                                 : 'Ver DOCX'
                                                         }}
                                                     </Link>

@@ -92,6 +92,8 @@ APP_DEBUG=false
 APP_URL=http://162.19.226.144
 DB_CONNECTION=sqlite
 DB_DATABASE=/var/www/residencia/database/database.sqlite
+ONLYOFFICE_ENABLED=false
+ONLYOFFICE_DOCUMENT_SERVER_URL=http://162.19.226.144:8080
 ```
 
 Crea la base SQLite:
@@ -234,7 +236,51 @@ php artisan config:cache
 
 Puedes probar el envio creando un usuario desde `/register`, o solicitando recuperacion desde `/forgot-password`.
 
-## 9. Crear usuario administrativo inicial
+## 9. OnlyOffice para edicion DOCX fiel a Word
+
+El editor interno protege los DOCX complejos para no reescribirlos de forma destructiva. Para edicion fiel a Word/Google Docs usa OnlyOffice Docs Community Edition.
+
+Instala Docker si no existe:
+
+```bash
+sudo apt install -y docker.io
+sudo systemctl enable --now docker
+```
+
+Levanta OnlyOffice Document Server en el puerto 8080:
+
+```bash
+sudo docker run -d --name onlyoffice-documentserver \
+  --restart=always \
+  -p 8080:80 \
+  onlyoffice/documentserver
+```
+
+Verifica salud del servidor:
+
+```bash
+curl http://127.0.0.1:8080/healthcheck
+```
+
+Debe responder `true`. Luego activa en `/var/www/residencia/.env`:
+
+```dotenv
+ONLYOFFICE_ENABLED=true
+ONLYOFFICE_DOCUMENT_SERVER_URL=http://162.19.226.144:8080
+ONLYOFFICE_SIGNED_URL_TTL_MINUTES=120
+ONLYOFFICE_REQUEST_TIMEOUT_SECONDS=30
+```
+
+Reconstruye cache:
+
+```bash
+php artisan optimize:clear
+php artisan config:cache
+```
+
+Abre un archivo `.docx` desde el gestor y usa `Editar Word`. OnlyOffice descargara el archivo desde una URL firmada temporal y guardara los cambios por callback firmado.
+
+## 10. Crear usuario administrativo inicial
 
 No uses `db:seed` en produccion sin revisar, porque `database/seeders/DatabaseSeeder.php` crea usuarios demo con password por defecto.
 
@@ -253,7 +299,7 @@ unset ADMIN_PASSWORD
 
 Cambia el email y password directamente en el servidor. No guardes esos valores en Git.
 
-## 10. Verificaciones utiles
+## 11. Verificaciones utiles
 
 ```bash
 php artisan about
@@ -265,7 +311,7 @@ tail -f storage/logs/laravel.log
 sudo tail -f /var/log/nginx/residencia-error.log
 ```
 
-## 11. Riesgos o puntos a revisar
+## 12. Riesgos o puntos a revisar
 
 - `public/hot`: si existe en produccion, Laravel intentara cargar Vite dev. El script `deploy.sh` lo borra. Revisa que no exista despues del deploy.
 - `config/inertia.php:19`: SSR esta marcado como `enabled => true`. Con `npm run build` normal no se genera bundle SSR, asi que Inertia cae al render cliente. Si decides usar SSR real, cambia el deploy a `npm run build:ssr` y crea un servicio para `php artisan inertia:start-ssr`.
@@ -275,8 +321,9 @@ sudo tail -f /var/log/nginx/residencia-error.log
 - `config/database.php:37`: si `DB_DATABASE` no esta definido, Laravel usa `database/database.sqlite`. En produccion conviene dejar la ruta absoluta `/var/www/residencia/database/database.sqlite`.
 - `app/Models/User.php:8`: el modelo implementa `MustVerifyEmail`; si se quita, Laravel dejara de enviar/verificar correos de registro.
 - `.env`: si `MAIL_MAILER=log`, los correos no salen al usuario; se guardan en `storage/logs/laravel.log`.
+- `ONLYOFFICE_DOCUMENT_SERVER_URL`: con despliegue por IP se recomienda usar `http://162.19.226.144:8080` mientras no exista dominio. El puerto 8080 debe estar permitido por firewall/OVH.
 
-## 12. Actualizaciones futuras
+## 13. Actualizaciones futuras
 
 Para actualizar despues de nuevos commits:
 

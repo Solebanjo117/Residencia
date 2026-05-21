@@ -30,6 +30,7 @@ const props = defineProps<{
         last_edited_at: string | null;
         last_edited_by: string | null;
         download_url: string;
+        onlyoffice_url: string | null;
         folder_url: string;
         is_current_version: boolean;
         can_edit: boolean;
@@ -39,6 +40,8 @@ const props = defineProps<{
         header_html: string;
         footer_html: string;
         warnings: string[];
+        safe_to_save: boolean;
+        blocking_features: string[];
         stats: {
             paragraphs: number;
             headings: number;
@@ -84,10 +87,11 @@ const readOnly = computed(
 );
 
 const compatibilityNotice = computed(() => [
+    'Para proteger archivos institucionales, los DOCX con estructura avanzada se abren en modo protegido y no se reescriben desde el navegador.',
     'Esta fase conserva mejor la tipografia explicita del DOCX: fuente, tamano, color, negritas, cursivas y subrayado.',
     'Las tablas conservan anchos de columnas, layout fijo, celdas combinadas, sombreado, alineacion vertical, margenes internos y bordes definidos en Word.',
     'Las imagenes incrustadas se muestran dentro del editor y se conservan al guardar mientras sigan presentes en el documento.',
-    'Las listas simples y las tablas editables se guardan como estructura real dentro del DOCX; comentarios nativos y layout avanzado pueden simplificarse.',
+    'Las listas simples y las tablas editables se guardan como estructura real dentro del DOCX.',
     'Guardar crea una revision segura; el archivo base no se pierde.',
 ]);
 
@@ -317,6 +321,14 @@ onMounted(() => {
                             <Download class="h-4 w-4" />
                             Descargar
                         </a>
+                        <Link
+                            v-if="file.onlyoffice_url"
+                            :href="file.onlyoffice_url"
+                            class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                        >
+                            <FileText class="h-4 w-4" />
+                            Abrir en OnlyOffice
+                        </Link>
                         <button
                             v-if="capabilities.can_edit && !document.load_error"
                             type="button"
@@ -406,6 +418,44 @@ onMounted(() => {
                                         class="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500"
                                     ></span>
                                     <span>{{ warning }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div
+                            v-if="
+                                !document.safe_to_save &&
+                                !document.load_error
+                            "
+                            class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 shadow-sm"
+                        >
+                            <div
+                                class="mb-2 flex items-center gap-2 font-semibold"
+                            >
+                                <AlertTriangle class="h-4 w-4" />
+                                Documento protegido contra cambios de
+                                estructura
+                            </div>
+                            <p>
+                                Este archivo se puede visualizar y descargar,
+                                pero el guardado desde el editor web esta
+                                desactivado para evitar que Word cambie tablas,
+                                secciones, comentarios, campos u otros elementos
+                                avanzados.
+                            </p>
+                            <ul
+                                v-if="document.blocking_features.length > 0"
+                                class="mt-3 space-y-1"
+                            >
+                                <li
+                                    v-for="feature in document.blocking_features"
+                                    :key="feature"
+                                    class="flex items-start gap-2"
+                                >
+                                    <span
+                                        class="mt-1.5 h-1.5 w-1.5 rounded-full bg-sky-500"
+                                    ></span>
+                                    <span>{{ feature }}</span>
                                 </li>
                             </ul>
                         </div>

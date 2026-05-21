@@ -7,6 +7,7 @@ use App\Models\FolderNode;
 use App\Models\Semester;
 use App\Models\User;
 use App\Services\FolderManagerService;
+use App\Services\OnlyOfficeService;
 use App\Services\SeguimientoSharedFileService;
 use App\Services\StorageService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class FolderController extends Controller
         private StorageService $storageService,
         private FolderManagerService $folderManagerService,
         private SeguimientoSharedFileService $seguimientoSharedFiles,
+        private OnlyOfficeService $onlyOfficeService,
     ) {}
 
     public function index(Request $request)
@@ -140,6 +142,7 @@ class FolderController extends Controller
                         'can_preview' => $canPreview,
                         'preview_url' => $canPreview ? route('files.preview', $file->id) : null,
                         'docx_editor_url' => $isDocx ? route('files.docx.show', $file->id) : null,
+                        'onlyoffice_editor_url' => $isDocx && $this->onlyOfficeService->isEnabled() ? route('files.onlyoffice.show', $file->id) : null,
                         'file_url' => route('files.download', $file->id),
                         'folder_url' => $file->folderNode ? $this->readableFolderUrl($file->folderNode) : null,
                         'can_edit_docx' => $isDocx && $user->can('replace', $file),

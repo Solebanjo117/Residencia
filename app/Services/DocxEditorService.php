@@ -56,17 +56,27 @@ class DocxEditorService
             $package['has_extra_parts'],
             $package['image_relationships']
         );
+        $headerRendered = $package['header_part']['xml'] !== null
+            ? $this->wordPartXmlToHtml($package['header_part']['xml'], $package['numbering_xml'], $package['header_part']['image_relationships'], 'header')
+            : ['html' => '', 'warnings' => [], 'stats' => null];
+        $footerRendered = $package['footer_part']['xml'] !== null
+            ? $this->wordPartXmlToHtml($package['footer_part']['xml'], $package['numbering_xml'], $package['footer_part']['image_relationships'], 'footer')
+            : ['html' => '', 'warnings' => [], 'stats' => null];
+        $rewriteSafety = $this->analyzePackageRewriteSafety($package, [$rendered, $headerRendered, $footerRendered]);
 
         return [
             'html' => $rendered['html'],
-            'header_html' => $package['header_part']['xml'] !== null
-                ? $this->wordPartXmlToHtml($package['header_part']['xml'], $package['numbering_xml'], $package['header_part']['image_relationships'], 'header')['html']
-                : '',
-            'footer_html' => $package['footer_part']['xml'] !== null
-                ? $this->wordPartXmlToHtml($package['footer_part']['xml'], $package['numbering_xml'], $package['footer_part']['image_relationships'], 'footer')['html']
-                : '',
-            'warnings' => $rendered['warnings'],
+            'header_html' => $headerRendered['html'],
+            'footer_html' => $footerRendered['html'],
+            'warnings' => array_values(array_unique(array_merge(
+                $rendered['warnings'],
+                $headerRendered['warnings'],
+                $footerRendered['warnings'],
+                $rewriteSafety['warnings']
+            ))),
             'stats' => $rendered['stats'],
+            'safe_to_save' => $rewriteSafety['safe_to_save'],
+            'blocking_features' => $rewriteSafety['blocking_features'],
             'sections' => [
                 'has_header' => $package['header_part']['xml'] !== null,
                 'has_footer' => $package['footer_part']['xml'] !== null,
@@ -84,6 +94,13 @@ class DocxEditorService
         $this->ensureEditableDocx($file);
         $absolutePath = $this->ensureFileExists($file);
         $package = $this->readPackage($absolutePath);
+        $rewriteSafety = $this->analyzePackageRewriteSafety($package);
+        if (! $rewriteSafety['safe_to_save']) {
+            throw new RuntimeException(
+                'Este DOCX contiene estructura avanzada de Word que el editor web no puede preservar al 100%. Para evitar corrupcion o cambios de formato, descarga y editalo en Word/Google Docs, o reemplaza el archivo desde el gestor.'
+            );
+        }
+
         $parsed = $this->htmlToBlocks($html);
         $compiled = $this->blocksToDocumentXml($parsed['blocks'], $package['sect_pr_xml']);
         $extraParts = [];
@@ -164,6 +181,7 @@ class DocxEditorService
         $hasExtraParts = $this->zipHasEntryPrefix($zip, 'word/header') || $this->zipHasEntryPrefix($zip, 'word/footer');
         $imageRelationships = $this->extractImageRelationships($zip, $documentRelsXml);
         $headerFooterParts = $this->extractHeaderFooterParts($zip, $documentXml, $documentRelsXml);
+        $entries = $this->zipEntryNames($zip);
         $zip->close();
 
         return [
@@ -174,7 +192,22 @@ class DocxEditorService
             'image_relationships' => $imageRelationships,
             'header_part' => $headerFooterParts['header'],
             'footer_part' => $headerFooterParts['footer'],
+            'entries' => $entries,
         ];
+    }
+
+    private function zipEntryNames(ZipArchive $zip): array
+    {
+        $entries = [];
+
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = $zip->getNameIndex($index);
+            if ($name !== false) {
+                $entries[] = (string) $name;
+            }
+        }
+
+        return $entries;
     }
 
     private function zipHasEntryPrefix(ZipArchive $zip, string $prefix): bool
@@ -415,6 +448,124 @@ class DocxEditorService
         $node = $xpath->query('/w:document/w:body/w:sectPr')->item(0);
 
         return $node instanceof DOMElement ? $dom->saveXML($node) : null;
+    }
+
+    private function analyzePackageRewriteSafety(array $package, array $renderedParts = []): array
+    {
+        $blockingFeatures = [];
+        $warnings = [];
+
+        foreach ($this->advancedPackageParts($package['entries'] ?? []) as $feature) {
+            $blockingFeatures[] = $feature;
+        }
+
+        foreach ([
+            'documento principal' => $package['document_xml'] ?? null,
+            'encabezado' => $package['header_part']['xml'] ?? null,
+            'pie de pagina' => $package['footer_part']['xml'] ?? null,
+        ] as $label => $xml) {
+            if (! is_string($xml) || trim($xml) === '') {
+                continue;
+            }
+
+            $blockingFeatures = array_merge($blockingFeatures, $this->advancedWordXmlFeatures($xml, $label));
+        }
+
+        foreach ($renderedParts as $part) {
+            if ((int) ($part['stats']['unsupported_blocks'] ?? 0) > 0) {
+                $blockingFeatures[] = 'bloques no soportados durante la conversion HTML';
+            }
+        }
+
+        $blockingFeatures = array_values(array_unique($blockingFeatures));
+
+        if ($blockingFeatures !== []) {
+            $warnings[] = 'Este DOCX se abre en modo protegido: contiene estructura avanzada que el editor web no puede reescribir sin riesgo de cambiar formato o estructura.';
+        }
+
+        return [
+            'safe_to_save' => $blockingFeatures === [],
+            'blocking_features' => $blockingFeatures,
+            'warnings' => $warnings,
+        ];
+    }
+
+    private function advancedPackageParts(array $entries): array
+    {
+        $features = [];
+        $patterns = [
+            '#^word/comments#' => 'comentarios de Word',
+            '#^word/footnotes\.xml$#' => 'notas al pie',
+            '#^word/endnotes\.xml$#' => 'notas finales',
+            '#^word/charts/#' => 'graficas incrustadas',
+            '#^word/diagrams/#' => 'SmartArt o diagramas',
+            '#^word/embeddings/#' => 'objetos OLE incrustados',
+            '#^word/glossary/#' => 'bloques rapidos de Word',
+        ];
+
+        foreach ($entries as $entry) {
+            foreach ($patterns as $pattern => $label) {
+                if (preg_match($pattern, (string) $entry) === 1) {
+                    $features[] = $label;
+                }
+            }
+        }
+
+        return array_values(array_unique($features));
+    }
+
+    private function advancedWordXmlFeatures(string $xml, string $label): array
+    {
+        $dom = $this->loadWordXml($xml);
+        $features = [];
+        $advancedElements = [
+            'altChunk' => 'contenido HTML/externo importado',
+            'sdt' => 'controles de contenido',
+            'fldSimple' => 'campos dinamicos',
+            'instrText' => 'campos dinamicos',
+            'hyperlink' => 'hipervinculos nativos',
+            'commentRangeStart' => 'comentarios de Word',
+            'commentRangeEnd' => 'comentarios de Word',
+            'commentReference' => 'comentarios de Word',
+            'footnoteReference' => 'notas al pie',
+            'endnoteReference' => 'notas finales',
+            'ins' => 'control de cambios',
+            'del' => 'control de cambios',
+            'moveFrom' => 'control de cambios',
+            'moveTo' => 'control de cambios',
+            'smartTag' => 'etiquetas inteligentes',
+            'customXml' => 'XML personalizado',
+            'object' => 'objetos incrustados',
+            'pict' => 'imagenes o formas heredadas',
+            'txbxContent' => 'cuadros de texto',
+            'oMath' => 'ecuaciones',
+            'oMathPara' => 'ecuaciones',
+        ];
+
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (! $element instanceof DOMElement) {
+                continue;
+            }
+
+            if (isset($advancedElements[$element->localName])) {
+                $features[] = $label.': '.$advancedElements[$element->localName];
+            }
+
+            if ($element->localName === 'anchor') {
+                $features[] = $label.': imagenes o formas flotantes';
+            }
+        }
+
+        $xpath = $this->wordXPath($dom);
+        if ($xpath->query('//w:tc/w:tbl')->length > 0) {
+            $features[] = $label.': tablas anidadas';
+        }
+
+        if ($xpath->query('/w:document/w:body/w:p/w:pPr/w:sectPr')->length > 0) {
+            $features[] = $label.': multiples secciones de pagina';
+        }
+
+        return array_values(array_unique($features));
     }
 
     private function documentXmlToHtml(

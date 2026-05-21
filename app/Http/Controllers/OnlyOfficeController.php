@@ -2,25 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\NotificationType;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
-use App\Models\FolderNode;
-use App\Models\Role;
 use App\Models\SubmissionWindow;
 use App\Models\User;
-use App\Services\DocxEditorService;
 use App\Services\EvidenceFlowService;
-use App\Services\NotificationService;
 use App\Services\OnlyOfficeService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
-class DocxEditorController extends Controller
+class OnlyOfficeController extends Controller
 {
-    public function show(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService, EvidenceFlowService $flowService, OnlyOfficeService $onlyOfficeService)
+    public function show(Request $request, EvidenceFile $file, OnlyOfficeService $onlyOfficeService, EvidenceFlowService $flowService)
     {
         $this->authorize('view', $file);
         abort_unless($file->isDocx(), 404);
@@ -35,100 +34,75 @@ class DocxEditorController extends Controller
                 $canEdit = false;
             }
         }
-        $payload = null;
-        $loadError = null;
 
         try {
-            $payload = $docxEditorService->loadDocument($file);
-            if (! ($payload['safe_to_save'] ?? true)) {
-                $canEdit = false;
-            }
+            $config = $onlyOfficeService->editorConfig($file, $request->user(), $canEdit);
+            $loadError = null;
         } catch (RuntimeException $exception) {
+            $config = null;
             $loadError = $exception->getMessage();
         }
 
-        return Inertia::render('FileManager/DocxEditor', [
+        return Inertia::render('FileManager/OnlyOfficeEditor', [
             'file' => [
                 'id' => $file->id,
                 'name' => $file->file_name,
-                'mime_type' => $file->mime_type,
-                'uploaded_at' => $file->uploaded_at?->toDateTimeString(),
-                'uploaded_by' => $file->uploadedBy?->name,
-                'last_edited_at' => $file->last_edited_at?->toDateTimeString(),
-                'last_edited_by' => $file->editedBy?->name,
                 'download_url' => route('files.download', $file->id),
-                'onlyoffice_url' => $onlyOfficeService->isEnabled() ? route('files.onlyoffice.show', $file->id) : null,
                 'folder_url' => $file->folderNode
                     ? $this->readableFolderUrl($file->folderNode)
                     : route('folders.show', $file->folder_node_id),
-                'is_current_version' => (bool) $file->is_current_version,
                 'can_edit' => $canEdit,
             ],
-            'document' => [
-                'html' => $payload['html'] ?? '',
-                'header_html' => $payload['header_html'] ?? '',
-                'footer_html' => $payload['footer_html'] ?? '',
-                'warnings' => $payload['warnings'] ?? [],
-                'safe_to_save' => $payload['safe_to_save'] ?? false,
-                'blocking_features' => $payload['blocking_features'] ?? [],
-                'stats' => $payload['stats'] ?? null,
+            'onlyoffice' => [
+                'enabled' => $onlyOfficeService->isEnabled(),
+                'api_url' => $onlyOfficeService->isEnabled() ? $onlyOfficeService->apiUrl($file) : null,
+                'config' => $config,
                 'load_error' => $loadError,
-                'sections' => $payload['sections'] ?? [
-                    'has_header' => false,
-                    'has_footer' => false,
-                ],
-            ],
-            'capabilities' => [
-                'can_edit' => $canEdit,
             ],
         ]);
     }
 
-    public function store(Request $request, EvidenceFile $file, DocxEditorService $docxEditorService, EvidenceFlowService $flowService)
+    public function download(EvidenceFile $file, OnlyOfficeService $onlyOfficeService)
     {
-        $this->authorize('replace', $file);
-        abort_unless($file->isDocx(), 404);
+        $onlyOfficeService->ensureReady($file);
 
-        $submission = $file->submission;
-        if ($submission && ! $this->canBypassAvailability($request->user())) {
-            $availability = $this->fileManagerAvailability($submission, $flowService);
+        return response()->file(
+            Storage::disk('local')->path($file->stored_relative_path),
+            [
+                'Content-Type' => $file->mime_type ?: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Content-Disposition' => ResponseHeaderBag::DISPOSITION_INLINE.'; filename="'.addslashes($file->file_name).'"',
+            ]
+        );
+    }
 
-            if (! $availability['is_available']) {
-                return back()->withErrors([
-                    'docx' => 'La evidencia no esta disponible para carga en este momento.',
-                ]);
-            }
-        }
-
-        $validated = $request->validate([
-            'html' => 'required|string',
-            'header_html' => 'nullable|string',
-            'footer_html' => 'nullable|string',
-            'save_mode' => 'required|in:replace_current',
-        ]);
+    public function callback(Request $request, EvidenceFile $file, User $user, OnlyOfficeService $onlyOfficeService): JsonResponse
+    {
+        $payload = $request->json()->all();
+        $status = (int) ($payload['status'] ?? 0);
 
         try {
-            $savedFile = $docxEditorService->saveDocument(
-                $file,
-                $validated['html'],
-                $request->user(),
-                $validated['header_html'] ?? null,
-                $validated['footer_html'] ?? null
-            );
+            if (in_array($status, [2, 6], true)) {
+                $url = trim((string) ($payload['url'] ?? ''));
+                if ($url === '') {
+                    throw new RuntimeException('OnlyOffice no incluyo URL de guardado.');
+                }
 
-            $savedFile->submission?->update([
-                'last_updated_at' => now(),
+                $binary = $onlyOfficeService->downloadEditedDocument($url);
+                $savedFile = $onlyOfficeService->saveEditedDocument($file, $user, $binary, $payload);
+                $savedFile->submission?->update(['last_updated_at' => now()]);
+            }
+
+            return response()->json(['error' => 0]);
+        } catch (\Throwable $exception) {
+            Log::error('OnlyOffice callback failed', [
+                'file_id' => $file->id,
+                'user_id' => $user->id,
+                'status' => $status,
+                'error' => $exception->getMessage(),
             ]);
-            $this->notifyAdministratorsAboutDocxEdit($request->user(), $savedFile);
-        } catch (RuntimeException $exception) {
-            return back()->withErrors([
-                'docx' => $exception->getMessage(),
-            ]);
+
+            return response()->json(['error' => 1]);
         }
-
-        return redirect()
-            ->route('files.docx.show', $savedFile->id)
-            ->with('success', 'Documento DOCX guardado correctamente.');
     }
 
     private function canBypassAvailability($user): bool
@@ -136,7 +110,7 @@ class DocxEditorController extends Controller
         return $user->isJefeOficina() || $user->isJefeDepto();
     }
 
-    private function readableFolderUrl(FolderNode $folder): string
+    private function readableFolderUrl($folder): string
     {
         $segments = [];
         $current = $folder;
@@ -148,30 +122,6 @@ class DocxEditorController extends Controller
         }
 
         return '/files/folders/'.implode('/', $segments);
-    }
-
-    private function notifyAdministratorsAboutDocxEdit(User $actor, EvidenceFile $file): void
-    {
-        if (! $actor->isDocente()) {
-            return;
-        }
-
-        $submission = $file->submission;
-        $itemName = $submission?->evidenceItem?->name ?: 'evidencia';
-        $message = "{$actor->name} modifico {$file->file_name} en {$itemName}.";
-        $notificationService = app(NotificationService::class);
-
-        User::query()
-            ->whereHas('role', fn ($query) => $query->whereIn('name', [Role::JEFE_OFICINA, Role::JEFE_DEPTO]))
-            ->where('is_active', true)
-            ->get()
-            ->each(fn (User $recipient) => $notificationService->notifyImmediate(
-                $recipient,
-                NotificationType::GENERAL,
-                'Movimiento en expediente docente',
-                $message,
-                $file
-            ));
     }
 
     private function submissionAvailability(EvidenceSubmission $submission, EvidenceFlowService $flowService): array

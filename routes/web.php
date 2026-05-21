@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\FolderController;
+use App\Http\Controllers\OnlyOfficeController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -117,10 +118,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/files/{file}/move', [FileController::class, 'move'])->name('files.move');
     Route::get('/files/{file}/docx', [DocxEditorController::class, 'show'])->name('files.docx.show');
     Route::post('/files/{file}/docx', [DocxEditorController::class, 'store'])->name('files.docx.store');
+    Route::get('/files/{file}/onlyoffice', [OnlyOfficeController::class, 'show'])->name('files.onlyoffice.show');
     Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{file}/download', [FileController::class, 'download'])->name('files.download');
     Route::post('/files/{file}/replace', [FileController::class, 'replace'])->name('files.replace');
     Route::delete('/files/{file}', [FileController::class, 'destroy'])->name('files.destroy');
 });
+
+Route::get('/onlyoffice/files/{file}/download', [OnlyOfficeController::class, 'download'])
+    ->middleware('signed')
+    ->name('onlyoffice.files.download');
+Route::post('/onlyoffice/files/{file}/callback/{user}', [OnlyOfficeController::class, 'callback'])
+    ->middleware('signed')
+    ->name('onlyoffice.files.callback');
 
 require __DIR__.'/settings.php';

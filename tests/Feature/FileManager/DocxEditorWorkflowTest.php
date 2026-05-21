@@ -17,7 +17,9 @@ use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use App\Services\DocxEditorService;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -390,6 +392,133 @@ XML,
         );
 });
 
+it('renders onlyoffice editor config with signed document and callback urls', function () {
+    config([
+        'onlyoffice.enabled' => true,
+        'onlyoffice.document_server_url' => 'http://documentserver.test',
+    ]);
+
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/onlyoffice.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Texto OnlyOffice</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'onlyoffice.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'onlyoffice-docx'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('files.onlyoffice.show', $file->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/OnlyOfficeEditor')
+            ->where('file.can_edit', true)
+            ->where('onlyoffice.enabled', true)
+            ->where('onlyoffice.api_url', fn (string $url) => str_starts_with($url, 'http://documentserver.test/web-apps/apps/api/documents/api.js?shardkey='))
+            ->where('onlyoffice.config.document.fileType', 'docx')
+            ->where('onlyoffice.config.document.title', 'onlyoffice.docx')
+            ->where('onlyoffice.config.document.permissions.edit', true)
+            ->where('onlyoffice.config.editorConfig.mode', 'edit')
+            ->where('onlyoffice.config.document.url', fn (string $url) => str_contains($url, '/onlyoffice/files/'.$file->id.'/download') && str_contains($url, 'signature='))
+            ->where('onlyoffice.config.editorConfig.callbackUrl', fn (string $url) => str_contains($url, '/onlyoffice/files/'.$file->id.'/callback/'.$ctx['teacher']->id) && str_contains($url, 'signature='))
+        );
+});
+
+it('serves a signed onlyoffice document download without an authenticated browser session', function () {
+    config([
+        'onlyoffice.enabled' => true,
+        'onlyoffice.document_server_url' => 'http://documentserver.test',
+    ]);
+
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/signed-download.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Descarga firmada</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'signed-download.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'signed-download-docx'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $url = URL::temporarySignedRoute('onlyoffice.files.download', now()->addMinutes(5), ['file' => $file->id]);
+
+    $this->get($url)->assertOk();
+});
+
+it('saves an edited docx from the onlyoffice callback', function () {
+    config([
+        'onlyoffice.enabled' => true,
+        'onlyoffice.document_server_url' => 'http://documentserver.test',
+    ]);
+
+    Storage::fake('local');
+    Http::fake([
+        'http://documentserver.test/edited.docx' => Http::response(makeSimpleDocx('<w:p><w:r><w:t>Editado en OnlyOffice</w:t></w:r></w:p>'), 200),
+    ]);
+
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/callback.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Texto original</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'callback.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'callback-docx'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $url = URL::temporarySignedRoute('onlyoffice.files.callback', now()->addMinutes(5), [
+        'file' => $file->id,
+        'user' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->postJson($url, [
+            'status' => 2,
+            'key' => 'callback-key',
+            'url' => 'http://documentserver.test/edited.docx',
+            'users' => [(string) $ctx['teacher']->id],
+        ])
+        ->assertOk()
+        ->assertJson(['error' => 0]);
+
+    $file->refresh();
+
+    expect($file->editor_source)->toBe('ONLYOFFICE');
+    expect($file->last_edited_by_user_id)->toBe($ctx['teacher']->id);
+    expect($file->file_hash)->not->toBe(hash('sha256', 'callback-docx'));
+
+    /** @var DocxEditorService $service */
+    $service = app(DocxEditorService::class);
+    $loaded = $service->loadDocument($file);
+
+    expect($loaded['html'])->toContain('Editado en OnlyOffice');
+});
+
 it('saves an edited docx in place without creating another evidence file record', function () {
     Storage::fake('local');
     $ctx = createDocxEditorContext();
@@ -626,6 +755,110 @@ it('preserves word-like table sizing shading and merged cells in the docx editor
     expect($documentXml)->toContain('w:gridSpan w:val="3"');
     expect($documentXml)->toContain('w:shd w:fill="D9EAF7"');
     expect($documentXml)->toContain('Columna B editada');
+});
+
+it('opens advanced word documents in protected read only mode', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/documento-avanzado.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx(
+        <<<'XML'
+<w:p>
+    <w:hyperlink r:id="rIdLink1">
+        <w:r><w:t>Referencia institucional</w:t></w:r>
+    </w:hyperlink>
+</w:p>
+XML,
+        [
+            'document_relationships' => [[
+                'id' => 'rIdLink1',
+                'type' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+                'target' => 'https://example.test',
+            ]],
+        ]
+    ));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'documento-avanzado.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-advanced'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('files.docx.show', $file->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/DocxEditor')
+            ->where('file.can_edit', false)
+            ->where('capabilities.can_edit', false)
+            ->where('document.safe_to_save', false)
+            ->where('document.blocking_features.0', 'documento principal: hipervinculos nativos')
+            ->where('document.html', fn (string $html) => str_contains($html, 'Referencia institucional'))
+        );
+});
+
+it('blocks saving advanced word documents to avoid destructive rewrites', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/documento-con-comentarios.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx(
+        <<<'XML'
+<w:p>
+    <w:r><w:t>Texto con comentario</w:t></w:r>
+    <w:commentReference w:id="1"/>
+</w:p>
+XML,
+        [
+            'extra_word_parts' => [
+                'word/comments.xml' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+            ],
+            'content_type_overrides' => [
+                '/word/comments.xml' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml',
+            ],
+        ]
+    ));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'documento-con-comentarios.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-comments'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->from(route('files.docx.show', $file->id))
+        ->post(route('files.docx.store', $file->id), [
+            'html' => '<p>Texto editado</p>',
+            'save_mode' => 'replace_current',
+        ]);
+
+    $response
+        ->assertRedirect(route('files.docx.show', $file->id))
+        ->assertSessionHasErrors('docx');
+
+    $file->refresh();
+    expect($file->file_hash)->toBe(hash('sha256', 'docx-comments'));
+
+    $zip = new \ZipArchive;
+    $opened = $zip->open(Storage::disk('local')->path($storedPath));
+    expect($opened)->toBeTrue();
+    expect($zip->getFromName('word/document.xml'))->toContain('Texto con comentario');
+    $zip->close();
 });
 
 it('loads and saves editable header and footer content when the docx already defines them', function () {

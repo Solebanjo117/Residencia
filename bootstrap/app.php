@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'onlyoffice/files/*/callback/*',
+        ]);
+
         // Register the role middleware alias so routes can use middleware('role:DOCENTE') etc.
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
