@@ -713,17 +713,85 @@ class DocxEditorService
         array $imageRelationships,
         array &$warnings
     ): ?string {
+        $tablePresentation = $this->extractTablePresentation($table, $xpath);
+        $columnWidths = $this->extractTableGridWidths($table, $xpath);
+        $tableAttributes = [
+            'class' => 'docx-table',
+            'data-docx-kind' => 'table',
+        ];
+        $tableStyles = ['border-collapse:collapse'];
+
+        if (($tablePresentation['width'] ?? null) !== null) {
+            $tableAttributes['data-docx-width'] = (string) $tablePresentation['width'];
+            $tableAttributes['data-docx-width-type'] = (string) ($tablePresentation['width_type'] ?? 'dxa');
+            $tableStyles[] = 'width:'.$this->docxTableWidthToCss(
+                (int) $tablePresentation['width'],
+                (string) ($tablePresentation['width_type'] ?? 'dxa')
+            );
+        }
+
+        if (($tablePresentation['layout'] ?? null) === 'fixed') {
+            $tableAttributes['data-docx-layout'] = 'fixed';
+            $tableStyles[] = 'table-layout:fixed';
+        }
+
+        if (($tablePresentation['indent'] ?? null) !== null) {
+            $tableAttributes['data-docx-indent'] = (string) $tablePresentation['indent'];
+            $tableStyles[] = 'margin-left:'.(((int) $tablePresentation['indent']) / 20).'pt';
+        }
+
+        if (($tablePresentation['alignment'] ?? null) !== null) {
+            $tableAttributes['data-docx-align'] = (string) $tablePresentation['alignment'];
+            $tableStyles[] = $this->tableAlignmentCss((string) $tablePresentation['alignment']);
+        }
+
+        foreach (($tablePresentation['cell_margins'] ?? []) as $side => $twips) {
+            $tableAttributes['data-docx-cell-margin-'.$side] = (string) $twips;
+        }
+
+        foreach (($tablePresentation['borders'] ?? []) as $name => $border) {
+            foreach ($border as $property => $value) {
+                $tableAttributes['data-docx-border-'.$name.'-'.$property] = (string) $value;
+            }
+        }
+
+        if ($columnWidths !== []) {
+            $tableAttributes['data-docx-grid'] = implode(',', $columnWidths);
+        }
+
         $rowsHtml = [];
         $rowCount = 0;
+        $verticalMergeOrigins = [];
 
         foreach ($xpath->query('./w:tr', $table) as $rowNode) {
             if (! $rowNode instanceof DOMElement) {
                 continue;
             }
 
+            $rowAttributes = [];
+            $rowStyles = [];
+            $rowHeight = $this->extractTableRowHeight($rowNode, $xpath);
+            if ($rowHeight !== null) {
+                $rowAttributes['data-docx-height'] = (string) $rowHeight;
+                $rowStyles[] = 'height:'.($rowHeight / 20).'pt';
+            }
+
             $cellHtml = [];
+            $gridColumn = 0;
             foreach ($xpath->query('./w:tc', $rowNode) as $cellNode) {
                 if (! $cellNode instanceof DOMElement) {
+                    continue;
+                }
+
+                $cellPresentation = $this->extractTableCellPresentation($cellNode, $xpath);
+                $colspan = max(1, (int) ($cellPresentation['grid_span'] ?? 1));
+                $vMerge = $cellPresentation['v_merge'] ?? null;
+
+                if ($vMerge === 'continue' && isset($verticalMergeOrigins[$gridColumn])) {
+                    [$originRow, $originCell] = $verticalMergeOrigins[$gridColumn];
+                    $rowsHtml[$originRow]['cells'][$originCell]['rowspan']++;
+                    $gridColumn += $colspan;
+
                     continue;
                 }
 
@@ -735,14 +803,39 @@ class DocxEditorService
                     $warnings
                 );
 
-                $cellHtml[] = '<td>'.$renderedCell.'</td>';
+                $cellDescriptor = [
+                    'html' => $renderedCell,
+                    'attributes' => $this->tableCellAttributes($cellPresentation, $gridColumn, $colspan),
+                    'styles' => $this->tableCellStyles($cellPresentation, $tablePresentation),
+                    'colspan' => $colspan,
+                    'rowspan' => 1,
+                ];
+
+                $cellHtml[] = $cellDescriptor;
+                $cellIndex = array_key_last($cellHtml);
+
+                if ($vMerge === 'restart') {
+                    for ($offset = 0; $offset < $colspan; $offset++) {
+                        $verticalMergeOrigins[$gridColumn + $offset] = [$rowCount, $cellIndex];
+                    }
+                } else {
+                    for ($offset = 0; $offset < $colspan; $offset++) {
+                        unset($verticalMergeOrigins[$gridColumn + $offset]);
+                    }
+                }
+
+                $gridColumn += $colspan;
             }
 
             if ($cellHtml === []) {
                 continue;
             }
 
-            $rowsHtml[] = '<tr>'.implode('', $cellHtml).'</tr>';
+            $rowsHtml[] = [
+                'attributes' => $rowAttributes,
+                'styles' => $rowStyles,
+                'cells' => $cellHtml,
+            ];
             $rowCount++;
         }
 
@@ -754,7 +847,314 @@ class DocxEditorService
             $warnings[] = 'La tabla tiene muchas filas; puedes editarla, pero la experiencia puede simplificarse en esta fase.';
         }
 
-        return '<table class="docx-table" data-docx-kind="table"><tbody>'.implode('', $rowsHtml).'</tbody></table>';
+        $colgroup = '';
+        if ($columnWidths !== []) {
+            $columns = array_map(
+                fn (int $width) => '<col style="width:'.($width / 20).'pt">',
+                $columnWidths
+            );
+            $colgroup = '<colgroup>'.implode('', $columns).'</colgroup>';
+        }
+
+        $renderedRows = array_map(function (array $row): string {
+            $cells = array_map(function (array $cell): string {
+                $attributes = $cell['attributes'];
+                if (($cell['colspan'] ?? 1) > 1) {
+                    $attributes['colspan'] = (string) $cell['colspan'];
+                }
+                if (($cell['rowspan'] ?? 1) > 1) {
+                    $attributes['rowspan'] = (string) $cell['rowspan'];
+                    $attributes['data-docx-rowspan'] = (string) $cell['rowspan'];
+                }
+
+                return '<td'.$this->htmlAttributes($attributes, $cell['styles']).'>'.$cell['html'].'</td>';
+            }, $row['cells']);
+
+            return '<tr'.$this->htmlAttributes($row['attributes'], $row['styles']).'>'.implode('', $cells).'</tr>';
+        }, $rowsHtml);
+
+        return '<table'.$this->htmlAttributes($tableAttributes, $tableStyles).'>'.$colgroup.'<tbody>'.implode('', $renderedRows).'</tbody></table>';
+    }
+
+    private function extractTablePresentation(DOMElement $table, DOMXPath $xpath): array
+    {
+        $width = trim((string) $xpath->evaluate('string(./w:tblPr/w:tblW/@w:w)', $table));
+        $widthType = trim((string) $xpath->evaluate('string(./w:tblPr/w:tblW/@w:type)', $table));
+        $layout = trim((string) $xpath->evaluate('string(./w:tblPr/w:tblLayout/@w:type)', $table));
+        $indent = trim((string) $xpath->evaluate('string(./w:tblPr/w:tblInd/@w:w)', $table));
+        $alignment = trim((string) $xpath->evaluate('string(./w:tblPr/w:jc/@w:val)', $table));
+        $cellMargins = [];
+
+        foreach (['top', 'right', 'bottom', 'left'] as $side) {
+            $margin = trim((string) $xpath->evaluate('string(./w:tblPr/w:tblCellMar/w:'.$side.'/@w:w)', $table));
+            if ($margin !== '' && ctype_digit($margin)) {
+                $cellMargins[$side] = (int) $margin;
+            }
+        }
+
+        $borders = [];
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $name) {
+            $border = $this->extractBorderPresentation($xpath, './w:tblPr/w:tblBorders/w:'.$name, $table);
+            if ($border !== null) {
+                $borders[$name] = $border;
+            }
+        }
+
+        return array_filter([
+            'width' => $width !== '' && ctype_digit($width) ? (int) $width : null,
+            'width_type' => $widthType !== '' ? $widthType : null,
+            'layout' => $layout !== '' ? $layout : null,
+            'indent' => $indent !== '' && ctype_digit($indent) ? (int) $indent : null,
+            'alignment' => $alignment !== '' ? $alignment : null,
+            'cell_margins' => $cellMargins,
+            'borders' => $borders,
+        ], static fn ($value) => $value !== null && $value !== []);
+    }
+
+    private function extractTableGridWidths(DOMElement $table, DOMXPath $xpath): array
+    {
+        $widths = [];
+
+        foreach ($xpath->query('./w:tblGrid/w:gridCol', $table) as $column) {
+            if (! $column instanceof DOMElement) {
+                continue;
+            }
+
+            $width = trim((string) $column->getAttributeNS(self::WORD_NS, 'w'));
+            if ($width !== '' && ctype_digit($width)) {
+                $widths[] = (int) $width;
+            }
+        }
+
+        return $widths;
+    }
+
+    private function extractTableRowHeight(DOMElement $row, DOMXPath $xpath): ?int
+    {
+        $height = trim((string) $xpath->evaluate('string(./w:trPr/w:trHeight/@w:val)', $row));
+
+        return $height !== '' && ctype_digit($height) ? (int) $height : null;
+    }
+
+    private function extractTableCellPresentation(DOMElement $cell, DOMXPath $xpath): array
+    {
+        $width = trim((string) $xpath->evaluate('string(./w:tcPr/w:tcW/@w:w)', $cell));
+        $widthType = trim((string) $xpath->evaluate('string(./w:tcPr/w:tcW/@w:type)', $cell));
+        $gridSpan = trim((string) $xpath->evaluate('string(./w:tcPr/w:gridSpan/@w:val)', $cell));
+        $shading = trim((string) $xpath->evaluate('string(./w:tcPr/w:shd/@w:fill)', $cell));
+        $verticalAlign = trim((string) $xpath->evaluate('string(./w:tcPr/w:vAlign/@w:val)', $cell));
+        $vMergeNode = $xpath->query('./w:tcPr/w:vMerge', $cell)->item(0);
+        $vMerge = null;
+
+        if ($vMergeNode instanceof DOMElement) {
+            $value = trim((string) $vMergeNode->getAttributeNS(self::WORD_NS, 'val'));
+            $vMerge = $value === '' || strtolower($value) === 'continue' ? 'continue' : strtolower($value);
+        }
+
+        $margins = [];
+        foreach (['top', 'right', 'bottom', 'left'] as $side) {
+            $margin = trim((string) $xpath->evaluate('string(./w:tcPr/w:tcMar/w:'.$side.'/@w:w)', $cell));
+            if ($margin !== '' && ctype_digit($margin)) {
+                $margins[$side] = (int) $margin;
+            }
+        }
+
+        $borders = [];
+        foreach (['top', 'left', 'bottom', 'right'] as $name) {
+            $border = $this->extractBorderPresentation($xpath, './w:tcPr/w:tcBorders/w:'.$name, $cell);
+            if ($border !== null) {
+                $borders[$name] = $border;
+            }
+        }
+
+        return array_filter([
+            'width' => $width !== '' && ctype_digit($width) ? (int) $width : null,
+            'width_type' => $widthType !== '' ? $widthType : null,
+            'grid_span' => $gridSpan !== '' && ctype_digit($gridSpan) ? (int) $gridSpan : null,
+            'shading' => $this->normalizeColorValue($shading),
+            'vertical_align' => $verticalAlign !== '' ? $verticalAlign : null,
+            'v_merge' => $vMerge,
+            'margins' => $margins,
+            'borders' => $borders,
+        ], static fn ($value) => $value !== null && $value !== []);
+    }
+
+    private function tableCellAttributes(array $presentation, int $gridColumn, int $colspan): array
+    {
+        $attributes = [
+            'data-docx-grid-col' => (string) $gridColumn,
+        ];
+
+        if (($presentation['width'] ?? null) !== null) {
+            $attributes['data-docx-width'] = (string) $presentation['width'];
+            $attributes['data-docx-width-type'] = (string) ($presentation['width_type'] ?? 'dxa');
+        }
+
+        if ($colspan > 1) {
+            $attributes['data-docx-grid-span'] = (string) $colspan;
+        }
+
+        if (($presentation['v_merge'] ?? null) !== null) {
+            $attributes['data-docx-v-merge'] = (string) $presentation['v_merge'];
+        }
+
+        if (($presentation['shading'] ?? null) !== null) {
+            $attributes['data-docx-bg'] = (string) $presentation['shading'];
+        }
+
+        if (($presentation['vertical_align'] ?? null) !== null) {
+            $attributes['data-docx-valign'] = (string) $presentation['vertical_align'];
+        }
+
+        foreach (($presentation['margins'] ?? []) as $side => $twips) {
+            $attributes['data-docx-margin-'.$side] = (string) $twips;
+        }
+
+        foreach (($presentation['borders'] ?? []) as $name => $border) {
+            foreach ($border as $property => $value) {
+                $attributes['data-docx-border-'.$name.'-'.$property] = (string) $value;
+            }
+        }
+
+        return $attributes;
+    }
+
+    private function tableCellStyles(array $presentation, array $tablePresentation): array
+    {
+        $styles = [];
+
+        if (($presentation['width'] ?? null) !== null) {
+            $styles[] = 'width:'.$this->docxTableWidthToCss(
+                (int) $presentation['width'],
+                (string) ($presentation['width_type'] ?? 'dxa')
+            );
+        }
+
+        if (($presentation['shading'] ?? null) !== null) {
+            $styles[] = 'background-color:#'.$presentation['shading'];
+        }
+
+        if (($presentation['vertical_align'] ?? null) !== null) {
+            $styles[] = 'vertical-align:'.$this->cssVerticalAlignValue((string) $presentation['vertical_align']);
+        }
+
+        $margins = $presentation['margins'] ?? $tablePresentation['cell_margins'] ?? [];
+        if ($margins !== []) {
+            $styles[] = 'padding:'.$this->cellMarginCss($margins);
+        }
+
+        foreach (($presentation['borders'] ?? []) as $side => $border) {
+            $css = $this->borderPresentationToCss($border);
+            if ($css !== null) {
+                $styles[] = 'border-'.$side.':'.$css;
+            }
+        }
+
+        return $styles;
+    }
+
+    private function docxTableWidthToCss(int $width, string $type): string
+    {
+        $normalizedType = strtolower($type);
+
+        if ($normalizedType === 'pct') {
+            return max(0.1, $width / 50).'%';
+        }
+
+        if ($normalizedType === 'nil') {
+            return 'auto';
+        }
+
+        return max(0.1, $width / 20).'pt';
+    }
+
+    private function tableAlignmentCss(string $alignment): string
+    {
+        return match (strtolower($alignment)) {
+            'center' => 'margin-left:auto; margin-right:auto',
+            'right', 'end' => 'margin-left:auto; margin-right:0',
+            default => 'margin-left:0; margin-right:auto',
+        };
+    }
+
+    private function cssVerticalAlignValue(string $value): string
+    {
+        return match (strtolower($value)) {
+            'center' => 'middle',
+            'bottom' => 'bottom',
+            default => 'top',
+        };
+    }
+
+    private function cellMarginCss(array $margins): string
+    {
+        $top = (int) ($margins['top'] ?? 0);
+        $right = (int) ($margins['right'] ?? 0);
+        $bottom = (int) ($margins['bottom'] ?? 0);
+        $left = (int) ($margins['left'] ?? 0);
+
+        return ($top / 20).'pt '.($right / 20).'pt '.($bottom / 20).'pt '.($left / 20).'pt';
+    }
+
+    private function extractBorderPresentation(DOMXPath $xpath, string $query, DOMElement $context): ?array
+    {
+        $border = $xpath->query($query, $context)->item(0);
+        if (! $border instanceof DOMElement) {
+            return null;
+        }
+
+        $value = trim((string) $border->getAttributeNS(self::WORD_NS, 'val'));
+        if ($value === '') {
+            return null;
+        }
+
+        $size = trim((string) $border->getAttributeNS(self::WORD_NS, 'sz'));
+        $space = trim((string) $border->getAttributeNS(self::WORD_NS, 'space'));
+        $color = $this->normalizeColorValue((string) $border->getAttributeNS(self::WORD_NS, 'color'));
+
+        return array_filter([
+            'val' => $value,
+            'sz' => $size !== '' && ctype_digit($size) ? (int) $size : null,
+            'space' => $space !== '' && ctype_digit($space) ? (int) $space : null,
+            'color' => $color,
+        ], static fn ($item) => $item !== null && $item !== '');
+    }
+
+    private function borderPresentationToCss(array $border): ?string
+    {
+        $value = strtolower((string) ($border['val'] ?? 'single'));
+        if (in_array($value, ['nil', 'none'], true)) {
+            return '0 none transparent';
+        }
+
+        $size = max(1, (int) round(((int) ($border['sz'] ?? 4)) / 8 * 1.333));
+        $style = match ($value) {
+            'dashed', 'dashSmallGap', 'dotDash', 'dotDotDash' => 'dashed',
+            'dotted' => 'dotted',
+            'double' => 'double',
+            default => 'solid',
+        };
+        $color = (string) ($border['color'] ?? 'BFC6D4');
+
+        return $size.'px '.$style.' #'.$color;
+    }
+
+    private function htmlAttributes(array $attributes, array $styles = []): string
+    {
+        if ($styles !== []) {
+            $attributes['style'] = implode('; ', array_filter($styles));
+        }
+
+        $html = [];
+        foreach ($attributes as $name => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $html[] = $name.'="'.htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'"';
+        }
+
+        return $html !== [] ? ' '.implode(' ', $html) : '';
     }
 
     private function renderTableCellBlocksToHtml(
@@ -1517,6 +1917,7 @@ class DocxEditorService
         return $rows !== [] ? [
             'type' => 'table',
             'rows' => $rows,
+            'presentation' => $this->extractTablePresentationFromHtmlElement($table),
         ] : null;
     }
 
@@ -1553,10 +1954,134 @@ class DocxEditorService
 
             $cells[] = [
                 'blocks' => $cellBlocks,
+                'presentation' => $this->extractTableCellPresentationFromHtmlElement($cellNode),
             ];
         }
 
-        return $cells !== [] ? ['cells' => $cells] : null;
+        return $cells !== [] ? [
+            'cells' => $cells,
+            'presentation' => $this->extractTableRowPresentationFromHtmlElement($rowNode),
+        ] : null;
+    }
+
+    private function extractTablePresentationFromHtmlElement(DOMElement $table): array
+    {
+        $styleMap = $this->parseInlineStyleMap((string) $table->getAttribute('style'));
+        $grid = array_values(array_filter(array_map(
+            static fn (string $value): ?int => ctype_digit(trim($value)) ? (int) trim($value) : null,
+            explode(',', (string) $table->getAttribute('data-docx-grid'))
+        ), static fn (?int $value): bool => $value !== null && $value > 0));
+
+        return array_filter([
+            'width' => $this->normalizeTwipsValue($table->getAttribute('data-docx-width') ?: ($styleMap['width'] ?? null)),
+            'width_type' => $table->getAttribute('data-docx-width-type') ?: null,
+            'layout' => $table->getAttribute('data-docx-layout') ?: null,
+            'indent' => $this->normalizeTwipsValue($table->getAttribute('data-docx-indent') ?: ($styleMap['margin-left'] ?? null)),
+            'alignment' => $table->getAttribute('data-docx-align') ?: null,
+            'cell_margins' => $this->extractDirectionalTwipsAttributes($table, 'data-docx-cell-margin-'),
+            'borders' => $this->extractBorderPresentationFromHtmlElement($table),
+            'grid' => $grid,
+        ], static fn ($value) => $value !== null && $value !== []);
+    }
+
+    private function extractTableRowPresentationFromHtmlElement(DOMElement $row): array
+    {
+        $styleMap = $this->parseInlineStyleMap((string) $row->getAttribute('style'));
+
+        return array_filter([
+            'height' => $this->normalizeTwipsValue($row->getAttribute('data-docx-height') ?: ($styleMap['height'] ?? null)),
+        ], static fn ($value) => $value !== null);
+    }
+
+    private function extractTableCellPresentationFromHtmlElement(DOMElement $cell): array
+    {
+        $styleMap = $this->parseInlineStyleMap((string) $cell->getAttribute('style'));
+        $colspan = $cell->getAttribute('data-docx-grid-span') ?: $cell->getAttribute('colspan');
+        $rowspan = $cell->getAttribute('data-docx-rowspan') ?: $cell->getAttribute('rowspan');
+        $background = $cell->getAttribute('data-docx-bg');
+        if ($background === '') {
+            $background = $styleMap['background-color'] ?? null;
+        }
+
+        $verticalAlign = $cell->getAttribute('data-docx-valign');
+        if ($verticalAlign === '') {
+            $verticalAlign = $styleMap['vertical-align'] ?? null;
+        }
+
+        return array_filter([
+            'width' => $this->normalizeTwipsValue($cell->getAttribute('data-docx-width') ?: ($styleMap['width'] ?? null)),
+            'width_type' => $cell->getAttribute('data-docx-width-type') ?: null,
+            'grid_span' => $colspan !== '' && ctype_digit($colspan) ? max(1, (int) $colspan) : null,
+            'row_span' => $rowspan !== '' && ctype_digit($rowspan) ? max(1, (int) $rowspan) : null,
+            'grid_col' => $cell->getAttribute('data-docx-grid-col') !== '' && ctype_digit($cell->getAttribute('data-docx-grid-col'))
+                ? (int) $cell->getAttribute('data-docx-grid-col')
+                : null,
+            'v_merge' => $cell->getAttribute('data-docx-v-merge') ?: null,
+            'shading' => $this->normalizeColorValue($background),
+            'vertical_align' => $this->normalizeTableVerticalAlignment($verticalAlign !== '' ? $verticalAlign : null),
+            'margins' => $this->extractDirectionalTwipsAttributes($cell, 'data-docx-margin-'),
+            'borders' => $this->extractBorderPresentationFromHtmlElement($cell),
+        ], static fn ($value) => $value !== null && $value !== []);
+    }
+
+    private function extractDirectionalTwipsAttributes(DOMElement $element, string $prefix): array
+    {
+        $values = [];
+
+        foreach (['top', 'right', 'bottom', 'left'] as $side) {
+            $value = $this->normalizeTwipsValue($element->getAttribute($prefix.$side) ?: null);
+            if ($value !== null) {
+                $values[$side] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    private function extractBorderPresentationFromHtmlElement(DOMElement $element): array
+    {
+        $borders = [];
+
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $side) {
+            $value = $element->getAttribute('data-docx-border-'.$side.'-val');
+            if ($value === '') {
+                continue;
+            }
+
+            $border = [
+                'val' => $value,
+            ];
+
+            foreach (['sz', 'space'] as $numeric) {
+                $attribute = $element->getAttribute('data-docx-border-'.$side.'-'.$numeric);
+                if ($attribute !== '' && ctype_digit($attribute)) {
+                    $border[$numeric] = (int) $attribute;
+                }
+            }
+
+            $color = $this->normalizeColorValue($element->getAttribute('data-docx-border-'.$side.'-color') ?: null);
+            if ($color !== null) {
+                $border['color'] = $color;
+            }
+
+            $borders[$side] = $border;
+        }
+
+        return $borders;
+    }
+
+    private function normalizeTableVerticalAlignment(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return match (strtolower(trim($value))) {
+            'middle', 'center' => 'center',
+            'bottom' => 'bottom',
+            'top' => 'top',
+            default => null,
+        };
     }
 
     private function extractBlockPresentationFromHtmlElement(DOMElement $element): array
@@ -2089,35 +2614,167 @@ class DocxEditorService
     private function buildTableNode(DOMDocument $dom, array $block): DOMElement
     {
         $table = $dom->createElementNS(self::WORD_NS, 'w:tbl');
+        $presentation = $block['presentation'] ?? [];
 
         $tableProperties = $dom->createElementNS(self::WORD_NS, 'w:tblPr');
         $tableWidth = $dom->createElementNS(self::WORD_NS, 'w:tblW');
-        $tableWidth->setAttributeNS(self::WORD_NS, 'w:w', '0');
-        $tableWidth->setAttributeNS(self::WORD_NS, 'w:type', 'auto');
+        $tableWidth->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) ($presentation['width'] ?? 0)));
+        $tableWidth->setAttributeNS(self::WORD_NS, 'w:type', (string) ($presentation['width_type'] ?? 'auto'));
         $tableProperties->appendChild($tableWidth);
 
+        if (($presentation['layout'] ?? null) === 'fixed') {
+            $layout = $dom->createElementNS(self::WORD_NS, 'w:tblLayout');
+            $layout->setAttributeNS(self::WORD_NS, 'w:type', 'fixed');
+            $tableProperties->appendChild($layout);
+        }
+
+        if (($presentation['indent'] ?? null) !== null) {
+            $indent = $dom->createElementNS(self::WORD_NS, 'w:tblInd');
+            $indent->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) $presentation['indent']));
+            $indent->setAttributeNS(self::WORD_NS, 'w:type', 'dxa');
+            $tableProperties->appendChild($indent);
+        }
+
+        if (($presentation['alignment'] ?? null) !== null) {
+            $alignment = $dom->createElementNS(self::WORD_NS, 'w:jc');
+            $alignment->setAttributeNS(self::WORD_NS, 'w:val', (string) $presentation['alignment']);
+            $tableProperties->appendChild($alignment);
+        }
+
+        if (($presentation['cell_margins'] ?? []) !== []) {
+            $cellMargins = $dom->createElementNS(self::WORD_NS, 'w:tblCellMar');
+            foreach (['top', 'left', 'bottom', 'right'] as $side) {
+                if (! isset($presentation['cell_margins'][$side])) {
+                    continue;
+                }
+
+                $margin = $dom->createElementNS(self::WORD_NS, 'w:'.$side);
+                $margin->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) $presentation['cell_margins'][$side]));
+                $margin->setAttributeNS(self::WORD_NS, 'w:type', 'dxa');
+                $cellMargins->appendChild($margin);
+            }
+            $tableProperties->appendChild($cellMargins);
+        }
+
         $tableBorders = $dom->createElementNS(self::WORD_NS, 'w:tblBorders');
+        $presentationBorders = $presentation['borders'] ?? [];
         foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $borderName) {
             $border = $dom->createElementNS(self::WORD_NS, 'w:'.$borderName);
-            $border->setAttributeNS(self::WORD_NS, 'w:val', 'single');
-            $border->setAttributeNS(self::WORD_NS, 'w:sz', '4');
-            $border->setAttributeNS(self::WORD_NS, 'w:space', '0');
-            $border->setAttributeNS(self::WORD_NS, 'w:color', 'BFC6D4');
+            $borderPresentation = $presentationBorders[$borderName] ?? [];
+            $border->setAttributeNS(self::WORD_NS, 'w:val', (string) ($borderPresentation['val'] ?? 'single'));
+            $border->setAttributeNS(self::WORD_NS, 'w:sz', (string) ((int) ($borderPresentation['sz'] ?? 4)));
+            $border->setAttributeNS(self::WORD_NS, 'w:space', (string) ((int) ($borderPresentation['space'] ?? 0)));
+            $border->setAttributeNS(self::WORD_NS, 'w:color', (string) ($borderPresentation['color'] ?? 'BFC6D4'));
             $tableBorders->appendChild($border);
         }
         $tableProperties->appendChild($tableBorders);
         $table->appendChild($tableProperties);
 
+        if (($presentation['grid'] ?? []) !== []) {
+            $grid = $dom->createElementNS(self::WORD_NS, 'w:tblGrid');
+            foreach ($presentation['grid'] as $width) {
+                $column = $dom->createElementNS(self::WORD_NS, 'w:gridCol');
+                $column->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) $width));
+                $grid->appendChild($column);
+            }
+            $table->appendChild($grid);
+        }
+
+        $pendingRowspans = [];
         foreach (($block['rows'] ?? []) as $row) {
             $rowNode = $dom->createElementNS(self::WORD_NS, 'w:tr');
+            $rowPresentation = $row['presentation'] ?? [];
 
+            if (($rowPresentation['height'] ?? null) !== null) {
+                $rowProperties = $dom->createElementNS(self::WORD_NS, 'w:trPr');
+                $height = $dom->createElementNS(self::WORD_NS, 'w:trHeight');
+                $height->setAttributeNS(self::WORD_NS, 'w:val', (string) ((int) $rowPresentation['height']));
+                $rowProperties->appendChild($height);
+                $rowNode->appendChild($rowProperties);
+            }
+
+            $gridColumn = 0;
             foreach (($row['cells'] ?? []) as $cell) {
+                $cellPresentation = $cell['presentation'] ?? [];
+                $targetColumn = (int) ($cellPresentation['grid_col'] ?? $gridColumn);
+                while ($gridColumn < $targetColumn) {
+                    if (($pendingRowspans[$gridColumn] ?? 0) > 0) {
+                        $rowNode->appendChild($this->buildTableContinuationCellNode($dom));
+                        $pendingRowspans[$gridColumn]--;
+                    }
+                    $gridColumn++;
+                }
+
                 $cellNode = $dom->createElementNS(self::WORD_NS, 'w:tc');
                 $cellProperties = $dom->createElementNS(self::WORD_NS, 'w:tcPr');
                 $cellWidth = $dom->createElementNS(self::WORD_NS, 'w:tcW');
-                $cellWidth->setAttributeNS(self::WORD_NS, 'w:w', '2400');
-                $cellWidth->setAttributeNS(self::WORD_NS, 'w:type', 'dxa');
+                $cellWidth->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) ($cellPresentation['width'] ?? 2400)));
+                $cellWidth->setAttributeNS(self::WORD_NS, 'w:type', (string) ($cellPresentation['width_type'] ?? 'dxa'));
                 $cellProperties->appendChild($cellWidth);
+
+                $gridSpan = max(1, (int) ($cellPresentation['grid_span'] ?? 1));
+                if ($gridSpan > 1) {
+                    $span = $dom->createElementNS(self::WORD_NS, 'w:gridSpan');
+                    $span->setAttributeNS(self::WORD_NS, 'w:val', (string) $gridSpan);
+                    $cellProperties->appendChild($span);
+                }
+
+                $rowSpan = max(1, (int) ($cellPresentation['row_span'] ?? 1));
+                if ($rowSpan > 1 || ($cellPresentation['v_merge'] ?? null) === 'restart') {
+                    $vMerge = $dom->createElementNS(self::WORD_NS, 'w:vMerge');
+                    $vMerge->setAttributeNS(self::WORD_NS, 'w:val', 'restart');
+                    $cellProperties->appendChild($vMerge);
+
+                    for ($offset = 0; $offset < $gridSpan; $offset++) {
+                        $pendingRowspans[$gridColumn + $offset] = $rowSpan - 1;
+                    }
+                }
+
+                if (($cellPresentation['shading'] ?? null) !== null) {
+                    $shading = $dom->createElementNS(self::WORD_NS, 'w:shd');
+                    $shading->setAttributeNS(self::WORD_NS, 'w:fill', (string) $cellPresentation['shading']);
+                    $cellProperties->appendChild($shading);
+                }
+
+                if (($cellPresentation['vertical_align'] ?? null) !== null) {
+                    $verticalAlign = $dom->createElementNS(self::WORD_NS, 'w:vAlign');
+                    $verticalAlign->setAttributeNS(self::WORD_NS, 'w:val', (string) $cellPresentation['vertical_align']);
+                    $cellProperties->appendChild($verticalAlign);
+                }
+
+                if (($cellPresentation['margins'] ?? []) !== []) {
+                    $cellMargins = $dom->createElementNS(self::WORD_NS, 'w:tcMar');
+                    foreach (['top', 'left', 'bottom', 'right'] as $side) {
+                        if (! isset($cellPresentation['margins'][$side])) {
+                            continue;
+                        }
+
+                        $margin = $dom->createElementNS(self::WORD_NS, 'w:'.$side);
+                        $margin->setAttributeNS(self::WORD_NS, 'w:w', (string) ((int) $cellPresentation['margins'][$side]));
+                        $margin->setAttributeNS(self::WORD_NS, 'w:type', 'dxa');
+                        $cellMargins->appendChild($margin);
+                    }
+                    $cellProperties->appendChild($cellMargins);
+                }
+
+                if (($cellPresentation['borders'] ?? []) !== []) {
+                    $cellBorders = $dom->createElementNS(self::WORD_NS, 'w:tcBorders');
+                    foreach (['top', 'left', 'bottom', 'right'] as $side) {
+                        if (! isset($cellPresentation['borders'][$side])) {
+                            continue;
+                        }
+
+                        $borderPresentation = $cellPresentation['borders'][$side];
+                        $border = $dom->createElementNS(self::WORD_NS, 'w:'.$side);
+                        $border->setAttributeNS(self::WORD_NS, 'w:val', (string) ($borderPresentation['val'] ?? 'single'));
+                        $border->setAttributeNS(self::WORD_NS, 'w:sz', (string) ((int) ($borderPresentation['sz'] ?? 4)));
+                        $border->setAttributeNS(self::WORD_NS, 'w:space', (string) ((int) ($borderPresentation['space'] ?? 0)));
+                        $border->setAttributeNS(self::WORD_NS, 'w:color', (string) ($borderPresentation['color'] ?? 'BFC6D4'));
+                        $cellBorders->appendChild($border);
+                    }
+                    $cellProperties->appendChild($cellBorders);
+                }
+
                 $cellNode->appendChild($cellProperties);
 
                 $cellBlocks = $cell['blocks'] ?? [];
@@ -2138,12 +2795,37 @@ class DocxEditorService
                 }
 
                 $rowNode->appendChild($cellNode);
+                $gridColumn += $gridSpan;
+            }
+
+            while (array_sum($pendingRowspans) > 0 && $gridColumn <= max(array_keys($pendingRowspans))) {
+                if (($pendingRowspans[$gridColumn] ?? 0) > 0) {
+                    $rowNode->appendChild($this->buildTableContinuationCellNode($dom));
+                    $pendingRowspans[$gridColumn]--;
+                }
+                $gridColumn++;
             }
 
             $table->appendChild($rowNode);
         }
 
         return $table;
+    }
+
+    private function buildTableContinuationCellNode(DOMDocument $dom): DOMElement
+    {
+        $cellNode = $dom->createElementNS(self::WORD_NS, 'w:tc');
+        $cellProperties = $dom->createElementNS(self::WORD_NS, 'w:tcPr');
+        $vMerge = $dom->createElementNS(self::WORD_NS, 'w:vMerge');
+        $cellProperties->appendChild($vMerge);
+        $cellNode->appendChild($cellProperties);
+        $cellNode->appendChild($this->buildParagraphNode($dom, [
+            'type' => 'p',
+            'segments' => [],
+            'presentation' => [],
+        ]));
+
+        return $cellNode;
     }
 
     private function needsXmlSpacePreserve(string $text): bool

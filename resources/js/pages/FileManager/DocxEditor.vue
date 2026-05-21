@@ -85,8 +85,9 @@ const readOnly = computed(
 
 const compatibilityNotice = computed(() => [
     'Esta fase conserva mejor la tipografia explicita del DOCX: fuente, tamano, color, negritas, cursivas y subrayado.',
+    'Las tablas conservan anchos de columnas, layout fijo, celdas combinadas, sombreado, alineacion vertical, margenes internos y bordes definidos en Word.',
     'Las imagenes incrustadas se muestran dentro del editor y se conservan al guardar mientras sigan presentes en el documento.',
-    'Las listas simples y las tablas basicas se guardan como estructura real dentro del DOCX; tablas complejas, comentarios nativos y layout avanzado pueden simplificarse.',
+    'Las listas simples y las tablas editables se guardan como estructura real dentro del DOCX; comentarios nativos y layout avanzado pueden simplificarse.',
     'Guardar crea una revision segura; el archivo base no se pierde.',
 ]);
 
@@ -162,7 +163,7 @@ function insertSimpleTable() {
     document.execCommand(
         'insertHTML',
         false,
-        '<table class="docx-table" data-docx-kind="table"><tbody><tr><td><p>Celda 1</p></td><td><p>Celda 2</p></td></tr><tr><td><p>Celda 3</p></td><td><p>Celda 4</p></td></tr></tbody></table><p><br></p>',
+        '<table class="docx-table" data-docx-kind="table" data-docx-layout="fixed" data-docx-grid="2400,2400" style="border-collapse:collapse; table-layout:fixed; width:240pt"><colgroup><col style="width:120pt"><col style="width:120pt"></colgroup><tbody><tr><td data-docx-width="2400" data-docx-width-type="dxa" style="width:120pt"><p>Celda 1</p></td><td data-docx-width="2400" data-docx-width-type="dxa" style="width:120pt"><p>Celda 2</p></td></tr><tr><td data-docx-width="2400" data-docx-width-type="dxa" style="width:120pt"><p>Celda 3</p></td><td data-docx-width="2400" data-docx-width-type="dxa" style="width:120pt"><p>Celda 4</p></td></tr></tbody></table><p><br></p>',
     );
     syncEditorHtml();
 }
@@ -750,19 +751,27 @@ onMounted(() => {
 .docx-editor :deep(table.docx-table) {
     width: 100%;
     border-collapse: collapse;
+    border-spacing: 0;
     margin: 0 0 1rem;
+    color: rgb(15 23 42);
 }
 
 .docx-editor :deep(table.docx-table td),
 .docx-editor :deep(table.docx-table th) {
-    min-width: 8rem;
     border: 1px solid rgb(203 213 225);
-    padding: 0.65rem 0.75rem;
+    padding: 0.35rem 0.45rem;
     vertical-align: top;
+    background-clip: padding-box;
+    overflow-wrap: anywhere;
 }
 
 .docx-editor :deep(table.docx-table p:last-child) {
     margin-bottom: 0;
+}
+
+.docx-editor :deep(table.docx-table p) {
+    margin-top: 0;
+    margin-bottom: 0.35rem;
 }
 
 .docx-editor :deep(li) {

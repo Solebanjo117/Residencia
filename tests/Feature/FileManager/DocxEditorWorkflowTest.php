@@ -274,6 +274,62 @@ function sampleSimpleTableXml(): string
 XML;
 }
 
+function sampleWordLikeTableXml(): string
+{
+    return <<<'XML'
+<w:tbl>
+    <w:tblPr>
+        <w:tblW w:w="5000" w:type="pct"/>
+        <w:tblLayout w:type="fixed"/>
+        <w:tblCellMar>
+            <w:top w:w="80" w:type="dxa"/>
+            <w:left w:w="120" w:type="dxa"/>
+            <w:bottom w:w="80" w:type="dxa"/>
+            <w:right w:w="120" w:type="dxa"/>
+        </w:tblCellMar>
+        <w:tblBorders>
+            <w:top w:val="single" w:sz="8" w:space="0" w:color="1F2937"/>
+            <w:left w:val="single" w:sz="8" w:space="0" w:color="1F2937"/>
+            <w:bottom w:val="single" w:sz="8" w:space="0" w:color="1F2937"/>
+            <w:right w:val="single" w:sz="8" w:space="0" w:color="1F2937"/>
+            <w:insideH w:val="single" w:sz="4" w:space="0" w:color="94A3B8"/>
+            <w:insideV w:val="single" w:sz="4" w:space="0" w:color="94A3B8"/>
+        </w:tblBorders>
+    </w:tblPr>
+    <w:tblGrid>
+        <w:gridCol w:w="1800"/>
+        <w:gridCol w:w="2400"/>
+        <w:gridCol w:w="1800"/>
+    </w:tblGrid>
+    <w:tr>
+        <w:tc>
+            <w:tcPr>
+                <w:tcW w:w="6000" w:type="dxa"/>
+                <w:gridSpan w:val="3"/>
+                <w:shd w:fill="D9EAF7"/>
+                <w:vAlign w:val="center"/>
+            </w:tcPr>
+            <w:p><w:r><w:t>Encabezado combinado</w:t></w:r></w:p>
+        </w:tc>
+    </w:tr>
+    <w:tr>
+        <w:tc>
+            <w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>
+            <w:p><w:r><w:t>Columna A</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+            <w:tcPr><w:tcW w:w="2400" w:type="dxa"/><w:shd w:fill="F8FAFC"/></w:tcPr>
+            <w:p><w:r><w:t>Columna B</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+            <w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>
+            <w:p><w:r><w:t>Columna C</w:t></w:r></w:p>
+        </w:tc>
+    </w:tr>
+</w:tbl>
+XML;
+}
+
 beforeEach(function () {
     $this->withoutVite();
 });
@@ -516,6 +572,60 @@ XML, sampleSimpleTableXml());
     expect($zip->getFromName('word/document.xml'))->toContain('<w:tbl>');
     expect($zip->getFromName('word/document.xml'))->toContain('w:jc w:val="center"');
     $zip->close();
+});
+
+it('preserves word-like table sizing shading and merged cells in the docx editor', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/tabla-word.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx(sampleWordLikeTableXml()));
+
+    $file = EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'tabla-word.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-word-table'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    /** @var DocxEditorService $service */
+    $service = app(DocxEditorService::class);
+    $loaded = $service->loadDocument($file);
+
+    expect($loaded['html'])->toContain('data-docx-layout="fixed"');
+    expect($loaded['html'])->toContain('data-docx-grid="1800,2400,1800"');
+    expect($loaded['html'])->toContain('colspan="3"');
+    expect($loaded['html'])->toContain('data-docx-bg="D9EAF7"');
+    expect($loaded['html'])->toContain('background-color:#D9EAF7');
+    expect($loaded['html'])->toContain('data-docx-cell-margin-left="120"');
+
+    $editedHtml = str_replace('Columna B', 'Columna B editada', $loaded['html']);
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.docx.store', $file->id), [
+            'html' => $editedHtml,
+            'save_mode' => 'replace_current',
+        ]);
+
+    $response->assertRedirect(route('files.docx.show', $file->id));
+    $file->refresh();
+
+    $zip = new \ZipArchive;
+    $opened = $zip->open(Storage::disk('local')->path($file->stored_relative_path));
+    expect($opened)->toBeTrue();
+    $documentXml = $zip->getFromName('word/document.xml');
+    $zip->close();
+
+    expect($documentXml)->toContain('<w:tblGrid>');
+    expect($documentXml)->toContain('w:gridSpan w:val="3"');
+    expect($documentXml)->toContain('w:shd w:fill="D9EAF7"');
+    expect($documentXml)->toContain('Columna B editada');
 });
 
 it('loads and saves editable header and footer content when the docx already defines them', function () {
