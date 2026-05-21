@@ -13,6 +13,7 @@ use App\Services\EvidenceFlowService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -67,22 +68,54 @@ class SubmissionWindowController extends Controller
     {
         $validated = $request->validate([
             'semester_id' => 'required|exists:semesters,id',
-            'evidence_item_id' => 'required|exists:evidence_items,id',
+            'evidence_item_id' => 'required_without:evidence_item_ids|nullable|exists:evidence_items,id',
+            'evidence_item_ids' => 'required_without:evidence_item_id|nullable|array|min:1',
+            'evidence_item_ids.*' => 'integer|distinct|exists:evidence_items,id',
             'modality' => ['nullable', 'string', Rule::in([TeachingLoad::MODALITY_PRESENCIAL, TeachingLoad::MODALITY_EN_LINEA])],
             'opens_at' => 'required|date',
             'closes_at' => 'required|date|after_or_equal:opens_at',
             'status' => 'required|in:ACTIVE,INACTIVE',
         ]);
-        $validated = $this->normalizeWindowData($validated);
 
-        $this->ensureNoActiveWindowOverlap($validated);
+        $baseData = $this->normalizeWindowData([
+            'semester_id' => $validated['semester_id'],
+            'modality' => $validated['modality'] ?? null,
+            'opens_at' => $validated['opens_at'],
+            'closes_at' => $validated['closes_at'],
+            'status' => $validated['status'],
+        ]);
 
-        $validated['created_by_user_id'] = Auth::id();
+        $itemIds = collect($validated['evidence_item_ids'] ?? [$validated['evidence_item_id']])
+            ->filter()
+            ->unique()
+            ->values();
 
-        $window = SubmissionWindow::create($validated);
-        $this->syncNotificationSchedules($window);
+        foreach ($itemIds as $itemId) {
+            $this->ensureNoActiveWindowOverlap([
+                ...$baseData,
+                'evidence_item_id' => (int) $itemId,
+            ]);
+        }
 
-        return redirect()->back()->with('success', 'Ventana de entrega creada correctamente.');
+        $windows = DB::transaction(function () use ($baseData, $itemIds) {
+            return $itemIds->map(function ($itemId) use ($baseData) {
+                $window = SubmissionWindow::create([
+                    ...$baseData,
+                    'evidence_item_id' => (int) $itemId,
+                    'created_by_user_id' => Auth::id(),
+                ]);
+
+                $this->syncNotificationSchedules($window);
+
+                return $window;
+            });
+        });
+
+        $message = $windows->count() === 1
+            ? 'Ventana de entrega creada correctamente.'
+            : "Se crearon {$windows->count()} ventanas de entrega correctamente.";
+
+        return redirect()->back()->with('success', $message);
     }
 
     public function update(Request $request, SubmissionWindow $window)

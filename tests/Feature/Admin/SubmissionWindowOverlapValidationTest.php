@@ -176,6 +176,86 @@ it('stores date windows as full-day ranges and allows a same-day window', functi
     ]);
 });
 
+it('creates submission windows in batch for multiple evidence items', function () {
+    $ctx = createSubmissionWindowContext();
+    $secondItem = EvidenceItem::create([
+        'category_id' => $ctx['item']->category_id,
+        'name' => 'ITEM-WIN-BATCH-'.Str::upper(Str::random(8)),
+        'description' => 'Segundo item para lote',
+        'requires_subject' => true,
+        'active' => true,
+    ]);
+    $deliveryDate = now()->addDays(4)->toDateString();
+
+    $response = $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('admin.windows.store'), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_ids' => [$ctx['item']->id, $secondItem->id],
+            'opens_at' => $deliveryDate,
+            'closes_at' => $deliveryDate,
+            'status' => 'ACTIVE',
+        ]);
+
+    $response->assertRedirect(route('admin.windows.index'));
+    $response->assertSessionDoesntHaveErrors();
+
+    $this->assertDatabaseHas('submission_windows', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'status' => 'ACTIVE',
+    ]);
+    $this->assertDatabaseHas('submission_windows', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $secondItem->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    expect(SubmissionWindow::count())->toBe(2)
+        ->and(NotificationSchedule::query()->where('notification_type', 'WINDOW_OPEN')->count())->toBe(2)
+        ->and(NotificationSchedule::query()->where('notification_type', 'WINDOW_CLOSING')->count())->toBe(2);
+});
+
+it('blocks a batch submission window when one selected evidence overlaps', function () {
+    $ctx = createSubmissionWindowContext();
+    $secondItem = EvidenceItem::create([
+        'category_id' => $ctx['item']->category_id,
+        'name' => 'ITEM-WIN-BATCH-BLOCKED-'.Str::upper(Str::random(8)),
+        'description' => 'Segundo item para lote bloqueado',
+        'requires_subject' => true,
+        'active' => true,
+    ]);
+
+    SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'opens_at' => now()->addDay(),
+        'closes_at' => now()->addDays(5),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    $response = $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('admin.windows.store'), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_ids' => [$ctx['item']->id, $secondItem->id],
+            'opens_at' => now()->addDays(3)->toDateString(),
+            'closes_at' => now()->addDays(7)->toDateString(),
+            'status' => 'ACTIVE',
+        ]);
+
+    $response->assertRedirect(route('admin.windows.index'));
+    $response->assertSessionHasErrors('opens_at');
+    $this->assertDatabaseCount('submission_windows', 1);
+    $this->assertDatabaseMissing('submission_windows', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $secondItem->id,
+    ]);
+});
+
 it('refreshes pending notification schedules when updating a window', function () {
     $ctx = createSubmissionWindowContext();
 

@@ -7,7 +7,7 @@ import {
     Filter,
     AlertCircle,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import AdminTable from '@/components/AdminTable.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -70,11 +70,28 @@ watch(
 const form = useForm({
     semester_id: filterSemester.value,
     evidence_item_id: '',
+    evidence_item_ids: [] as number[],
     modality: '',
     opens_at: '',
     closes_at: '',
     status: 'ACTIVE',
 });
+
+const groupedEvidenceItems = computed(() => {
+    const groups = new Map<string, any[]>();
+
+    props.evidenceItems.forEach((item) => {
+        const label = item.stage_label || 'Sin etapa';
+        groups.set(label, [...(groups.get(label) || []), item]);
+    });
+
+    return Array.from(groups.entries()).map(([label, items]) => ({
+        label,
+        items,
+    }));
+});
+
+const selectedEvidenceCount = computed(() => form.evidence_item_ids.length);
 
 const formatForInput = (dateString: string) => {
     if (!dateString) return '';
@@ -88,6 +105,8 @@ const openCreateModal = () => {
     editingWindow.value = null;
     form.reset();
     form.semester_id = filterSemester.value;
+    form.evidence_item_id = '';
+    form.evidence_item_ids = [];
     form.status = 'ACTIVE';
     isModalOpen.value = true;
 };
@@ -97,6 +116,7 @@ const openEditModal = (win: any) => {
     form.clearErrors();
     form.semester_id = win.semester_id;
     form.evidence_item_id = win.evidence_item_id;
+    form.evidence_item_ids = [win.evidence_item_id];
     form.modality = win.modality || '';
     form.opens_at = formatForInput(win.opens_at);
     form.closes_at = formatForInput(win.closes_at);
@@ -114,6 +134,25 @@ const handleStatusChange = (checked: boolean) => {
     form.status = checked ? 'ACTIVE' : 'INACTIVE';
 };
 
+const isEvidenceSelected = (id: number) => {
+    return form.evidence_item_ids.includes(Number(id));
+};
+
+const toggleEvidenceSelection = (id: number, checked: boolean) => {
+    const itemId = Number(id);
+
+    if (checked) {
+        form.evidence_item_ids = [
+            ...new Set([...form.evidence_item_ids, itemId]),
+        ];
+        return;
+    }
+
+    form.evidence_item_ids = form.evidence_item_ids.filter(
+        (selectedId) => selectedId !== itemId,
+    );
+};
+
 const submitForm = () => {
     if (editingWindow.value) {
         form.put(`/admin/windows/${editingWindow.value.id}`, {
@@ -126,7 +165,11 @@ const submitForm = () => {
         form.post('/admin/windows', {
             onSuccess: () => {
                 closeModal();
-                toast.success('Ventana creada correctamente.');
+                toast.success(
+                    selectedEvidenceCount.value > 1
+                        ? 'Ventanas creadas correctamente.'
+                        : 'Ventana creada correctamente.',
+                );
             },
         });
     }
@@ -238,7 +281,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
 
                     <Button @click="openCreateModal">
                         <CalendarClock class="mr-2 h-4 w-4" />
-                        Nueva Ventana
+                        Crear en lote
                     </Button>
                 </div>
             </div>
@@ -407,18 +450,18 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
             }
         "
     >
-        <DialogContent class="sm:max-w-lg">
+        <DialogContent class="sm:max-w-2xl">
             <DialogHeader>
                 <DialogTitle>{{
                     editingWindow
                         ? 'Editar Ventana de Entrega'
-                        : 'Nueva Ventana de Entrega'
+                        : 'Crear Ventanas de Entrega'
                 }}</DialogTitle>
                 <DialogDescription>
                     {{
                         editingWindow
                             ? 'Modifica las fechas y datos de esta ventana.'
-                            : 'Define los plazos para que los docentes suban evidencias.'
+                            : 'Selecciona una o varias evidencias y aplica el mismo plazo.'
                     }}
                 </DialogDescription>
             </DialogHeader>
@@ -460,7 +503,7 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                     </p>
                 </div>
 
-                <div>
+                <div v-if="editingWindow">
                     <Label for="window-evidence">Evidencia</Label>
                     <select
                         id="window-evidence"
@@ -484,6 +527,61 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                         class="mt-1 text-xs text-destructive"
                     >
                         {{ form.errors.evidence_item_id }}
+                    </p>
+                </div>
+
+                <div v-else>
+                    <div class="mb-2 flex items-center justify-between gap-3">
+                        <Label>Evidencias</Label>
+                        <span class="text-xs font-semibold text-muted-foreground">
+                            {{ selectedEvidenceCount }} seleccionada{{
+                                selectedEvidenceCount === 1 ? '' : 's'
+                            }}
+                        </span>
+                    </div>
+                    <div
+                        class="max-h-72 space-y-3 overflow-y-auto rounded-md border border-input bg-background p-3"
+                    >
+                        <div
+                            v-for="group in groupedEvidenceItems"
+                            :key="group.label"
+                            class="space-y-2"
+                        >
+                            <div
+                                class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                            >
+                                {{ group.label }}
+                            </div>
+                            <label
+                                v-for="item in group.items"
+                                :key="item.id"
+                                class="flex cursor-pointer items-start gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60"
+                            >
+                                <Checkbox
+                                    :checked="isEvidenceSelected(item.id)"
+                                    @update:checked="
+                                        (checked) =>
+                                            toggleEvidenceSelection(
+                                                item.id,
+                                                Boolean(checked),
+                                            )
+                                    "
+                                />
+                                <span class="leading-5">{{ item.name }}</span>
+                            </label>
+                        </div>
+                    </div>
+                    <p
+                        v-if="form.errors.evidence_item_ids"
+                        class="mt-1 text-xs text-destructive"
+                    >
+                        {{ form.errors.evidence_item_ids }}
+                    </p>
+                    <p
+                        v-if="form.errors['evidence_item_ids.0']"
+                        class="mt-1 text-xs text-destructive"
+                    >
+                        {{ form.errors['evidence_item_ids.0'] }}
                     </p>
                 </div>
 
@@ -567,10 +665,19 @@ const getStatusText = (status: string, opensAt: string, closesAt: string) => {
                 <Button variant="outline" @click="closeModal">Cancelar</Button>
                 <Button
                     type="submit"
-                    :disabled="form.processing"
+                    :disabled="
+                        form.processing ||
+                        (!editingWindow && selectedEvidenceCount === 0)
+                    "
                     @click="submitForm"
                 >
-                    {{ editingWindow ? 'Guardar Cambios' : 'Crear' }}
+                    {{
+                        editingWindow
+                            ? 'Guardar Cambios'
+                            : selectedEvidenceCount > 1
+                              ? 'Crear ventanas'
+                              : 'Crear ventana'
+                    }}
                 </Button>
             </DialogFooter>
         </DialogContent>
