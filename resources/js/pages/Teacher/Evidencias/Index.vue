@@ -105,6 +105,7 @@ const props = defineProps<{
     teachingLoads: TeachingLoadOption[];
     selectedTeachingLoadId: number | null;
     selectedEvidenceItemId?: number | null;
+    selectedSubmissionId?: number | null;
 }>();
 
 const uploadAccept = computed(() => {
@@ -188,11 +189,25 @@ const taskKey = (task: Task) =>
     `${task.teaching_load.id}-${task.requirement.item_id}`;
 
 const selectTaskFromQuery = () => {
-    if (!props.selectedEvidenceItemId || selectedTask.value) {
+    if (
+        (!props.selectedSubmissionId && !props.selectedEvidenceItemId) ||
+        selectedTask.value
+    ) {
         return;
     }
 
     selectedTask.value =
+        props.tasks.find(
+            (task) =>
+                props.selectedSubmissionId &&
+                task.id === props.selectedSubmissionId,
+        ) ||
+        props.tasks.find(
+            (task) =>
+                props.selectedTeachingLoadId &&
+                task.teaching_load.id === props.selectedTeachingLoadId &&
+                task.requirement.item_id === props.selectedEvidenceItemId,
+        ) ||
         props.tasks.find(
             (task) =>
                 task.requirement.item_id === props.selectedEvidenceItemId,
@@ -423,7 +438,8 @@ const confirmDeleteFile = () => {
     <AppLayout
         :breadcrumbs="[{ title: 'Mi Espacio', href: '/docente/evidencias' }]"
     >
-        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div class="mx-auto max-w-7xl overflow-x-auto px-4 py-8 sm:px-6">
+            <div class="min-w-[1040px]">
             <div class="mb-6">
                 <h1 class="flex items-center text-2xl font-bold text-slate-900">
                     <FileStack class="mr-3 h-6 w-6 text-indigo-600" />
@@ -1003,6 +1019,7 @@ const confirmDeleteFile = () => {
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </AppLayout>

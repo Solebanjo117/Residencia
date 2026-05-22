@@ -55,6 +55,7 @@ class EvidenceController extends Controller
                 'teachingLoads' => [],
                 'selectedTeachingLoadId' => null,
                 'selectedEvidenceItemId' => null,
+                'selectedSubmissionId' => null,
                 'allowedExtensions' => $this->allowedUploadExtensions(),
             ]);
         }
@@ -63,6 +64,8 @@ class EvidenceController extends Controller
         $selectedLoadId = is_numeric($selectedLoadId) ? (int) $selectedLoadId : null;
         $selectedEvidenceItemId = $request->query('evidence_item_id');
         $selectedEvidenceItemId = is_numeric($selectedEvidenceItemId) ? (int) $selectedEvidenceItemId : null;
+        $selectedSubmissionId = $request->query('submission_id');
+        $selectedSubmissionId = is_numeric($selectedSubmissionId) ? (int) $selectedSubmissionId : null;
 
         $teachingLoadsCollection = TeachingLoad::with('subject')
             ->where('teacher_user_id', $user->id)
@@ -227,6 +230,7 @@ class EvidenceController extends Controller
             'teachingLoads' => $teachingLoads,
             'selectedTeachingLoadId' => $selectedTeachingLoadId,
             'selectedEvidenceItemId' => $selectedEvidenceItemId,
+            'selectedSubmissionId' => $selectedSubmissionId,
             'allowedExtensions' => $this->allowedUploadExtensions(),
         ]);
     }
@@ -434,24 +438,7 @@ class EvidenceController extends Controller
 
     private function notifyOfficeAboutSubmission(EvidenceSubmission $submission, NotificationService $notificationService): void
     {
-        $teacherDepartmentIds = $submission->teacher?->departments?->pluck('id') ?? collect();
-
-        $officeUsers = User::query()
-            ->where('is_active', true)
-            ->whereHas('role', fn ($query) => $query->whereIn('name', [
-                Role::JEFE_OFICINA,
-                Role::JEFE_DEPTO,
-            ]))
-            ->where(function ($query) use ($teacherDepartmentIds) {
-                $query->whereDoesntHave('departments');
-
-                if ($teacherDepartmentIds->isNotEmpty()) {
-                    $query->orWhereHas('departments', fn ($departmentQuery) => $departmentQuery->whereIn('departments.id', $teacherDepartmentIds));
-                }
-            })
-            ->get();
-
-        foreach ($officeUsers as $officeUser) {
+        foreach ($this->reviewerRecipients() as $officeUser) {
             $notificationService->notifyImmediate(
                 $officeUser,
                 NotificationType::GENERAL,
@@ -600,24 +587,7 @@ class EvidenceController extends Controller
         EvidenceFile $file,
         NotificationService $notificationService
     ): void {
-        $teacherDepartmentIds = $submission->teacher?->departments?->pluck('id') ?? collect();
-
-        $reviewers = User::query()
-            ->where('is_active', true)
-            ->whereHas('role', fn ($query) => $query->whereIn('name', [
-                Role::JEFE_OFICINA,
-                Role::JEFE_DEPTO,
-            ]))
-            ->where(function ($query) use ($teacherDepartmentIds) {
-                $query->whereDoesntHave('departments');
-
-                if ($teacherDepartmentIds->isNotEmpty()) {
-                    $query->orWhereHas('departments', fn ($departmentQuery) => $departmentQuery->whereIn('departments.id', $teacherDepartmentIds));
-                }
-            })
-            ->get();
-
-        foreach ($reviewers as $reviewer) {
+        foreach ($this->reviewerRecipients() as $reviewer) {
             $notificationService->notifyImmediate(
                 $reviewer,
                 NotificationType::GENERAL,
@@ -626,6 +596,17 @@ class EvidenceController extends Controller
                 $file
             );
         }
+    }
+
+    private function reviewerRecipients(): Collection
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [
+                Role::JEFE_OFICINA,
+                Role::JEFE_DEPTO,
+            ]))
+            ->get();
     }
 
     private function teacherRequirementsForLoad($user, TeachingLoad $load, EvidenceFlowService $flowService): Collection

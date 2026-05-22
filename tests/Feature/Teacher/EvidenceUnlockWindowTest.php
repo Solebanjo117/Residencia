@@ -157,9 +157,9 @@ it('allows uploading supported image evidence when unlock has no expiration date
             ->actingAs($recipient)
             ->getJson(route('notifications.unread'))
             ->assertOk()
-            ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
-                'submission' => $ctx['submission']->teacher_user_id,
-                'focus_submission_id' => $ctx['submission']->id,
+            ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+                'semester' => $ctx['submission']->semester->name,
+                'submission_id' => $ctx['submission']->id,
                 'teaching_load_id' => $ctx['submission']->teaching_load_id,
                 'evidence_item_id' => $ctx['submission']->evidence_item_id,
                 'focus_file_id' => $file->id,

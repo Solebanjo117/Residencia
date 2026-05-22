@@ -99,19 +99,7 @@ class NotificationController extends Controller
             }
 
             if ($user->isDocente()) {
-                if ($this->isRejectedSubmissionNotification($notification)) {
-                    return route('asesorias', [
-                        'semester' => $submission->semester?->name,
-                        'submission_id' => $submission->id,
-                        'teaching_load_id' => $submission->teaching_load_id,
-                        'evidence_item_id' => $submission->evidence_item_id,
-                    ], false);
-                }
-
-                return route('docente.evidencias', [
-                    'semester_id' => $submission->semester_id,
-                    'teaching_load_id' => $submission->teaching_load_id,
-                ], false);
+                return $this->teacherEvidenceUrl($submission);
             }
 
             if ($user->isJefeOficina() || $user->isJefeDepto()) {
@@ -129,6 +117,12 @@ class NotificationController extends Controller
 
             if (($user->isJefeOficina() || $user->isJefeDepto()) && $file->submission) {
                 return $this->seguimientoUrl($file->submission, [
+                    'focus_file_id' => $file->id,
+                ]);
+            }
+
+            if ($user->isDocente() && $file->submission?->teacher_user_id === $user->id) {
+                return $this->teacherEvidenceUrl($file->submission, [
                     'focus_file_id' => $file->id,
                 ]);
             }
@@ -227,6 +221,17 @@ class NotificationController extends Controller
             'submission_id' => $submission->id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
+            ...$extraQuery,
+        ], false);
+    }
+
+    private function teacherEvidenceUrl(EvidenceSubmission $submission, array $extraQuery = []): string
+    {
+        return route('docente.evidencias', [
+            'semester_id' => $submission->semester_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'submission_id' => $submission->id,
             ...$extraQuery,
         ], false);
     }

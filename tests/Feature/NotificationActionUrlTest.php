@@ -82,6 +82,8 @@ it('returns a docente action url for submission notifications', function () {
         ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
             'semester_id' => $submission->semester_id,
             'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'submission_id' => $submission->id,
         ], false))
         ->assertJsonPath('notifications.0.action_label', 'Ver evidencia');
 });
@@ -104,11 +106,11 @@ it('returns a docente correction action url for rejected submissions', function 
         ->actingAs($submission->teacher)
         ->getJson(route('notifications.unread'))
         ->assertOk()
-        ->assertJsonPath('notifications.0.action_url', route('asesorias', [
-            'semester' => $submission->semester->name,
-            'submission_id' => $submission->id,
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $submission->semester_id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
+            'submission_id' => $submission->id,
         ], false))
         ->assertJsonPath('notifications.0.action_label', 'Corregir evidencia');
 });
