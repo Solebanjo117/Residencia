@@ -7,6 +7,7 @@ use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
 use App\Models\EvidenceSubmission;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
@@ -161,6 +162,57 @@ it('marks open seguimiento cells as uploadable for their teacher', function () {
             ->where('rows.0.cells.item_'.$ctx['item']->id.'.status', 'NE')
             ->where('rows.0.cells.item_'.$ctx['item']->id.'.can_upload', true)
         );
+});
+
+it('notifies office and department heads when a teacher uploads from seguimiento', function () {
+    Storage::fake('local');
+    $ctx = createSeguimientoCellUploadContext();
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $departmentRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $officeUser = User::factory()->create(['role_id' => $officeRoleId, 'is_active' => true]);
+    $departmentUser = User::factory()->create(['role_id' => $departmentRoleId, 'is_active' => true]);
+
+    $this
+        ->from(route('asesorias', ['semester' => $ctx['semester']->name]))
+        ->actingAs($ctx['teacher'])
+        ->post(route('asesorias.cells.upload'), [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'file' => UploadedFile::fake()->create('seguimiento.pdf', 200, 'application/pdf'),
+        ])
+        ->assertRedirect(route('asesorias', ['semester' => $ctx['semester']->name]));
+
+    $submission = EvidenceSubmission::query()
+        ->where('teaching_load_id', $ctx['load']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->firstOrFail();
+    $file = EvidenceFile::where('submission_id', $submission->id)->firstOrFail();
+
+    foreach ([$officeUser, $departmentUser] as $recipient) {
+        $notification = Notification::query()
+            ->where('user_id', $recipient->id)
+            ->where('related_entity_type', EvidenceFile::class)
+            ->where('related_entity_id', $file->id)
+            ->first();
+
+        expect($notification)->not->toBeNull()
+            ->and($notification->is_read)->toBeFalse()
+            ->and($notification->title)->toBe('Archivo subido para revision');
+
+        $this
+            ->actingAs($recipient)
+            ->getJson(route('notifications.unread'))
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+                'semester' => $ctx['semester']->name,
+                'submission_id' => $submission->id,
+                'teaching_load_id' => $ctx['load']->id,
+                'evidence_item_id' => $ctx['item']->id,
+                'focus_file_id' => $file->id,
+            ], false))
+            ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
+    }
 });
 
 it('exposes correction actions for rejected seguimiento files', function () {

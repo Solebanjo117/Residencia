@@ -11,10 +11,12 @@ use App\Models\EvidenceRequirement;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Role;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\TeachingLoadReview;
+use App\Models\User;
 use App\Services\EvidenceFlowService;
 use App\Services\EvidenceService;
 use App\Services\FolderStructureService;
@@ -370,7 +372,8 @@ class AdvisoryController extends Controller
         StorageService $storageService,
         FolderStructureService $folderStructureService,
         EvidenceFlowService $flowService,
-        SeguimientoSharedFileService $seguimientoSharedFiles
+        SeguimientoSharedFileService $seguimientoSharedFiles,
+        NotificationService $notificationService
     ) {
         $validated = $request->validate([
             'teaching_load_id' => 'required|exists:teaching_loads,id',
@@ -414,11 +417,9 @@ class AdvisoryController extends Controller
         try {
             $existingSharedFile = $seguimientoSharedFiles->currentSharedFileForSubmission($submission);
 
-            if ($existingSharedFile) {
-                $storageService->overwriteEvidence($existingSharedFile, $request->file('file'), $user);
-            } else {
-                $storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
-            }
+            $file = $existingSharedFile
+                ? $storageService->overwriteEvidence($existingSharedFile, $request->file('file'), $user)
+                : $storageService->storeEvidence($request->file('file'), $folder, $user, $submission);
         } catch (\Throwable $exception) {
             return back()->withErrors(['file' => $exception->getMessage()]);
         }
@@ -434,6 +435,12 @@ class AdvisoryController extends Controller
             'final_approved_by_user_id' => null,
             'last_updated_at' => now(),
         ])->save();
+
+        $this->notifyReviewersForCellUpload(
+            $submission->fresh(['teacher', 'evidenceItem']),
+            $file,
+            $notificationService
+        );
 
         return back()->with('success', $availability['is_late']
             ? 'Archivo subido correctamente en periodo extemporaneo.'
@@ -475,6 +482,27 @@ class AdvisoryController extends Controller
             ? 'Carga aprobada por jefe de departamento.'
             : 'Carga rechazada por jefe de departamento.'
         );
+    }
+
+    private function notifyReviewersForCellUpload(
+        EvidenceSubmission $submission,
+        \App\Models\EvidenceFile $file,
+        NotificationService $notificationService
+    ): void {
+        User::query()
+            ->where('is_active', true)
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [
+                Role::JEFE_OFICINA,
+                Role::JEFE_DEPTO,
+            ]))
+            ->get()
+            ->each(fn (User $reviewer) => $notificationService->notifyImmediate(
+                $reviewer,
+                NotificationType::GENERAL,
+                'Archivo subido para revision',
+                $submission->teacher?->name.' subio '.$file->file_name.' en '.$submission->evidenceItem?->name.'.',
+                $file
+            ));
     }
 
     private function canManageLoad($user, TeachingLoad $load): bool
