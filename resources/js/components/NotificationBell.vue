@@ -136,7 +136,7 @@ function formatDate(dateStr: string) {
                         v-if="notifications.length === 0"
                         class="p-6 text-center text-sm text-gray-500"
                     >
-                        No tienes notificaciones pendientes.
+                        No tienes notificaciones recientes.
                     </div>
                     <ul v-else class="divide-y divide-gray-100">
                         <li
@@ -145,12 +145,30 @@ function formatDate(dateStr: string) {
                             class="group p-4 hover:bg-gray-50"
                             :class="
                                 notif.action_url
-                                    ? 'cursor-pointer'
-                                    : 'cursor-default'
+                                    ? [
+                                          'cursor-pointer',
+                                          notif.is_read
+                                              ? 'bg-white'
+                                              : 'bg-indigo-50/60',
+                                      ]
+                                    : [
+                                          'cursor-default',
+                                          notif.is_read
+                                              ? 'bg-white'
+                                              : 'bg-indigo-50/60',
+                                      ]
                             "
                             @click="openNotification(notif)"
                         >
                             <div class="flex gap-x-3">
+                                <span
+                                    class="mt-2 h-2 w-2 shrink-0 rounded-full"
+                                    :class="
+                                        notif.is_read
+                                            ? 'bg-gray-200'
+                                            : 'bg-indigo-600'
+                                    "
+                                />
                                 <div class="mt-1 flex-1">
                                     <p
                                         class="text-sm font-medium text-gray-900"

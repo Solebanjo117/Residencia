@@ -16,15 +16,15 @@ use Illuminate\Support\Facades\Auth;
 class NotificationController extends Controller
 {
     /**
-     * Get unread notifications for the banner/bell.
+     * Get recent notifications for the banner/bell.
      */
     public function getUnread(Request $request)
     {
         $user = Auth::user();
 
         $notifications = Notification::where('user_id', $user->id)
-            ->where('is_read', false)
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->limit(10)
             ->get()
             ->map(fn (Notification $notification) => $this->notificationPayload($notification, $user));

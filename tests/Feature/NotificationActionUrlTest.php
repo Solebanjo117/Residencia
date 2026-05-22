@@ -258,3 +258,33 @@ it('returns a focused teacher evidence action url for due soon window notificati
         ], false))
         ->assertJsonPath('notifications.0.action_label', 'Ver mis evidencias');
 });
+
+it('returns recent read notifications while keeping unread count separate', function () {
+    $submission = createNotificationActionSubmission();
+
+    Notification::create([
+        'user_id' => $submission->teacher_user_id,
+        'type' => NotificationType::SUBMISSION_APPROVED,
+        'title' => 'Evidencia aprobada leida',
+        'message' => 'Esta notificacion ya fue leida.',
+        'related_entity_type' => EvidenceSubmission::class,
+        'related_entity_id' => $submission->id,
+        'is_read' => true,
+        'read_at' => now(),
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('count', 0)
+        ->assertJsonPath('notifications.0.title', 'Evidencia aprobada leida')
+        ->assertJsonPath('notifications.0.is_read', true)
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $submission->semester_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'submission_id' => $submission->id,
+        ], false));
+});

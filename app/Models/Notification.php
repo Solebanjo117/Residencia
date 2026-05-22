@@ -26,6 +26,7 @@ class Notification extends Model
         'type' => NotificationType::class,
         'is_read' => 'boolean',
         'read_at' => 'datetime',
+        'created_at' => 'datetime',
     ];
 
     public $timestamps = false; // Using custom created_at

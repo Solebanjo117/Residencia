@@ -22,6 +22,8 @@ class NotificationService
             'message' => $message,
             'related_entity_type' => $relatedEntity ? get_class($relatedEntity) : null,
             'related_entity_id' => $relatedEntity ? $relatedEntity->id : null,
+            'is_read' => false,
+            'read_at' => null,
             'created_at' => now(),
         ]);
 
