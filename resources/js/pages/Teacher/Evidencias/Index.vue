@@ -438,8 +438,7 @@ const confirmDeleteFile = () => {
     <AppLayout
         :breadcrumbs="[{ title: 'Mi Espacio', href: '/docente/evidencias' }]"
     >
-        <div class="mx-auto max-w-7xl overflow-x-auto px-4 py-8 sm:px-6">
-            <div class="min-w-[1040px]">
+        <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
             <div class="mb-6">
                 <h1 class="flex items-center text-2xl font-bold text-slate-900">
                     <FileStack class="mr-3 h-6 w-6 text-indigo-600" />
@@ -607,7 +606,7 @@ const confirmDeleteFile = () => {
                     </div>
 
                     <div
-                        class="relative flex w-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-12rem)] lg:w-2/3 lg:overflow-hidden"
+                        class="relative flex w-full flex-col overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-12rem)] lg:w-2/3 lg:overflow-y-hidden"
                     >
                         <div
                             v-if="!selectedTask"
@@ -623,7 +622,10 @@ const confirmDeleteFile = () => {
                             </p>
                         </div>
 
-                        <div v-else class="flex flex-col lg:h-full">
+                        <div
+                            v-else
+                            class="flex min-w-[760px] flex-col lg:h-full"
+                        >
                             <div class="border-b border-slate-200 bg-white p-6">
                                 <div
                                     class="mb-4 flex items-start justify-between"
@@ -1019,7 +1021,6 @@ const confirmDeleteFile = () => {
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
         </div>
     </AppLayout>
