@@ -115,7 +115,7 @@ class NotificationController extends Controller
             }
 
             if ($user->isJefeOficina() || $user->isJefeDepto()) {
-                return $this->reviewDetailUrl($submission);
+                return $this->seguimientoUrl($submission);
             }
         }
 
@@ -128,7 +128,7 @@ class NotificationController extends Controller
             }
 
             if (($user->isJefeOficina() || $user->isJefeDepto()) && $file->submission) {
-                return $this->reviewDetailUrl($file->submission, [
+                return $this->seguimientoUrl($file->submission, [
                     'focus_file_id' => $file->id,
                 ]);
             }
@@ -220,11 +220,11 @@ class NotificationController extends Controller
         return $type === NotificationType::SUBMISSION_REJECTED->value;
     }
 
-    private function reviewDetailUrl(EvidenceSubmission $submission, array $extraQuery = []): string
+    private function seguimientoUrl(EvidenceSubmission $submission, array $extraQuery = []): string
     {
-        return route('oficina.revisiones.show', [
-            'submission' => $submission->teacher_user_id,
-            'focus_submission_id' => $submission->id,
+        return route('asesorias', [
+            'semester' => $submission->semester?->name,
+            'submission_id' => $submission->id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
             ...$extraQuery,

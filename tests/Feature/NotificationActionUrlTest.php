@@ -113,7 +113,7 @@ it('returns a docente correction action url for rejected submissions', function 
         ->assertJsonPath('notifications.0.action_label', 'Corregir evidencia');
 });
 
-it('returns a focused office review action url for office submission notifications', function () {
+it('returns a focused seguimiento action url for office submission notifications', function () {
     $submission = createNotificationActionSubmission();
     $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
     $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
@@ -132,16 +132,16 @@ it('returns a focused office review action url for office submission notificatio
         ->actingAs($officeUser)
         ->getJson(route('notifications.unread'))
         ->assertOk()
-        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
-            'submission' => $submission->teacher_user_id,
-            'focus_submission_id' => $submission->id,
+        ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+            'semester' => $submission->semester->name,
+            'submission_id' => $submission->id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
         ], false))
         ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
 });
 
-it('returns the same focused review action url for department head submission notifications', function () {
+it('returns the same focused seguimiento action url for department head submission notifications', function () {
     $submission = createNotificationActionSubmission();
     $departmentRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $departmentUser = User::factory()->create(['role_id' => $departmentRoleId]);
@@ -160,9 +160,9 @@ it('returns the same focused review action url for department head submission no
         ->actingAs($departmentUser)
         ->getJson(route('notifications.unread'))
         ->assertOk()
-        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
-            'submission' => $submission->teacher_user_id,
-            'focus_submission_id' => $submission->id,
+        ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+            'semester' => $submission->semester->name,
+            'submission_id' => $submission->id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
         ], false))
@@ -215,9 +215,9 @@ it('returns a focused review action url for uploaded file notifications', functi
         ->actingAs($officeUser)
         ->getJson(route('notifications.unread'))
         ->assertOk()
-        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
-            'submission' => $submission->teacher_user_id,
-            'focus_submission_id' => $submission->id,
+        ->assertJsonPath('notifications.0.action_url', route('asesorias', [
+            'semester' => $submission->semester->name,
+            'submission_id' => $submission->id,
             'teaching_load_id' => $submission->teaching_load_id,
             'evidence_item_id' => $submission->evidence_item_id,
             'focus_file_id' => $file->id,
