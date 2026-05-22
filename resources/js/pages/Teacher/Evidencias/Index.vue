@@ -606,7 +606,7 @@ const confirmDeleteFile = () => {
                     </div>
 
                     <div
-                        class="relative flex w-full flex-col overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-12rem)] lg:w-2/3 lg:overflow-y-hidden"
+                        class="relative flex w-full min-w-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm lg:max-h-[calc(100vh-12rem)] lg:w-2/3 lg:overflow-hidden"
                     >
                         <div
                             v-if="!selectedTask"
@@ -622,15 +622,12 @@ const confirmDeleteFile = () => {
                             </p>
                         </div>
 
-                        <div
-                            v-else
-                            class="flex min-w-[760px] flex-col lg:h-full"
-                        >
+                        <div v-else class="flex min-w-0 flex-col lg:h-full">
                             <div class="border-b border-slate-200 bg-white p-6">
                                 <div
-                                    class="mb-4 flex items-start justify-between"
+                                    class="mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between"
                                 >
-                                    <div>
+                                    <div class="min-w-0">
                                         <div
                                             class="mb-2 flex flex-wrap items-center gap-2"
                                         >
@@ -694,7 +691,7 @@ const confirmDeleteFile = () => {
                                         </p>
                                     </div>
                                     <span
-                                        class="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase"
+                                        class="inline-flex max-w-full shrink-0 items-center self-start rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase"
                                         :class="
                                             getStatusConfig(selectedTask).class
                                         "
@@ -799,9 +796,11 @@ const confirmDeleteFile = () => {
                                 </div>
                             </div>
 
-                            <div class="flex-1 overflow-y-auto bg-slate-50 p-6">
+                            <div
+                                class="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6"
+                            >
                                 <div
-                                    class="mb-4 flex items-center justify-between"
+                                    class="mb-4 flex flex-wrap items-center justify-between gap-3"
                                 >
                                     <h3
                                         class="text-sm font-semibold tracking-wider text-slate-500 uppercase"
@@ -832,13 +831,13 @@ const confirmDeleteFile = () => {
                                     v-if="
                                         selectedTask.submission.files.length > 0
                                     "
-                                    class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+                                    class="divide-y divide-slate-100 overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm"
                                 >
                                     <li
                                         v-for="file in selectedTask.submission
                                             .files"
                                         :key="file.id"
-                                        class="flex items-center justify-between p-4 transition hover:bg-slate-50"
+                                        class="flex min-w-[680px] items-center justify-between gap-4 p-4 transition hover:bg-slate-50"
                                     >
                                         <div class="flex min-w-0 items-center">
                                             <div
@@ -865,7 +864,9 @@ const confirmDeleteFile = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div class="flex items-center gap-2">
+                                        <div
+                                            class="flex shrink-0 items-center gap-2"
+                                        >
                                             <a
                                                 v-if="
                                                     file.is_docx &&
@@ -982,7 +983,7 @@ const confirmDeleteFile = () => {
                             </div>
 
                             <div
-                                class="flex justify-end border-t border-slate-200 bg-white p-4"
+                                class="flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white p-4"
                             >
                                 <button
                                     v-if="
