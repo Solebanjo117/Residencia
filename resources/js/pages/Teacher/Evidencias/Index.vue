@@ -13,7 +13,7 @@ import {
     Trash2,
     UploadCloud,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -104,6 +104,7 @@ const props = defineProps<{
     selectedSemesterId: number | null;
     teachingLoads: TeachingLoadOption[];
     selectedTeachingLoadId: number | null;
+    selectedEvidenceItemId?: number | null;
 }>();
 
 const uploadAccept = computed(() => {
@@ -160,6 +161,8 @@ watch(
             if (!updatedTask) {
                 selectedTask.value = null;
             }
+        } else {
+            selectTaskFromQuery();
         }
     },
 );
@@ -183,6 +186,20 @@ const initForm = useForm({
 
 const taskKey = (task: Task) =>
     `${task.teaching_load.id}-${task.requirement.item_id}`;
+
+const selectTaskFromQuery = () => {
+    if (!props.selectedEvidenceItemId || selectedTask.value) {
+        return;
+    }
+
+    selectedTask.value =
+        props.tasks.find(
+            (task) =>
+                task.requirement.item_id === props.selectedEvidenceItemId,
+        ) || null;
+};
+
+onMounted(selectTaskFromQuery);
 
 const groupedTasks = computed(() => {
     const groups: Record<string, Task[]> = {};

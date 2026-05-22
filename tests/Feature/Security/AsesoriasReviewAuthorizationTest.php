@@ -6,10 +6,12 @@ use App\Models\Department;
 use App\Models\EvidenceCategory;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\Subject;
 use App\Models\TeachingLoad;
+use App\Models\TeachingLoadReview;
 use App\Models\User;
 use App\Services\EvidenceService;
 
@@ -272,4 +274,63 @@ it('allows only jefe depto to approve or reject the teaching load department rev
         'decision' => 'REJECT',
         'comments' => 'Faltan correcciones generales',
     ]);
+
+    $review = TeachingLoadReview::where('teaching_load_id', $load->id)->firstOrFail();
+    $notification = Notification::query()
+        ->where('user_id', $submission->teacher_user_id)
+        ->where('related_entity_type', TeachingLoadReview::class)
+        ->where('related_entity_id', $review->id)
+        ->first();
+
+    expect($notification)->not->toBeNull();
+    expect($notification->type->value)->toBe('SUBMISSION_REJECTED');
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $load->semester_id,
+            'teaching_load_id' => $load->id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Ver asignatura');
+});
+
+it('notifies the teacher when jefe depto approves a teaching load review', function () {
+    $submission = createReviewableSubmission();
+    $load = $submission->teachingLoad;
+
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+    $jefeDepto->departments()->attach($submission->teacher->departments->pluck('id'));
+
+    $this
+        ->from('/asesorias')
+        ->actingAs($jefeDepto)
+        ->post(route('asesorias.loads.department-review', $load->id), [
+            'decision' => 'APPROVE',
+            'comments' => 'Asignatura completa',
+        ])
+        ->assertRedirect('/asesorias');
+
+    $review = TeachingLoadReview::where('teaching_load_id', $load->id)->firstOrFail();
+
+    $notification = Notification::query()
+        ->where('user_id', $submission->teacher_user_id)
+        ->where('related_entity_type', TeachingLoadReview::class)
+        ->where('related_entity_id', $review->id)
+        ->first();
+
+    expect($notification)->not->toBeNull();
+    expect($notification->type->value)->toBe('SUBMISSION_APPROVED');
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $load->semester_id,
+            'teaching_load_id' => $load->id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Ver asignatura');
 });

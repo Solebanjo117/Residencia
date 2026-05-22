@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\NotificationType;
 use App\Enums\SubmissionStatus;
+use App\Models\AuditLog;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
@@ -26,6 +27,13 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class FileController extends Controller
 {
+    private const HISTORY_ACTIONS = [
+        'UPLOAD_FILE',
+        'REPLACE_FILE',
+        'SAVE_DOCX_VERSION',
+        'DELETE_FILE',
+    ];
+
     protected $storageService;
 
     protected $auditService;
@@ -84,6 +92,40 @@ class FileController extends Controller
                 'Content-Disposition' => ResponseHeaderBag::DISPOSITION_INLINE.'; filename="'.addslashes($file->file_name).'"',
             ]
         );
+    }
+
+    public function history(EvidenceFile $file)
+    {
+        $this->authorize('view', $file);
+
+        $logs = AuditLog::query()
+            ->with('user:id,name,email')
+            ->where('entity_type', 'EvidenceFile')
+            ->where('entity_id', $file->id)
+            ->whereIn('action', self::HISTORY_ACTIONS)
+            ->orderByDesc('at')
+            ->limit(100)
+            ->get()
+            ->map(fn (AuditLog $log) => [
+                'id' => $log->id,
+                'action' => $log->action,
+                'label' => $this->historyActionLabel($log),
+                'at' => $log->at?->timezone(config('app.timezone'))->toDateTimeString(),
+                'actor_name' => $log->user?->name ?? 'Usuario no disponible',
+                'actor_email' => $log->user?->email,
+                'metadata' => $this->historyMetadata($log),
+            ]);
+
+        return response()->json([
+            'file' => [
+                'id' => $file->id,
+                'name' => $file->file_name,
+                'last_edited_at' => $file->last_edited_at?->timezone(config('app.timezone'))->toDateTimeString(),
+                'last_edited_by' => $file->editedBy?->name,
+                'editor_source' => $file->editor_source,
+            ],
+            'history' => $logs,
+        ]);
     }
 
     public function store(Request $request, FolderNode $folder, EvidenceFlowService $flowService)
@@ -265,6 +307,35 @@ class FileController extends Controller
         }
 
         return true;
+    }
+
+    private function historyActionLabel(AuditLog $log): string
+    {
+        $editorSource = strtoupper((string) data_get($log->metadata, 'editor_source'));
+
+        return match ($log->action) {
+            'UPLOAD_FILE' => 'Archivo subido',
+            'REPLACE_FILE' => $editorSource === 'ONLYOFFICE' ? 'Documento editado en OnlyOffice' : 'Archivo reemplazado',
+            'SAVE_DOCX_VERSION' => 'Version DOCX guardada',
+            'DELETE_FILE' => 'Archivo eliminado',
+            default => $log->action,
+        };
+    }
+
+    private function historyMetadata(AuditLog $log): array
+    {
+        $metadata = $log->metadata ?? [];
+
+        return [
+            'old_file_name' => data_get($metadata, 'old_file_name'),
+            'new_file_name' => data_get($metadata, 'new_file_name') ?? data_get($metadata, 'stored_filename') ?? data_get($metadata, 'file_name'),
+            'old_size_bytes' => data_get($metadata, 'old_size_bytes'),
+            'new_size_bytes' => data_get($metadata, 'new_size_bytes') ?? data_get($metadata, 'size_bytes'),
+            'old_file_hash' => data_get($metadata, 'old_file_hash'),
+            'new_file_hash' => data_get($metadata, 'new_file_hash'),
+            'editor_source' => data_get($metadata, 'editor_source'),
+            'mime_type' => data_get($metadata, 'mime_type'),
+        ];
     }
 
     private function canBypassAvailability($user): bool

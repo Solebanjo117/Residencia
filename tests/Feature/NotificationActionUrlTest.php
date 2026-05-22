@@ -3,12 +3,16 @@
 use App\Enums\NotificationType;
 use App\Enums\SubmissionStatus;
 use App\Models\EvidenceCategory;
+use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
+use App\Models\FolderNode;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\Semester;
+use App\Models\StorageRoot;
 use App\Models\Subject;
+use App\Models\SubmissionWindow;
 use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -163,4 +167,92 @@ it('returns the same focused review action url for department head submission no
             'evidence_item_id' => $submission->evidence_item_id,
         ], false))
         ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
+});
+
+it('returns a focused review action url for uploaded file notifications', function () {
+    $submission = createNotificationActionSubmission();
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
+
+    $root = StorageRoot::create([
+        'name' => 'root-notif-file-'.Str::lower(Str::random(8)),
+        'base_path' => 'storage_root',
+        'is_active' => true,
+    ]);
+
+    $folder = FolderNode::create([
+        'storage_root_id' => $root->id,
+        'name' => 'Folder notif file',
+        'relative_path' => 'sem_'.$submission->semester_id.'/docente_'.$submission->teacher_user_id.'/item_'.$submission->evidence_item_id,
+        'owner_user_id' => $submission->teacher_user_id,
+        'semester_id' => $submission->semester_id,
+        'parent_id' => null,
+    ]);
+
+    $file = EvidenceFile::create([
+        'submission_id' => $submission->id,
+        'folder_node_id' => $folder->id,
+        'file_name' => 'evidencia.pdf',
+        'stored_relative_path' => $folder->relative_path.'/evidencia.pdf',
+        'mime_type' => 'application/pdf',
+        'size_bytes' => 1234,
+        'file_hash' => str_repeat('c', 64),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $submission->teacher_user_id,
+    ]);
+
+    Notification::create([
+        'user_id' => $officeUser->id,
+        'type' => NotificationType::GENERAL,
+        'title' => 'Archivo subido para revision',
+        'message' => 'Hay un archivo para revisar.',
+        'related_entity_type' => EvidenceFile::class,
+        'related_entity_id' => $file->id,
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($officeUser)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
+            'submission' => $submission->teacher_user_id,
+            'focus_submission_id' => $submission->id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'focus_file_id' => $file->id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
+});
+
+it('returns a focused teacher evidence action url for due soon window notifications', function () {
+    $submission = createNotificationActionSubmission();
+    $window = SubmissionWindow::create([
+        'semester_id' => $submission->semester_id,
+        'evidence_item_id' => $submission->evidence_item_id,
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addDays(4),
+        'created_by_user_id' => $submission->teacher_user_id,
+        'status' => 'ACTIVE',
+    ]);
+
+    Notification::create([
+        'user_id' => $submission->teacher_user_id,
+        'type' => NotificationType::TASK_DUE_SOON,
+        'title' => 'Tarea por vencer',
+        'message' => 'Tu tarea esta por vencer.',
+        'related_entity_type' => SubmissionWindow::class,
+        'related_entity_id' => $window->id,
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $submission->semester_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Ver mis evidencias');
 });

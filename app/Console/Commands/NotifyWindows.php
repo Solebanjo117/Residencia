@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\NotificationType;
 use App\Models\SubmissionWindow;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -90,11 +91,14 @@ class NotifyWindows extends Command
 
             $title = '';
             $message = '';
-            $type = $schedule->notification_type; // 'WINDOW_OPEN' or 'WINDOW_CLOSING'
+            $type = $schedule->notification_type;
 
-            if ($type === 'WINDOW_OPEN') {
+            if ($type === NotificationType::WINDOW_OPEN->value) {
                 $title = 'Ventana de Recepción Abierta';
                 $message = "El periodo para subir '{$window->evidenceItem->name}' ha comenzado y finalizará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'.';
+            } elseif ($type === NotificationType::TASK_DUE_SOON->value) {
+                $title = 'Tarea por vencer';
+                $message = "Recordatorio: '{$window->evidenceItem->name}' vence el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Faltan 4 dias para entregar esta evidencia.';
             } else {
                 $title = 'Cierre de Ventana Próximo';
                 $message = "Urgente: La recepción para '{$window->evidenceItem->name}' terminará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Por favor, asegúrate de enviar tu evidencia.';
@@ -110,7 +114,7 @@ class NotifyWindows extends Command
             $insertData = [];
             foreach ($teacherIds as $tId) {
                 // To avoid spamming closing notifications if they already submitted, we could check submissions here:
-                if ($type === 'WINDOW_CLOSING') {
+                if (in_array($type, [NotificationType::TASK_DUE_SOON->value, NotificationType::WINDOW_CLOSING->value], true)) {
                     $hasSubmitted = DB::table('evidence_submissions')
                         ->where('semester_id', $schedule->semester_id)
                         ->where('evidence_item_id', $schedule->evidence_item_id)

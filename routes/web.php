@@ -119,6 +119,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/files/{file}/docx', [DocxEditorController::class, 'show'])->name('files.docx.show');
     Route::post('/files/{file}/docx', [DocxEditorController::class, 'store'])->name('files.docx.store');
     Route::get('/files/{file}/onlyoffice', [OnlyOfficeController::class, 'show'])->name('files.onlyoffice.show');
+    Route::get('/files/{file}/history', [FileController::class, 'history'])->name('files.history');
     Route::get('/files/{file}/preview', [FileController::class, 'preview'])->name('files.preview');
     Route::get('/files/{file}/download', [FileController::class, 'download'])->name('files.download');
     Route::post('/files/{file}/replace', [FileController::class, 'replace'])->name('files.replace');

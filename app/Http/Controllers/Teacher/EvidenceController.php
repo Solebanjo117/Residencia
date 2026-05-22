@@ -6,6 +6,7 @@ use App\Enums\NotificationType;
 use App\Enums\SemesterStatus;
 use App\Enums\SubmissionStatus;
 use App\Http\Controllers\Controller;
+use App\Models\EvidenceFile;
 use App\Models\EvidenceReview;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
@@ -53,12 +54,15 @@ class EvidenceController extends Controller
                 'selectedSemesterId' => $selectedSemester?->id,
                 'teachingLoads' => [],
                 'selectedTeachingLoadId' => null,
+                'selectedEvidenceItemId' => null,
                 'allowedExtensions' => $this->allowedUploadExtensions(),
             ]);
         }
 
         $selectedLoadId = $request->query('teaching_load_id');
         $selectedLoadId = is_numeric($selectedLoadId) ? (int) $selectedLoadId : null;
+        $selectedEvidenceItemId = $request->query('evidence_item_id');
+        $selectedEvidenceItemId = is_numeric($selectedEvidenceItemId) ? (int) $selectedEvidenceItemId : null;
 
         $teachingLoadsCollection = TeachingLoad::with('subject')
             ->where('teacher_user_id', $user->id)
@@ -222,6 +226,7 @@ class EvidenceController extends Controller
             'selectedSemesterId' => $selectedSemester->id,
             'teachingLoads' => $teachingLoads,
             'selectedTeachingLoadId' => $selectedTeachingLoadId,
+            'selectedEvidenceItemId' => $selectedEvidenceItemId,
             'allowedExtensions' => $this->allowedUploadExtensions(),
         ]);
     }
@@ -462,7 +467,8 @@ class EvidenceController extends Controller
         EvidenceSubmission $submission,
         StorageService $storageService,
         EvidenceFlowService $flowService,
-        SeguimientoSharedFileService $seguimientoSharedFiles
+        SeguimientoSharedFileService $seguimientoSharedFiles,
+        NotificationService $notificationService
     ) {
         $startedAt = microtime(true);
         /** @var \App\Models\User|null $actor */
@@ -541,13 +547,16 @@ class EvidenceController extends Controller
             $uploadedFile = $request->file('file');
             $existingSharedFile = $seguimientoSharedFiles->currentSharedFileForSubmission($submission);
 
-            if ($existingSharedFile) {
-                $storageService->overwriteEvidence($existingSharedFile, $uploadedFile, $request->user());
-            } else {
-                $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
-            }
+            $file = $existingSharedFile
+                ? $storageService->overwriteEvidence($existingSharedFile, $uploadedFile, $request->user())
+                : $storageService->storeEvidence($uploadedFile, $folderNode, $request->user(), $submission);
 
             $submission->update(['last_updated_at' => now()]);
+            $this->notifyReviewersAboutFileUpload(
+                $submission->fresh(['teacher.departments', 'evidenceItem', 'teachingLoad.subject']),
+                $file,
+                $notificationService
+            );
 
             Log::channel('operations')->info('evidence.file_uploaded', [
                 'actor_user_id' => $actor?->id,
@@ -583,6 +592,39 @@ class EvidenceController extends Controller
             ]);
 
             return back()->with('error', 'Error al guardar el archivo: '.$e->getMessage());
+        }
+    }
+
+    private function notifyReviewersAboutFileUpload(
+        EvidenceSubmission $submission,
+        EvidenceFile $file,
+        NotificationService $notificationService
+    ): void {
+        $teacherDepartmentIds = $submission->teacher?->departments?->pluck('id') ?? collect();
+
+        $reviewers = User::query()
+            ->where('is_active', true)
+            ->whereHas('role', fn ($query) => $query->whereIn('name', [
+                Role::JEFE_OFICINA,
+                Role::JEFE_DEPTO,
+            ]))
+            ->where(function ($query) use ($teacherDepartmentIds) {
+                $query->whereDoesntHave('departments');
+
+                if ($teacherDepartmentIds->isNotEmpty()) {
+                    $query->orWhereHas('departments', fn ($departmentQuery) => $departmentQuery->whereIn('departments.id', $teacherDepartmentIds));
+                }
+            })
+            ->get();
+
+        foreach ($reviewers as $reviewer) {
+            $notificationService->notifyImmediate(
+                $reviewer,
+                NotificationType::GENERAL,
+                'Archivo subido para revision',
+                $submission->teacher?->name.' subio '.$file->file_name.' en '.$submission->evidenceItem?->name.'.',
+                $file
+            );
         }
     }
 

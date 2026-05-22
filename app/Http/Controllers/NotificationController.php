@@ -8,6 +8,7 @@ use App\Models\EvidenceSubmission;
 use App\Models\Notification;
 use App\Models\NotificationSchedule;
 use App\Models\SubmissionWindow;
+use App\Models\TeachingLoadReview;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -143,8 +144,29 @@ class NotificationController extends Controller
             }
 
             return $user->isDocente()
-                ? route('docente.evidencias', ['semester_id' => $window->semester_id], false)
+                ? route('docente.evidencias', [
+                    'semester_id' => $window->semester_id,
+                    'evidence_item_id' => $window->evidence_item_id,
+                ], false)
                 : route('admin.windows.index', ['semester_id' => $window->semester_id], false);
+        }
+
+        if ($notification->related_entity_type === TeachingLoadReview::class) {
+            $review = TeachingLoadReview::with('teachingLoad')
+                ->find($notification->related_entity_id);
+
+            if (! $review || ! $review->teachingLoad) {
+                return null;
+            }
+
+            return $user->isDocente()
+                ? route('docente.evidencias', [
+                    'semester_id' => $review->teachingLoad->semester_id,
+                    'teaching_load_id' => $review->teachingLoad->id,
+                ], false)
+                : route('asesorias', [
+                    'teaching_load_id' => $review->teachingLoad->id,
+                ], false);
         }
 
         if ($notification->related_entity_type === NotificationSchedule::class) {
@@ -180,6 +202,10 @@ class NotificationController extends Controller
             return $user->isJefeOficina() || $user->isJefeDepto()
                 ? 'Revisar entrega'
                 : 'Abrir archivo';
+        }
+
+        if ($notification->related_entity_type === TeachingLoadReview::class) {
+            return $user->isDocente() ? 'Ver asignatura' : 'Ver seguimiento';
         }
 
         return $user->isDocente() ? 'Ver mis evidencias' : 'Abrir ventana';

@@ -187,6 +187,7 @@ class SubmissionWindowController extends Controller
             ->where('is_sent', false)
             ->whereIn('notification_type', [
                 NotificationType::WINDOW_OPEN->value,
+                NotificationType::TASK_DUE_SOON->value,
                 NotificationType::WINDOW_CLOSING->value,
             ])
             ->delete();
@@ -204,6 +205,14 @@ class SubmissionWindowController extends Controller
             'evidence_item_id' => $window->evidence_item_id,
             'notify_at' => $window->opens_at,
             'notification_type' => NotificationType::WINDOW_OPEN,
+            'is_sent' => false,
+        ]);
+
+        NotificationSchedule::create([
+            'semester_id' => $window->semester_id,
+            'evidence_item_id' => $window->evidence_item_id,
+            'notify_at' => CarbonImmutable::parse($window->closes_at)->subDays(4),
+            'notification_type' => NotificationType::TASK_DUE_SOON,
             'is_sent' => false,
         ]);
 

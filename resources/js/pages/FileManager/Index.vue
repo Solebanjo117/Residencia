@@ -9,6 +9,7 @@ import {
     Eye,
     Download,
     Trash2,
+    History,
     Upload,
     RefreshCw,
     X,
@@ -55,6 +56,25 @@ const props = defineProps<{
         files: any[];
     };
 }>();
+
+type FileHistoryEntry = {
+    id: number;
+    action: string;
+    label: string;
+    at: string | null;
+    actor_name: string;
+    actor_email: string | null;
+    metadata: {
+        old_file_name?: string | null;
+        new_file_name?: string | null;
+        old_size_bytes?: number | null;
+        new_size_bytes?: number | null;
+        old_file_hash?: string | null;
+        new_file_hash?: string | null;
+        editor_source?: string | null;
+        mime_type?: string | null;
+    };
+};
 
 const expandedFoldersStorageKey = 'fileManager.expandedFolders';
 const leftPanelWidthStorageKey = 'fileManager.leftPanelWidth';
@@ -376,11 +396,19 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const formatSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+    if (!bytes) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const formatOptionalSize = (bytes?: number | null) => formatSize(bytes || 0);
+
+const shortHash = (value?: string | null) => {
+    if (!value) return '';
+
+    return value.slice(0, 12);
 };
 
 const getStatusColor = (status: string | null) => {
@@ -417,6 +445,10 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const replaceFileInput = ref<HTMLInputElement | null>(null);
 const fileToReplace = ref<number | null>(null);
 const previewFile = ref<any | null>(null);
+const historyFile = ref<any | null>(null);
+const historyEntries = ref<FileHistoryEntry[]>([]);
+const historyLoading = ref(false);
+const historyError = ref('');
 
 const uploadForm = useForm({
     file: null as File | null,
@@ -545,6 +577,35 @@ const openPreview = (file: any) => {
 
 const closePreview = () => {
     previewFile.value = null;
+};
+
+const openChangeHistoryModal = async (file: any) => {
+    historyFile.value = file;
+    historyEntries.value = [];
+    historyError.value = '';
+    historyLoading.value = true;
+    activeModal.value = 'changeHistory';
+
+    try {
+        const response = await fetch(`/files/${file.id}/history`, {
+            headers: {
+                Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            throw new Error('No se pudo cargar el registro de cambios.');
+        }
+
+        const payload = await response.json();
+        historyEntries.value = payload.history || [];
+    } catch (error: any) {
+        historyError.value =
+            error?.message || 'No se pudo cargar el registro de cambios.';
+    } finally {
+        historyLoading.value = false;
+    }
 };
 
 // ---- External Drag-and-Drop Upload ----
@@ -681,6 +742,7 @@ type ModalType =
     | 'moveFolder'
     | 'deleteFolder'
     | 'moveFile'
+    | 'changeHistory'
     | null;
 
 const activeModal = ref<ModalType>(null);
@@ -748,6 +810,10 @@ const closeModal = () => {
     activeModal.value = null;
     selectedFolder.value = null;
     selectedFile.value = null;
+    historyFile.value = null;
+    historyEntries.value = [];
+    historyError.value = '';
+    historyLoading.value = false;
     modalError.value = '';
     processingAction.value = false;
 };
@@ -1584,6 +1650,20 @@ const onFolderAction = (action: string, folder: any) => {
                                                         <Eye class="h-4 w-4" />
                                                     </button>
                                                     <button
+                                                        type="button"
+                                                        class="p-1 text-slate-600 hover:text-slate-900"
+                                                        title="Registro de cambios"
+                                                        @click="
+                                                            openChangeHistoryModal(
+                                                                file,
+                                                            )
+                                                        "
+                                                    >
+                                                        <History
+                                                            class="h-4 w-4"
+                                                        />
+                                                    </button>
+                                                    <button
                                                         v-if="file.can_replace"
                                                         type="button"
                                                         class="p-1 text-amber-600 hover:text-amber-900"
@@ -1920,6 +2000,175 @@ const onFolderAction = (action: string, folder: any) => {
                     >
                         Eliminar
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change History Modal -->
+        <div
+            v-if="activeModal === 'changeHistory'"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"
+            @click.self="closeModal"
+        >
+            <div
+                class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+                <div
+                    class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4"
+                >
+                    <div class="min-w-0">
+                        <h3 class="text-base font-semibold text-slate-900">
+                            Registro de cambios
+                        </h3>
+                        <p class="truncate text-sm text-slate-500">
+                            {{ historyFile?.name || 'Archivo' }}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        @click="closeModal"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto px-5 py-4">
+                    <div
+                        v-if="historyLoading"
+                        class="py-8 text-center text-sm text-slate-500"
+                    >
+                        Cargando registro...
+                    </div>
+
+                    <div
+                        v-else-if="historyError"
+                        class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                    >
+                        {{ historyError }}
+                    </div>
+
+                    <div
+                        v-else-if="historyEntries.length === 0"
+                        class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500"
+                    >
+                        Todavia no hay cambios registrados para este archivo.
+                    </div>
+
+                    <div v-else class="space-y-3">
+                        <div
+                            v-for="entry in historyEntries"
+                            :key="entry.id"
+                            class="rounded-lg border border-slate-200 bg-white px-4 py-3"
+                        >
+                            <div
+                                class="flex flex-wrap items-start justify-between gap-3"
+                            >
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-sm font-semibold text-slate-900"
+                                    >
+                                        {{ entry.label }}
+                                    </p>
+                                    <p class="text-xs text-slate-500">
+                                        {{ entry.actor_name }}
+                                        <span v-if="entry.actor_email">
+                                            - {{ entry.actor_email }}
+                                        </span>
+                                    </p>
+                                </div>
+                                <span
+                                    class="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                                >
+                                    {{ entry.at || 'Sin fecha' }}
+                                </span>
+                            </div>
+
+                            <dl
+                                class="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-2"
+                            >
+                                <div v-if="entry.metadata.old_file_name">
+                                    <dt class="font-medium text-slate-500">
+                                        Archivo anterior
+                                    </dt>
+                                    <dd class="truncate text-slate-800">
+                                        {{ entry.metadata.old_file_name }}
+                                    </dd>
+                                </div>
+                                <div v-if="entry.metadata.new_file_name">
+                                    <dt class="font-medium text-slate-500">
+                                        Archivo nuevo
+                                    </dt>
+                                    <dd class="truncate text-slate-800">
+                                        {{ entry.metadata.new_file_name }}
+                                    </dd>
+                                </div>
+                                <div
+                                    v-if="
+                                        entry.metadata.old_size_bytes ||
+                                        entry.metadata.new_size_bytes
+                                    "
+                                >
+                                    <dt class="font-medium text-slate-500">
+                                        Tamano
+                                    </dt>
+                                    <dd class="text-slate-800">
+                                        <span
+                                            v-if="
+                                                entry.metadata.old_size_bytes
+                                            "
+                                        >
+                                            {{
+                                                formatOptionalSize(
+                                                    entry.metadata
+                                                        .old_size_bytes,
+                                                )
+                                            }}
+                                            a
+                                        </span>
+                                        {{
+                                            formatOptionalSize(
+                                                entry.metadata.new_size_bytes ||
+                                                    0,
+                                            )
+                                        }}
+                                    </dd>
+                                </div>
+                                <div v-if="entry.metadata.editor_source">
+                                    <dt class="font-medium text-slate-500">
+                                        Origen
+                                    </dt>
+                                    <dd class="text-slate-800">
+                                        {{ entry.metadata.editor_source }}
+                                    </dd>
+                                </div>
+                                <div v-if="entry.metadata.old_file_hash">
+                                    <dt class="font-medium text-slate-500">
+                                        Hash anterior
+                                    </dt>
+                                    <dd class="font-mono text-slate-800">
+                                        {{
+                                            shortHash(
+                                                entry.metadata.old_file_hash,
+                                            )
+                                        }}
+                                    </dd>
+                                </div>
+                                <div v-if="entry.metadata.new_file_hash">
+                                    <dt class="font-medium text-slate-500">
+                                        Hash nuevo
+                                    </dt>
+                                    <dd class="font-mono text-slate-800">
+                                        {{
+                                            shortHash(
+                                                entry.metadata.new_file_hash,
+                                            )
+                                        }}
+                                    </dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

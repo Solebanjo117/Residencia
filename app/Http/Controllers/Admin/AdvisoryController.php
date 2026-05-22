@@ -441,14 +441,14 @@ class AdvisoryController extends Controller
         );
     }
 
-    public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad)
+    public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad, NotificationService $notificationService)
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
 
         abort_unless($user->isJefeDepto(), 403);
 
-        $teachingLoad->load('teacher.departments', 'semester');
+        $teachingLoad->load('teacher.departments', 'semester', 'subject');
         abort_unless($this->canManageLoad($user, $teachingLoad), 403);
         abort_unless($teachingLoad->semester?->status === \App\Enums\SemesterStatus::OPEN, 403);
 
@@ -457,13 +457,19 @@ class AdvisoryController extends Controller
             'comments' => 'required_if:decision,REJECT|nullable|string|max:700',
         ]);
 
-        TeachingLoadReview::create([
+        $review = TeachingLoadReview::create([
             'teaching_load_id' => $teachingLoad->id,
             'reviewed_by_user_id' => $user->id,
             'decision' => $validated['decision'],
             'comments' => $validated['comments'] ?? null,
             'reviewed_at' => now(),
         ]);
+
+        $this->notifyTeacherForDepartmentLoadReview(
+            $teachingLoad,
+            $review,
+            $notificationService
+        );
 
         return back()->with('success', $validated['decision'] === 'APPROVE'
             ? 'Carga aprobada por jefe de departamento.'
@@ -537,6 +543,31 @@ class AdvisoryController extends Controller
             $title,
             $message.($comments ? ' Comentarios: '.$comments : ''),
             $submission
+        );
+    }
+
+    private function notifyTeacherForDepartmentLoadReview(
+        TeachingLoad $teachingLoad,
+        TeachingLoadReview $review,
+        NotificationService $notificationService
+    ): void {
+        if (! $teachingLoad->teacher) {
+            return;
+        }
+
+        $approved = $review->decision === 'APPROVE';
+        $subjectName = $teachingLoad->subject?->name ?? 'asignatura';
+        $comments = trim((string) $review->comments);
+
+        $notificationService->notifyImmediate(
+            $teachingLoad->teacher,
+            $approved ? NotificationType::SUBMISSION_APPROVED : NotificationType::SUBMISSION_REJECTED,
+            $approved ? 'Asignatura aprobada por jefatura' : 'Asignatura rechazada por jefatura',
+            ($approved
+                ? "Tu asignatura {$subjectName} fue aprobada por el jefe de departamento."
+                : "Tu asignatura {$subjectName} fue rechazada por el jefe de departamento.")
+                .($comments !== '' ? ' Comentarios: '.$comments : ''),
+            $review
         );
     }
 

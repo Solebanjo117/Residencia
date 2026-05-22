@@ -517,6 +517,18 @@ it('saves an edited docx from the onlyoffice callback', function () {
     $loaded = $service->loadDocument($file);
 
     expect($loaded['html'])->toContain('Editado en OnlyOffice');
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->getJson(route('files.history', $file->id))
+        ->assertOk()
+        ->assertJsonPath('file.id', $file->id)
+        ->assertJsonPath('file.editor_source', 'ONLYOFFICE')
+        ->assertJsonPath('history.0.label', 'Documento editado en OnlyOffice')
+        ->assertJsonPath('history.0.actor_name', $ctx['teacher']->name)
+        ->assertJsonPath('history.0.metadata.editor_source', 'ONLYOFFICE')
+        ->assertJsonPath('history.0.metadata.old_file_name', 'callback.docx')
+        ->assertJsonPath('history.0.metadata.new_file_name', 'callback.docx');
 });
 
 it('saves an edited docx in place without creating another evidence file record', function () {

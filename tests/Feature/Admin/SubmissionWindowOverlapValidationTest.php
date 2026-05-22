@@ -171,6 +171,12 @@ it('stores date windows as full-day ranges and allows a same-day window', functi
     $this->assertDatabaseHas('notification_schedules', [
         'semester_id' => $ctx['semester']->id,
         'evidence_item_id' => $ctx['item']->id,
+        'notification_type' => 'TASK_DUE_SOON',
+        'is_sent' => false,
+    ]);
+    $this->assertDatabaseHas('notification_schedules', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
         'notification_type' => 'WINDOW_CLOSING',
         'is_sent' => false,
     ]);
@@ -214,6 +220,7 @@ it('creates submission windows in batch for multiple evidence items', function (
 
     expect(SubmissionWindow::count())->toBe(2)
         ->and(NotificationSchedule::query()->where('notification_type', 'WINDOW_OPEN')->count())->toBe(2)
+        ->and(NotificationSchedule::query()->where('notification_type', 'TASK_DUE_SOON')->count())->toBe(2)
         ->and(NotificationSchedule::query()->where('notification_type', 'WINDOW_CLOSING')->count())->toBe(2);
 });
 
@@ -272,6 +279,14 @@ it('refreshes pending notification schedules when updating a window', function (
         'semester_id' => $ctx['semester']->id,
         'evidence_item_id' => $ctx['item']->id,
         'notify_at' => now()->addDays(5),
+        'notification_type' => 'TASK_DUE_SOON',
+        'is_sent' => false,
+    ]);
+
+    NotificationSchedule::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notify_at' => now()->addDays(5),
         'notification_type' => 'WINDOW_OPEN',
         'is_sent' => false,
     ]);
@@ -298,11 +313,26 @@ it('refreshes pending notification schedules when updating a window', function (
         ->where('is_sent', false)
         ->count())->toBe(1);
 
+    expect(NotificationSchedule::query()
+        ->where('semester_id', $ctx['semester']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->where('notification_type', 'TASK_DUE_SOON')
+        ->where('is_sent', false)
+        ->count())->toBe(1);
+
     $this->assertDatabaseHas('notification_schedules', [
         'semester_id' => $ctx['semester']->id,
         'evidence_item_id' => $ctx['item']->id,
         'notification_type' => 'WINDOW_OPEN',
         'notify_at' => Carbon\CarbonImmutable::parse($newOpen)->startOfDay()->toDateTimeString(),
+        'is_sent' => false,
+    ]);
+
+    $this->assertDatabaseHas('notification_schedules', [
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notification_type' => 'TASK_DUE_SOON',
+        'notify_at' => Carbon\CarbonImmutable::parse($newClose)->endOfDay()->subDays(4)->toDateTimeString(),
         'is_sent' => false,
     ]);
 });

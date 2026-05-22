@@ -6,6 +6,7 @@ use App\Models\EvidenceFile;
 use App\Models\EvidenceItem;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\Notification;
 use App\Models\ResubmissionUnlock;
 use App\Models\Role;
 use App\Models\Semester;
@@ -115,6 +116,10 @@ it('allows uploading supported image evidence when unlock has no expiration date
     Storage::fake('local');
 
     $ctx = createTeacherEvidenceContext();
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $departmentRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
+    $departmentUser = User::factory()->create(['role_id' => $departmentRoleId]);
 
     ResubmissionUnlock::create([
         'submission_id' => $ctx['submission']->id,
@@ -135,6 +140,32 @@ it('allows uploading supported image evidence when unlock has no expiration date
     $this->assertDatabaseHas('evidence_files', [
         'submission_id' => $ctx['submission']->id,
     ]);
+
+    $file = EvidenceFile::where('submission_id', $ctx['submission']->id)->firstOrFail();
+
+    foreach ([$officeUser, $departmentUser] as $recipient) {
+        $notification = Notification::query()
+            ->where('user_id', $recipient->id)
+            ->where('related_entity_type', EvidenceFile::class)
+            ->where('related_entity_id', $file->id)
+            ->first();
+
+        expect($notification)->not->toBeNull();
+        expect($notification->title)->toBe('Archivo subido para revision');
+
+        $this
+            ->actingAs($recipient)
+            ->getJson(route('notifications.unread'))
+            ->assertOk()
+            ->assertJsonPath('notifications.0.action_url', route('oficina.revisiones.show', [
+                'submission' => $ctx['submission']->teacher_user_id,
+                'focus_submission_id' => $ctx['submission']->id,
+                'teaching_load_id' => $ctx['submission']->teaching_load_id,
+                'evidence_item_id' => $ctx['submission']->evidence_item_id,
+                'focus_file_id' => $file->id,
+            ], false))
+            ->assertJsonPath('notifications.0.action_label', 'Revisar entrega');
+    }
 });
 
 it('rejects unsupported extensions using the unified upload matrix', function () {
