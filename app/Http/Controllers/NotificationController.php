@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\NotificationType;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
+use App\Models\FormatPublication;
 use App\Models\Notification;
 use App\Models\NotificationSchedule;
 use App\Models\SubmissionWindow;
@@ -130,11 +131,27 @@ class NotificationController extends Controller
             return route('files.download', $file->id, false);
         }
 
+        if ($notification->related_entity_type === FormatPublication::class) {
+            $publication = FormatPublication::find($notification->related_entity_id);
+
+            if (! $publication) {
+                return null;
+            }
+
+            return route('formatos.index', ['publication' => $publication->id], false);
+        }
+
         if ($notification->related_entity_type === SubmissionWindow::class) {
             $window = SubmissionWindow::find($notification->related_entity_id);
 
             if (! $window) {
                 return null;
+            }
+
+            $taskUrl = $this->teacherTaskUrlFromContext($notification, $user);
+
+            if ($taskUrl) {
+                return $taskUrl;
             }
 
             return $user->isDocente()
@@ -198,6 +215,10 @@ class NotificationController extends Controller
                 : 'Abrir archivo';
         }
 
+        if ($notification->related_entity_type === FormatPublication::class) {
+            return 'Ver formato';
+        }
+
         if ($notification->related_entity_type === TeachingLoadReview::class) {
             return $user->isDocente() ? 'Ver asignatura' : 'Ver seguimiento';
         }
@@ -233,6 +254,33 @@ class NotificationController extends Controller
             'evidence_item_id' => $submission->evidence_item_id,
             'submission_id' => $submission->id,
             ...$extraQuery,
+        ], false);
+    }
+
+    private function teacherTaskUrlFromContext(Notification $notification, User $user): ?string
+    {
+        if (! $user->isDocente()) {
+            return null;
+        }
+
+        $context = $notification->action_context;
+
+        if (! is_array($context)) {
+            return null;
+        }
+
+        $semesterId = $context['semester_id'] ?? null;
+        $teachingLoadId = $context['teaching_load_id'] ?? null;
+        $evidenceItemId = $context['evidence_item_id'] ?? null;
+
+        if (! $semesterId || ! $teachingLoadId || ! $evidenceItemId) {
+            return null;
+        }
+
+        return route('docente.evidencias', [
+            'semester_id' => $semesterId,
+            'teaching_load_id' => $teachingLoadId,
+            'evidence_item_id' => $evidenceItemId,
         ], false);
     }
 }

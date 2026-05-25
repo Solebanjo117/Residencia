@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class NotifyWindows extends Command
 {
@@ -40,7 +41,6 @@ class NotifyWindows extends Command
             'executed_at' => $now->toIso8601String(),
         ]);
 
-        // 1. Find all unsent schedules that are due
         $schedules = DB::table('notification_schedules')
             ->where('is_sent', false)
             ->where('notify_at', '<=', $now)
@@ -68,97 +68,61 @@ class NotifyWindows extends Command
         foreach ($schedules as $schedule) {
             $scheduleStartedAt = microtime(true);
 
-            // Find the active window this relates to
-            $window = SubmissionWindow::with('evidenceItem')->where('semester_id', $schedule->semester_id)
-                ->where('evidence_item_id', $schedule->evidence_item_id)
-                ->where('status', 'ACTIVE')
-                ->first();
+            try {
+                $window = $this->resolveWindow($schedule);
 
-            if (! $window) {
+                if (! $window) {
+                    $this->markAsSent($schedule->id);
+
+                    Log::channel('operations')->warning('notify_windows.window_not_found', [
+                        'command' => $this->getName(),
+                        'notification_schedule_id' => $schedule->id,
+                        'submission_window_id' => $schedule->submission_window_id ?? null,
+                        'semester_id' => $schedule->semester_id,
+                        'evidence_item_id' => $schedule->evidence_item_id,
+                        'notification_type' => $schedule->notification_type,
+                        'duration_ms' => (int) round((microtime(true) - $scheduleStartedAt) * 1000),
+                    ]);
+
+                    continue;
+                }
+
+                $type = $schedule->notification_type;
+                [$title, $message] = $this->notificationCopy($type, $window);
+                $insertData = $this->notificationsForSchedule($schedule, $window, $type, $title, $message);
+
+                if (! empty($insertData)) {
+                    DB::table('notifications')->insert($insertData);
+                }
+
                 $this->markAsSent($schedule->id);
+                $processedSchedules++;
+                $createdNotifications += count($insertData);
 
-                Log::channel('operations')->warning('notify_windows.window_not_found', [
+                $this->info("Dispatched {$type} for Item #{$schedule->evidence_item_id} to ".count($insertData).' teachers.');
+
+                Log::channel('operations')->info('notify_windows.schedule_dispatched', [
                     'command' => $this->getName(),
                     'notification_schedule_id' => $schedule->id,
+                    'window_id' => $window->id,
+                    'semester_id' => $schedule->semester_id,
+                    'evidence_item_id' => $schedule->evidence_item_id,
+                    'notification_type' => $type,
+                    'teachers_notified' => count($insertData),
+                    'duration_ms' => (int) round((microtime(true) - $scheduleStartedAt) * 1000),
+                ]);
+            } catch (Throwable $exception) {
+                Log::channel('operations')->error('notify_windows.schedule_failed', [
+                    'command' => $this->getName(),
+                    'notification_schedule_id' => $schedule->id,
+                    'submission_window_id' => $schedule->submission_window_id ?? null,
                     'semester_id' => $schedule->semester_id,
                     'evidence_item_id' => $schedule->evidence_item_id,
                     'notification_type' => $schedule->notification_type,
+                    'error' => $exception->getMessage(),
                     'duration_ms' => (int) round((microtime(true) - $scheduleStartedAt) * 1000),
                 ]);
-
-                continue;
             }
-
-            $title = '';
-            $message = '';
-            $type = $schedule->notification_type;
-
-            if ($type === NotificationType::WINDOW_OPEN->value) {
-                $title = 'Ventana de Recepción Abierta';
-                $message = "El periodo para subir '{$window->evidenceItem->name}' ha comenzado y finalizará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'.';
-            } elseif ($type === NotificationType::TASK_DUE_SOON->value) {
-                $title = 'Tarea por vencer';
-                $message = "Recordatorio: '{$window->evidenceItem->name}' vence el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Faltan 4 dias para entregar esta evidencia.';
-            } else {
-                $title = 'Cierre de Ventana Próximo';
-                $message = "Urgente: La recepción para '{$window->evidenceItem->name}' terminará el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Por favor, asegúrate de enviar tu evidencia.';
-            }
-
-            // Find all teachers associated with this semester
-            $teacherIds = DB::table('teaching_loads')
-                ->where('semester_id', $schedule->semester_id)
-                ->pluck('teacher_user_id')
-                ->unique();
-
-            // Bulk Insert
-            $insertData = [];
-            foreach ($teacherIds as $tId) {
-                // To avoid spamming closing notifications if they already submitted, we could check submissions here:
-                if (in_array($type, [NotificationType::TASK_DUE_SOON->value, NotificationType::WINDOW_CLOSING->value], true)) {
-                    $hasSubmitted = DB::table('evidence_submissions')
-                        ->where('semester_id', $schedule->semester_id)
-                        ->where('evidence_item_id', $schedule->evidence_item_id)
-                        ->where('teacher_user_id', $tId)
-                        ->whereIn('status', ['SUBMITTED', 'APPROVED'])
-                        ->exists();
-
-                    if ($hasSubmitted) {
-                        continue; // Teacher already delivered, no need to alert
-                    }
-                }
-
-                $insertData[] = [
-                    'user_id' => $tId,
-                    'type' => $type,
-                    'title' => $title,
-                    'message' => $message,
-                    'related_entity_type' => 'App\Models\SubmissionWindow',
-                    'related_entity_id' => $window->id,
-                    'is_read' => false,
-                    'created_at' => now(),
-                ];
-            }
-
-            if (! empty($insertData)) {
-                DB::table('notifications')->insert($insertData);
-            }
-
-            $this->markAsSent($schedule->id);
-            $processedSchedules++;
-            $createdNotifications += count($insertData);
-
-            $this->info("Dispatched {$type} for Item #{$schedule->evidence_item_id} to ".count($insertData).' teachers.');
-
-            Log::channel('operations')->info('notify_windows.schedule_dispatched', [
-                'command' => $this->getName(),
-                'notification_schedule_id' => $schedule->id,
-                'window_id' => $window->id,
-                'semester_id' => $schedule->semester_id,
-                'evidence_item_id' => $schedule->evidence_item_id,
-                'notification_type' => $type,
-                'teachers_notified' => count($insertData),
-                'duration_ms' => (int) round((microtime(true) - $scheduleStartedAt) * 1000),
-            ]);
         }
 
         $this->info('Job Finished.');
@@ -170,6 +134,93 @@ class NotifyWindows extends Command
             'notifications_created' => $createdNotifications,
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
+    }
+
+    private function resolveWindow(object $schedule): ?SubmissionWindow
+    {
+        if (! empty($schedule->submission_window_id)) {
+            return SubmissionWindow::with('evidenceItem')
+                ->whereKey($schedule->submission_window_id)
+                ->where('status', 'ACTIVE')
+                ->first();
+        }
+
+        return SubmissionWindow::with('evidenceItem')
+            ->where('semester_id', $schedule->semester_id)
+            ->where('evidence_item_id', $schedule->evidence_item_id)
+            ->where('status', 'ACTIVE')
+            ->first();
+    }
+
+    private function notificationCopy(string $type, SubmissionWindow $window): array
+    {
+        if ($type === NotificationType::WINDOW_OPEN->value) {
+            return [
+                'Ventana de Recepcion Abierta',
+                "El periodo para subir '{$window->evidenceItem->name}' ha comenzado y finalizara el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'.',
+            ];
+        }
+
+        if ($type === NotificationType::TASK_DUE_SOON->value) {
+            return [
+                'Tarea por vencer',
+                "Recordatorio: '{$window->evidenceItem->name}' vence el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Faltan 4 dias para entregar esta evidencia.',
+            ];
+        }
+
+        return [
+            'Cierre de Ventana Proximo',
+            "Urgente: La recepcion para '{$window->evidenceItem->name}' terminara el ".Carbon::parse($window->closes_at)->format('d/m/Y h:i A').'. Por favor, asegurate de enviar tu evidencia.',
+        ];
+    }
+
+    private function notificationsForSchedule(object $schedule, SubmissionWindow $window, string $type, string $title, string $message): array
+    {
+        $teachingLoads = DB::table('teaching_loads')
+            ->where('semester_id', $schedule->semester_id)
+            ->when($window->modality !== null, fn ($query) => $query->where('modality', $window->modality))
+            ->select(['id', 'teacher_user_id'])
+            ->get();
+
+        $insertData = [];
+        foreach ($teachingLoads as $load) {
+            if ($this->loadAlreadySubmitted($schedule, $load->id, $type)) {
+                continue;
+            }
+
+            $insertData[] = [
+                'user_id' => $load->teacher_user_id,
+                'type' => $type,
+                'title' => $title,
+                'message' => $message,
+                'related_entity_type' => SubmissionWindow::class,
+                'related_entity_id' => $window->id,
+                'action_context' => json_encode([
+                    'semester_id' => (int) $schedule->semester_id,
+                    'teaching_load_id' => (int) $load->id,
+                    'evidence_item_id' => (int) $schedule->evidence_item_id,
+                    'submission_window_id' => (int) $window->id,
+                ]),
+                'is_read' => false,
+                'created_at' => now(),
+            ];
+        }
+
+        return $insertData;
+    }
+
+    private function loadAlreadySubmitted(object $schedule, int $teachingLoadId, string $type): bool
+    {
+        if (! in_array($type, [NotificationType::TASK_DUE_SOON->value, NotificationType::WINDOW_CLOSING->value], true)) {
+            return false;
+        }
+
+        return DB::table('evidence_submissions')
+            ->where('semester_id', $schedule->semester_id)
+            ->where('evidence_item_id', $schedule->evidence_item_id)
+            ->where('teaching_load_id', $teachingLoadId)
+            ->whereIn('status', ['SUBMITTED', 'APPROVED'])
+            ->exists();
     }
 
     private function markAsSent($id)

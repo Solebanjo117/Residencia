@@ -31,6 +31,11 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
             icon: FolderOpen,
         },
         {
+            title: 'Formatos',
+            href: '/formatos',
+            icon: FileText,
+        },
+        {
             title: 'Seguimiento Docente',
             href: '/asesorias',
             icon: MessageCircle,

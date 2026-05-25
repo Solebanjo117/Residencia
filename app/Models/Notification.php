@@ -17,6 +17,7 @@ class Notification extends Model
         'message',
         'related_entity_type',
         'related_entity_id',
+        'action_context',
         'is_read',
         'read_at',
         'created_at', // explicitly allowing filling
@@ -24,6 +25,7 @@ class Notification extends Model
 
     protected $casts = [
         'type' => NotificationType::class,
+        'action_context' => 'array',
         'is_read' => 'boolean',
         'read_at' => 'datetime',
         'created_at' => 'datetime',

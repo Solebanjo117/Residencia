@@ -259,6 +259,45 @@ it('returns a focused teacher evidence action url for due soon window notificati
         ->assertJsonPath('notifications.0.action_label', 'Ver mis evidencias');
 });
 
+it('returns an exact teacher task action url from notification action context', function () {
+    $submission = createNotificationActionSubmission();
+    $window = SubmissionWindow::create([
+        'semester_id' => $submission->semester_id,
+        'evidence_item_id' => $submission->evidence_item_id,
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addDays(4),
+        'created_by_user_id' => $submission->teacher_user_id,
+        'status' => 'ACTIVE',
+    ]);
+
+    Notification::create([
+        'user_id' => $submission->teacher_user_id,
+        'type' => NotificationType::TASK_DUE_SOON,
+        'title' => 'Tarea por vencer',
+        'message' => 'Tu tarea esta por vencer.',
+        'related_entity_type' => SubmissionWindow::class,
+        'related_entity_id' => $window->id,
+        'action_context' => [
+            'semester_id' => $submission->semester_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+            'submission_window_id' => $window->id,
+        ],
+        'created_at' => now(),
+    ]);
+
+    $this
+        ->actingAs($submission->teacher)
+        ->getJson(route('notifications.unread'))
+        ->assertOk()
+        ->assertJsonPath('notifications.0.action_url', route('docente.evidencias', [
+            'semester_id' => $submission->semester_id,
+            'teaching_load_id' => $submission->teaching_load_id,
+            'evidence_item_id' => $submission->evidence_item_id,
+        ], false))
+        ->assertJsonPath('notifications.0.action_label', 'Ver mis evidencias');
+});
+
 it('returns recent read notifications while keeping unread count separate', function () {
     $submission = createNotificationActionSubmission();
 

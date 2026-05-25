@@ -182,8 +182,15 @@ class SubmissionWindowController extends Controller
     private function syncNotificationSchedules(SubmissionWindow $window): void
     {
         NotificationSchedule::query()
-            ->where('semester_id', $window->semester_id)
-            ->where('evidence_item_id', $window->evidence_item_id)
+            ->where(function ($query) use ($window) {
+                $query->where('submission_window_id', $window->id)
+                    ->orWhere(function ($legacyQuery) use ($window) {
+                        $legacyQuery
+                            ->whereNull('submission_window_id')
+                            ->where('semester_id', $window->semester_id)
+                            ->where('evidence_item_id', $window->evidence_item_id);
+                    });
+            })
             ->where('is_sent', false)
             ->whereIn('notification_type', [
                 NotificationType::WINDOW_OPEN->value,
@@ -201,6 +208,7 @@ class SubmissionWindowController extends Controller
         }
 
         NotificationSchedule::create([
+            'submission_window_id' => $window->id,
             'semester_id' => $window->semester_id,
             'evidence_item_id' => $window->evidence_item_id,
             'notify_at' => $window->opens_at,
@@ -209,6 +217,7 @@ class SubmissionWindowController extends Controller
         ]);
 
         NotificationSchedule::create([
+            'submission_window_id' => $window->id,
             'semester_id' => $window->semester_id,
             'evidence_item_id' => $window->evidence_item_id,
             'notify_at' => CarbonImmutable::parse($window->closes_at)->subDays(4),
@@ -217,6 +226,7 @@ class SubmissionWindowController extends Controller
         ]);
 
         NotificationSchedule::create([
+            'submission_window_id' => $window->id,
             'semester_id' => $window->semester_id,
             'evidence_item_id' => $window->evidence_item_id,
             'notify_at' => CarbonImmutable::parse($window->closes_at)->subDays(3),
