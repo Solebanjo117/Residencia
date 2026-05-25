@@ -274,6 +274,12 @@ export interface AuditLog {
     entity_id: number | null;
     at: string;
     metadata: Record<string, any> | null;
+    user_name?: string | null;
+    user_email?: string | null;
+    entity_label?: string;
+    entity_url?: string | null;
+    target_status?: 'linked' | 'missing' | 'unsupported' | 'none';
+    change_summary?: string | null;
     user?: User;
 }
 

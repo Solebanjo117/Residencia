@@ -412,6 +412,53 @@ it('shows can_upload as true for SUBMITTED pending submission', function () {
     expect($task['can_submit'])->toBeFalse();
 });
 
+it('includes manual status change reason for teacher evidence index', function () {
+    $ctx = createTeacherFileContext();
+
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $officeUser = User::factory()->create(['role_id' => $officeRoleId]);
+
+    $submission = EvidenceSubmission::create([
+        'semester_id' => $ctx['semester']->id,
+        'teacher_user_id' => $ctx['teacher']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'teaching_load_id' => $ctx['load']->id,
+        'status' => SubmissionStatus::SUBMITTED,
+        'submitted_at' => now(),
+        'last_updated_at' => now(),
+    ]);
+
+    $reason = 'Falta la firma institucional en el formato.';
+
+    $this
+        ->actingAs($officeUser)
+        ->from('/asesorias')
+        ->post('/asesorias/cells/status', [
+            'teaching_load_id' => $ctx['load']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'status' => 'R',
+            'comments' => $reason,
+        ])
+        ->assertRedirect();
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->get('/docente/evidencias');
+
+    $response->assertOk();
+
+    $tasks = $response->inertiaPage()['props']['tasks'];
+    $task = collect($tasks)->first(fn ($t) => $t['id'] === $submission->id);
+
+    expect($task)->not->toBeNull();
+    expect($task['submission']['latest_status_change'])->toMatchArray([
+        'from_status' => 'SUBMITTED',
+        'to_status' => 'REJECTED',
+        'reason' => $reason,
+        'changed_by_name' => $officeUser->name,
+    ]);
+});
+
 it('allows file deletion when submission has active resubmission unlock', function () {
     Storage::fake('local');
 

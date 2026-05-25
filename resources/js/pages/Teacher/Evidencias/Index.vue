@@ -66,6 +66,13 @@ interface Task {
             reviewed_at: string | null;
             reviewer_name: string | null;
         }>;
+        latest_status_change: {
+            from_status: string;
+            to_status: string;
+            reason: string | null;
+            changed_at: string | null;
+            changed_by_name: string | null;
+        } | null;
     };
     availability: {
         code: string;
@@ -209,9 +216,9 @@ const selectTaskFromQuery = () => {
                 task.requirement.item_id === props.selectedEvidenceItemId,
         ) ||
         props.tasks.find(
-            (task) =>
-                task.requirement.item_id === props.selectedEvidenceItemId,
-        ) || null;
+            (task) => task.requirement.item_id === props.selectedEvidenceItemId,
+        ) ||
+        null;
 };
 
 onMounted(selectTaskFromQuery);
@@ -308,6 +315,23 @@ const shouldShowAvailabilityBadge = (task: Task | null) =>
 
 const footerAvailabilityLabel = (task: Task | null) =>
     shouldShowAvailabilityBadge(task) ? (task?.availability.label ?? '') : '';
+
+const latestRejectionReason = (task: Task | null) => {
+    if (!task || task.submission.ui_status !== 'R') return '';
+
+    const rejectedReview = task.submission.review_trail.find(
+        (review) => review.decision === 'REJECT' && review.comments,
+    );
+
+    return (
+        rejectedReview?.comments ||
+        task.submission.last_review?.comments ||
+        (task.submission.latest_status_change?.to_status === 'REJECTED'
+            ? task.submission.latest_status_change.reason
+            : '') ||
+        ''
+    );
+};
 
 const triggerUpload = () => {
     fileInput.value?.click();
@@ -707,6 +731,32 @@ const confirmDeleteFile = () => {
                                             getStatusConfig(selectedTask).label
                                         }}
                                     </span>
+                                </div>
+
+                                <div
+                                    v-if="
+                                        selectedTask.submission.ui_status ===
+                                        'R'
+                                    "
+                                    class="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+                                >
+                                    <div class="font-semibold">
+                                        Esta evidencia fue rechazada
+                                    </div>
+                                    <p
+                                        v-if="
+                                            latestRejectionReason(selectedTask)
+                                        "
+                                        class="mt-1"
+                                    >
+                                        {{
+                                            latestRejectionReason(selectedTask)
+                                        }}
+                                    </p>
+                                    <p v-else class="mt-1">
+                                        Puedes subir una corrección aquí mismo
+                                        mientras la evidencia esté disponible.
+                                    </p>
                                 </div>
 
                                 <div

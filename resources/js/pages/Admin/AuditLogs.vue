@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
-import { ShieldAlert, Search, Database } from 'lucide-vue-next';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { Database, ExternalLink, Search, ShieldAlert } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
@@ -10,10 +10,14 @@ defineProps<{
         id: number;
         action: string;
         entity_type: string;
-        entity_id: number;
+        entity_id: number | null;
         at: string;
-        user_name: string;
-        user_email: string;
+        user_name: string | null;
+        user_email: string | null;
+        entity_label: string;
+        entity_url: string | null;
+        target_status: 'linked' | 'missing' | 'unsupported' | 'none';
+        change_summary: string | null;
     }[];
 }>();
 
@@ -46,6 +50,14 @@ function formatDate(dateStr: string) {
         minute: '2-digit',
         second: '2-digit',
     });
+}
+
+function targetStatusLabel(status: string) {
+    if (status === 'missing') return 'Sin destino directo';
+    if (status === 'unsupported') return 'Sin vista directa';
+    if (status === 'none') return 'Sin entidad';
+
+    return null;
 }
 </script>
 
@@ -119,6 +131,12 @@ function formatDate(dateStr: string) {
                                             scope="col"
                                             class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
                                         >
+                                            Resumen
+                                        </th>
+                                        <th
+                                            scope="col"
+                                            class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                                        >
                                             Entidad de Destino
                                         </th>
                                     </tr>
@@ -128,7 +146,7 @@ function formatDate(dateStr: string) {
                                 >
                                     <tr v-if="logs.length === 0">
                                         <td
-                                            colspan="4"
+                                            colspan="5"
                                             class="py-10 text-center text-sm text-gray-500"
                                         >
                                             <Database
@@ -168,14 +186,53 @@ function formatDate(dateStr: string) {
                                             </span>
                                         </td>
                                         <td
+                                            class="max-w-xs px-3 py-3 whitespace-nowrap text-gray-600"
+                                        >
+                                            <span
+                                                v-if="log.change_summary"
+                                                class="block truncate"
+                                                :title="log.change_summary"
+                                            >
+                                                {{ log.change_summary }}
+                                            </span>
+                                            <span v-else class="text-gray-400"
+                                                >Sin resumen</span
+                                            >
+                                        </td>
+                                        <td
                                             class="px-3 py-3 whitespace-nowrap text-gray-600"
                                         >
-                                            <span v-if="log.entity_type"
-                                                >{{ log.entity_type }} #{{
-                                                    log.entity_id
-                                                }}</span
+                                            <Link
+                                                v-if="log.entity_url"
+                                                :href="log.entity_url"
+                                                class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 font-sans text-sm font-medium text-indigo-700 hover:bg-indigo-50 hover:text-indigo-900 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
                                             >
-                                            <span v-else>-</span>
+                                                <span>{{
+                                                    log.entity_label
+                                                }}</span>
+                                                <ExternalLink
+                                                    class="h-3.5 w-3.5"
+                                                />
+                                            </Link>
+                                            <div v-else>
+                                                <span>{{
+                                                    log.entity_label
+                                                }}</span>
+                                                <span
+                                                    v-if="
+                                                        targetStatusLabel(
+                                                            log.target_status,
+                                                        )
+                                                    "
+                                                    class="ml-2 inline-flex rounded-md bg-gray-100 px-2 py-0.5 font-sans text-[11px] font-medium text-gray-600"
+                                                >
+                                                    {{
+                                                        targetStatusLabel(
+                                                            log.target_status,
+                                                        )
+                                                    }}
+                                                </span>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
