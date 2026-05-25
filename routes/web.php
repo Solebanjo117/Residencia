@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FileController;
+use App\Http\Controllers\FormatPublicationController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\OnlyOfficeController;
 use Illuminate\Support\Facades\Route;
@@ -93,6 +94,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/cargas/{teachingLoad}/revision-jefe', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewTeachingLoad'])
         ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.loads.department-review');
+
+    Route::get('formatos', [FormatPublicationController::class, 'index'])->name('formatos.index');
+    Route::post('formatos', [FormatPublicationController::class, 'store'])->name('formatos.store');
+    Route::patch('formatos/{publication}', [FormatPublicationController::class, 'update'])->name('formatos.update');
+    Route::post('formatos/{publication}/replace-file', [FormatPublicationController::class, 'replaceFile'])->name('formatos.replace-file');
+    Route::patch('formatos/{publication}/archive', [FormatPublicationController::class, 'archive'])->name('formatos.archive');
+    Route::patch('formatos/{publication}/restore', [FormatPublicationController::class, 'restore'])->name('formatos.restore');
+    Route::get('formatos/{publication}/download', [FormatPublicationController::class, 'download'])->name('formatos.download');
 
     // Horarios de Asesorías
     Route::get('asesorias-horarios', [\App\Http\Controllers\AdvisoryScheduleController::class, 'index'])->name('asesorias.horarios');

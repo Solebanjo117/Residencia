@@ -13,6 +13,7 @@ class NotificationSchedule extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'submission_window_id',
         'semester_id',
         'evidence_item_id',
         'notify_at',
@@ -34,5 +35,10 @@ class NotificationSchedule extends Model
     public function evidenceItem()
     {
         return $this->belongsTo(EvidenceItem::class);
+    }
+
+    public function submissionWindow()
+    {
+        return $this->belongsTo(SubmissionWindow::class);
     }
 }

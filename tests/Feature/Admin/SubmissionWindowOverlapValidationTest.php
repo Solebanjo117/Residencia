@@ -6,6 +6,7 @@ use App\Models\NotificationSchedule;
 use App\Models\Role;
 use App\Models\Semester;
 use App\Models\SubmissionWindow;
+use App\Models\TeachingLoad;
 use App\Models\User;
 use Illuminate\Support\Str;
 
@@ -370,4 +371,102 @@ it('filters submission windows by operational status', function () {
             ->has('windows.data', 1)
             ->where('windows.data.0.status', 'ACTIVE')
         );
+});
+
+it('creates notification schedules anchored to each modality-specific submission window', function () {
+    $ctx = createSubmissionWindowContext();
+
+    $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('admin.windows.store'), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'modality' => TeachingLoad::MODALITY_EN_LINEA,
+            'opens_at' => now()->addDays(2)->toDateString(),
+            'closes_at' => now()->addDays(7)->toDateString(),
+            'status' => 'ACTIVE',
+        ])
+        ->assertRedirect(route('admin.windows.index'));
+
+    $window = SubmissionWindow::query()
+        ->where('semester_id', $ctx['semester']->id)
+        ->where('evidence_item_id', $ctx['item']->id)
+        ->where('modality', TeachingLoad::MODALITY_EN_LINEA)
+        ->firstOrFail();
+
+    foreach (['WINDOW_OPEN', 'TASK_DUE_SOON', 'WINDOW_CLOSING'] as $type) {
+        $this->assertDatabaseHas('notification_schedules', [
+            'submission_window_id' => $window->id,
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'notification_type' => $type,
+            'is_sent' => false,
+        ]);
+    }
+});
+
+it('refreshes only schedules for the updated modality-specific window', function () {
+    $ctx = createSubmissionWindowContext();
+
+    $onlineWindow = SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'modality' => TeachingLoad::MODALITY_EN_LINEA,
+        'opens_at' => now()->addDays(2),
+        'closes_at' => now()->addDays(7),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    $presentialWindow = SubmissionWindow::create([
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'modality' => TeachingLoad::MODALITY_PRESENCIAL,
+        'opens_at' => now()->addDays(2),
+        'closes_at' => now()->addDays(7),
+        'created_by_user_id' => $ctx['jefeOficina']->id,
+        'status' => 'ACTIVE',
+    ]);
+
+    NotificationSchedule::create([
+        'submission_window_id' => $onlineWindow->id,
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notify_at' => now()->addDays(2),
+        'notification_type' => 'WINDOW_OPEN',
+        'is_sent' => false,
+    ]);
+
+    NotificationSchedule::create([
+        'submission_window_id' => $presentialWindow->id,
+        'semester_id' => $ctx['semester']->id,
+        'evidence_item_id' => $ctx['item']->id,
+        'notify_at' => now()->addDays(2),
+        'notification_type' => 'WINDOW_OPEN',
+        'is_sent' => false,
+    ]);
+
+    $this
+        ->from(route('admin.windows.index'))
+        ->actingAs($ctx['jefeOficina'])
+        ->put(route('admin.windows.update', $onlineWindow->id), [
+            'semester_id' => $ctx['semester']->id,
+            'evidence_item_id' => $ctx['item']->id,
+            'modality' => TeachingLoad::MODALITY_EN_LINEA,
+            'opens_at' => now()->addDays(10)->toDateString(),
+            'closes_at' => now()->addDays(14)->toDateString(),
+            'status' => 'ACTIVE',
+        ])
+        ->assertRedirect(route('admin.windows.index'));
+
+    expect(NotificationSchedule::query()
+        ->where('submission_window_id', $onlineWindow->id)
+        ->where('is_sent', false)
+        ->count())->toBe(3);
+
+    expect(NotificationSchedule::query()
+        ->where('submission_window_id', $presentialWindow->id)
+        ->where('is_sent', false)
+        ->count())->toBe(1);
 });

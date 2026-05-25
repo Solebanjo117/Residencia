@@ -99,6 +99,31 @@ export interface EvidenceFormat {
     active: boolean;
 }
 
+export interface FormatPublicationFile {
+    id: number;
+    file_name: string;
+    size_bytes: number;
+    mime_type: string | null;
+    uploaded_at: string | null;
+    download_url: string;
+}
+
+export interface FormatPublication {
+    id: number;
+    title: string;
+    body: string | null;
+    status: 'ACTIVE' | 'ARCHIVED';
+    published_at: string | null;
+    updated_at: string | null;
+    evidence_item: Pick<EvidenceItem, 'id' | 'name'>;
+    file: FormatPublicationFile | null;
+    author_name: string | null;
+    updated_by_name: string | null;
+    can_update: boolean;
+    can_archive: boolean;
+    can_restore: boolean;
+}
+
 export interface EvidenceRequirement {
     id: number;
     semester_id: number;
