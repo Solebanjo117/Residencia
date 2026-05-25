@@ -93,7 +93,7 @@ class EvidenceController extends Controller
         $submissions = EvidenceSubmission::with([
             'evidenceItem',
             'files.folderNode',
-            'statusHistory',
+            'statusHistory' => fn ($query) => $query->with('changedBy')->orderByDesc('changed_at')->orderByDesc('id'),
             'reviews' => fn ($query) => $query->with('reviewer')->orderByDesc('reviewed_at'),
             'officeReviewer',
             'finalApprover',
@@ -133,6 +133,7 @@ class EvidenceController extends Controller
                 );
 
                 $latestReview = $submission?->reviews?->first();
+                $latestStatusChange = $submission?->statusHistory?->first();
                 $sharedFileEntries = $seguimientoSharedFiles->sharedFilesForCell(
                     $submission,
                     $loadSubmissions->values(),
@@ -201,6 +202,13 @@ class EvidenceController extends Controller
                                 'reviewer_name' => $review->reviewer?->name,
                             ])->values()->toArray()
                             : [],
+                        'latest_status_change' => $latestStatusChange ? [
+                            'from_status' => $latestStatusChange->old_status->value,
+                            'to_status' => $latestStatusChange->new_status->value,
+                            'reason' => $latestStatusChange->change_reason,
+                            'changed_at' => $latestStatusChange->changed_at?->toDateTimeString(),
+                            'changed_by_name' => $latestStatusChange->changedBy?->name,
+                        ] : null,
                     ],
                     'availability' => $availability,
                     'window' => $window ? [
