@@ -103,6 +103,7 @@ it('applies folder permissions when creating a teaching load and can force full 
             'subject_id' => $subject->id,
             'group_code' => 'A',
             'hours_per_week' => 4,
+            'modality' => TeachingLoad::MODALITY_PRESENCIAL,
         ])
         ->assertRedirect();
 
@@ -170,6 +171,7 @@ it('rebuilds teacher structure and removes folders that are no longer permitted'
             'subject_id' => $subject->id,
             'group_code' => 'B',
             'hours_per_week' => 5,
+            'modality' => TeachingLoad::MODALITY_PRESENCIAL,
         ])
         ->assertRedirect();
 

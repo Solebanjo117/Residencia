@@ -41,6 +41,7 @@ class FolderStructureService
             [
                 'semester_id' => $semester->id,
                 'parent_id' => null,
+                'owner_user_id' => null,
             ],
             [
                 'storage_root_id' => $storageRoot->id,

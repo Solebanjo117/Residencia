@@ -6,9 +6,11 @@ use App\Models\EvidenceItem;
 use App\Models\EvidenceRequirement;
 use App\Models\Role;
 use App\Models\Semester;
+use App\Models\StorageRoot;
 use App\Models\Subject;
 use App\Models\TeachingLoad;
 use App\Models\User;
+use App\Services\FolderStructureService;
 use Illuminate\Support\Str;
 
 it('generates folder structures for active teachers when a semester is opened', function () {
@@ -164,6 +166,63 @@ it('creates the base evidence tree for active teachers when an open semester is 
         'parent_id' => $projectFolder->id,
         'name' => '4.1-CAPACITACION',
     ]);
+});
+
+it('does not treat a legacy root teacher folder as the semester root', function () {
+    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+
+    $legacyTeacher = User::factory()->create([
+        'role_id' => $teacherRoleId,
+        'is_active' => true,
+        'name' => 'Docente Legacy '.Str::upper(Str::random(4)),
+    ]);
+    $newTeacher = User::factory()->create([
+        'role_id' => $teacherRoleId,
+        'is_active' => true,
+        'name' => 'Docente Nuevo '.Str::upper(Str::random(4)),
+        'folder_permission_keys' => ['4.PROYECTOS INDIVIDUALES'],
+    ]);
+
+    $semester = Semester::create([
+        'name' => 'SEM-LEGACY-'.Str::upper(Str::random(6)),
+        'start_date' => now()->toDateString(),
+        'end_date' => now()->addMonths(4)->toDateString(),
+        'status' => 'OPEN',
+    ]);
+
+    $root = StorageRoot::firstOrCreate(
+        ['name' => 'Root Storage'],
+        ['base_path' => 'storage_root', 'is_active' => true]
+    );
+
+    $legacyRootFolder = \App\Models\FolderNode::create([
+        'storage_root_id' => $root->id,
+        'parent_id' => null,
+        'name' => $legacyTeacher->name.' '.$semester->name,
+        'relative_path' => Str::slug($legacyTeacher->name.' '.$semester->name),
+        'owner_user_id' => $legacyTeacher->id,
+        'semester_id' => $semester->id,
+    ]);
+
+    app(FolderStructureService::class)->generateFullStructure($semester, $newTeacher);
+
+    $semesterFolder = \App\Models\FolderNode::query()
+        ->where('semester_id', $semester->id)
+        ->whereNull('parent_id')
+        ->whereNull('owner_user_id')
+        ->first();
+
+    expect($semesterFolder)->not->toBeNull();
+
+    $newTeacherFolder = \App\Models\FolderNode::query()
+        ->where('semester_id', $semester->id)
+        ->where('owner_user_id', $newTeacher->id)
+        ->where('name', $newTeacher->name)
+        ->first();
+
+    expect($newTeacherFolder)->not->toBeNull()
+        ->and($newTeacherFolder->parent_id)->toBe($semesterFolder->id)
+        ->and($newTeacherFolder->parent_id)->not->toBe($legacyRootFolder->id);
 });
 
 it('clones requirements and teaching loads from the latest semester with data when a new semester is created empty', function () {
