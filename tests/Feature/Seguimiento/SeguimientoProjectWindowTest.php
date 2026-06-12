@@ -140,10 +140,12 @@ it('marks the active seguimiento stage and exposes manual completion labels', fu
     $this->travelTo(CarbonImmutable::parse('2026-05-05 09:00:00'));
 
     $docenteRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
     $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
     $department = Department::create(['name' => 'DEP ACTUAL '.Str::upper(Str::random(6))]);
     $teacher = User::factory()->create(['role_id' => $docenteRoleId]);
     $teacher->departments()->attach($department->id);
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
     $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
     $jefeDepto->departments()->attach($department->id);
 
@@ -166,6 +168,12 @@ it('marks the active seguimiento stage and exposes manual completion labels', fu
         'group_code' => 'A',
         'hours_per_week' => 4,
     ]);
+    $load->forceFill([
+        'office_completion_status' => TeachingLoad::OFFICE_COMPLETION_COMPLETE,
+        'office_completion_reviewed_by_user_id' => $jefeOficina->id,
+        'office_completion_reviewed_at' => now(),
+        'office_completion_comments' => 'Expediente completo.',
+    ])->save();
 
     $categoryId = EvidenceCategory::where('name', 'I_CARGA_ACADEMICA')->value('id');
     $seg2Item = EvidenceItem::create([
@@ -226,6 +234,73 @@ it('marks the active seguimiento stage and exposes manual completion labels', fu
             ->where('columns.0.is_current_stage', true)
             ->where('columns.1.is_current_stage', false)
             ->where('rows.0.efficiency_label', 'Nivel de cumplimiento')
+            ->where('rows.0.office_completion.status', TeachingLoad::OFFICE_COMPLETION_COMPLETE)
             ->where('rows.0.final_completion_status', 'Completo')
         );
+});
+
+it('lets office mark completion and department mark visto bueno independently', function () {
+    $officeRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $deptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $teacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+
+    $office = User::factory()->create(['role_id' => $officeRoleId]);
+    $jefeDepto = User::factory()->create(['role_id' => $deptoRoleId]);
+    $teacher = User::factory()->create(['role_id' => $teacherRoleId]);
+    $department = Department::create(['name' => 'DEP VB '.Str::upper(Str::random(6))]);
+    $teacher->departments()->attach($department->id);
+    $jefeDepto->departments()->attach($department->id);
+
+    $semester = Semester::create([
+        'name' => 'SEM VB '.Str::upper(Str::random(6)),
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->addMonth()->toDateString(),
+        'status' => 'OPEN',
+    ]);
+    $subject = Subject::create([
+        'code' => 'VB-'.Str::upper(Str::random(6)),
+        'name' => 'VISTO BUENO '.Str::upper(Str::random(4)),
+    ]);
+    $load = TeachingLoad::create([
+        'teacher_user_id' => $teacher->id,
+        'semester_id' => $semester->id,
+        'subject_id' => $subject->id,
+        'group_code' => 'A',
+        'hours_per_week' => 4,
+    ]);
+
+    $this
+        ->actingAs($office)
+        ->post(route('asesorias.loads.office-completion', $load), [
+            'status' => TeachingLoad::OFFICE_COMPLETION_COMPLETE,
+            'comments' => 'Documentacion completa.',
+        ])
+        ->assertRedirect();
+
+    $load->refresh();
+    expect($load->office_completion_status)->toBe(TeachingLoad::OFFICE_COMPLETION_COMPLETE)
+        ->and($load->office_completion_reviewed_by_user_id)->toBe($office->id)
+        ->and($load->office_completion_comments)->toBe('Documentacion completa.');
+
+    $this
+        ->actingAs($jefeDepto)
+        ->post(route('asesorias.loads.department-review', $load), [
+            'decision' => 'REVIEW',
+            'comments' => 'Pendiente de visto bueno.',
+        ])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('teaching_load_reviews', [
+        'teaching_load_id' => $load->id,
+        'reviewed_by_user_id' => $jefeDepto->id,
+        'decision' => 'REVIEW',
+        'comments' => 'Pendiente de visto bueno.',
+    ]);
+
+    $this
+        ->actingAs($jefeDepto)
+        ->post(route('asesorias.loads.office-completion', $load), [
+            'status' => TeachingLoad::OFFICE_COMPLETION_INCOMPLETE,
+        ])
+        ->assertForbidden();
 });

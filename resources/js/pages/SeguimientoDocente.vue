@@ -78,8 +78,18 @@ function departmentReviewPillClasses(status) {
 
 function departmentReviewLabel(status) {
     if (status === 'APPROVE') return 'Aprobado';
-    if (status === 'REJECT') return 'Rechazado';
+    if (status === 'REJECT') return 'No aprobado';
     return 'Revisar';
+}
+
+function officeCompletionLabel(status) {
+    return status === 'COMPLETE' ? 'Completo' : 'Incompleto';
+}
+
+function officeCompletionPillClasses(status) {
+    return status === 'COMPLETE'
+        ? 'bg-emerald-100 text-emerald-800 ring-emerald-300'
+        : 'bg-rose-100 text-rose-800 ring-rose-300';
 }
 
 function availabilityToneClasses(code) {
@@ -152,6 +162,8 @@ const cellModalCol = ref(null);
 const focusedCellOpened = ref(false);
 const departmentReviewModalOpen = ref(false);
 const departmentReviewRow = ref(null);
+const officeCompletionModalOpen = ref(false);
+const officeCompletionRow = ref(null);
 const cellStatusOptions = [
     { value: 'AO', label: 'AO', description: 'Aprobado por oficina' },
     { value: 'VF', label: 'VF', description: 'Visto bueno final' },
@@ -258,6 +270,20 @@ function closeDepartmentReview() {
     departmentReviewForm.reset();
 }
 
+function openOfficeCompletion(row) {
+    officeCompletionRow.value = row;
+    officeCompletionModalOpen.value = true;
+    officeCompletionForm.reset();
+    officeCompletionForm.status = row.office_completion?.status || 'INCOMPLETE';
+    officeCompletionForm.comments = row.office_completion?.comments || '';
+}
+
+function closeOfficeCompletion() {
+    officeCompletionModalOpen.value = false;
+    officeCompletionRow.value = null;
+    officeCompletionForm.reset();
+}
+
 const reviewForm = useForm({
     decision: 'APPROVE',
     comments: '',
@@ -298,6 +324,11 @@ const firstFolderUrl = computed(() => {
 
 const departmentReviewForm = useForm({
     decision: 'APPROVE',
+    comments: '',
+});
+
+const officeCompletionForm = useForm({
+    status: 'INCOMPLETE',
     comments: '',
 });
 
@@ -369,7 +400,7 @@ function submitDepartmentReview(decision) {
     if (!row?.id) return;
 
     if (decision === 'REJECT' && !departmentReviewForm.comments.trim()) {
-        alert('Debes escribir un motivo para rechazar.');
+        alert('Debes escribir un motivo para marcar no aprobado.');
         return;
     }
 
@@ -377,6 +408,17 @@ function submitDepartmentReview(decision) {
     departmentReviewForm.post(`/asesorias/cargas/${row.id}/revision-jefe`, {
         preserveScroll: true,
         onSuccess: closeDepartmentReview,
+    });
+}
+
+function submitOfficeCompletion(status) {
+    const row = officeCompletionRow.value;
+    if (!row?.id) return;
+
+    officeCompletionForm.status = status;
+    officeCompletionForm.post(`/asesorias/cargas/${row.id}/completitud-oficina`, {
+        preserveScroll: true,
+        onSuccess: closeOfficeCompletion,
     });
 }
 
@@ -397,8 +439,8 @@ function exportCSV() {
         'CARRERA',
         'CLAVE_TECNM',
         ...orderedColumns.value.map((column) => column.label.toUpperCase()),
-        'REV_JEFE_DEPTO',
-        'ESTADO_FINAL',
+        'COMPLETITUD',
+        'VB_JEFE_DEPTO',
     ];
 
     const lines = [
@@ -413,8 +455,8 @@ function exportCSV() {
                 ...orderedColumns.value.map((column) =>
                     exportStatus(row.cells[column.key]),
                 ),
+                officeCompletionLabel(row.office_completion?.status),
                 departmentReviewLabel(row.department_review?.status),
-                row.final_completion_status || statusLabel(row.estado_final),
             ].map((value) => `"${String(value).replaceAll('"', '""')}"`);
 
             return values.join(',');
@@ -443,11 +485,12 @@ function exportXLSX() {
             );
         });
 
-        result.REV_JEFE_DEPTO = departmentReviewLabel(
+        result.COMPLETITUD = officeCompletionLabel(
+            row.office_completion?.status,
+        );
+        result.VB_JEFE_DEPTO = departmentReviewLabel(
             row.department_review?.status,
         );
-        result.ESTADO_FINAL =
-            row.final_completion_status || statusLabel(row.estado_final);
 
         return result;
     });
@@ -718,19 +761,27 @@ function formatBytes(bytes) {
                                             Actual
                                         </span>
                                     </th>
+                                     <th
+                                         class="min-w-[118px] px-3 py-3 text-center"
+                                     >
+                                        <span class="block leading-tight"
+                                            >Completitud</span
+                                        >
+                                        <span
+                                            class="mt-1 block text-[10px] text-slate-400 normal-case"
+                                            >Oficina</span
+                                        >
+                                    </th>
                                     <th
                                         class="min-w-[118px] px-3 py-3 text-center"
                                     >
                                         <span class="block leading-tight"
-                                            >Rev Jefe Depto</span
+                                            >VB Jefe Depto</span
                                         >
                                         <span
                                             class="mt-1 block text-[10px] text-slate-400 normal-case"
-                                            >Revision final</span
+                                            >Visto bueno</span
                                         >
-                                    </th>
-                                    <th class="px-3 py-3 text-center">
-                                        Status Final
                                     </th>
                                 </tr>
                             </thead>
@@ -819,6 +870,58 @@ function formatBytes(bytes) {
 
                                     <td class="px-3 py-2 text-center">
                                         <button
+                                            v-if="
+                                                row.office_completion
+                                                    ?.can_review
+                                            "
+                                            type="button"
+                                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 transition-colors hover:opacity-85"
+                                            :class="
+                                                officeCompletionPillClasses(
+                                                    row.office_completion
+                                                        ?.status,
+                                                )
+                                            "
+                                            :title="
+                                                row.office_completion
+                                                    ?.comments ||
+                                                'Completitud de oficina'
+                                            "
+                                            @click="openOfficeCompletion(row)"
+                                        >
+                                            {{
+                                                officeCompletionLabel(
+                                                    row.office_completion
+                                                        ?.status,
+                                                )
+                                            }}
+                                        </button>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1"
+                                            :class="
+                                                officeCompletionPillClasses(
+                                                    row.office_completion
+                                                        ?.status,
+                                                )
+                                            "
+                                            :title="
+                                                row.office_completion
+                                                    ?.comments ||
+                                                'Completitud de oficina'
+                                            "
+                                        >
+                                            {{
+                                                officeCompletionLabel(
+                                                    row.office_completion
+                                                        ?.status,
+                                                )
+                                            }}
+                                        </span>
+                                    </td>
+
+                                    <td class="px-3 py-2 text-center">
+                                        <button
                                             type="button"
                                             class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 transition-colors hover:opacity-85"
                                             :class="
@@ -830,7 +933,7 @@ function formatBytes(bytes) {
                                             :title="
                                                 row.department_review
                                                     ?.comments ||
-                                                'Revision del jefe de departamento'
+                                                'Visto bueno del jefe de departamento'
                                             "
                                             @click="openDepartmentReview(row)"
                                         >
@@ -841,23 +944,6 @@ function formatBytes(bytes) {
                                                 )
                                             }}
                                         </button>
-                                    </td>
-
-                                    <td class="px-3 py-2 text-center">
-                                        <span
-                                            class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1"
-                                            :class="
-                                                statusPillClasses(
-                                                    row.final_completion_status ||
-                                                        row.estado_final,
-                                                )
-                                            "
-                                        >
-                                            {{
-                                                row.final_completion_status ||
-                                                statusLabel(row.estado_final)
-                                            }}
-                                        </span>
                                     </td>
                                 </tr>
                                 <tr v-if="filteredRows.length === 0">
@@ -923,12 +1009,14 @@ function formatBytes(bytes) {
 
         <div
             v-if="cellModalOpen && cellModalData"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
             @click.self="closeCellDetail"
         >
-            <div class="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+            <div
+                class="flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+            >
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                    class="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4"
                 >
                     <div>
                         <h2 class="text-base font-semibold text-slate-900">
@@ -956,7 +1044,7 @@ function formatBytes(bytes) {
                     </div>
                 </div>
 
-                <div class="space-y-4 px-5 py-4">
+                <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                     <div class="flex flex-wrap items-center gap-2 text-xs">
                         <span
                             class="rounded-full border px-2 py-1 font-semibold text-slate-700"
@@ -1366,7 +1454,7 @@ function formatBytes(bytes) {
                 </div>
 
                 <div
-                    class="flex justify-end border-t border-slate-100 px-5 py-4"
+                    class="flex shrink-0 justify-end border-t border-slate-100 px-5 py-4"
                 >
                     <button
                         type="button"
@@ -1380,17 +1468,136 @@ function formatBytes(bytes) {
         </div>
 
         <div
-            v-if="departmentReviewModalOpen && departmentReviewRow"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-            @click.self="closeDepartmentReview"
+            v-if="officeCompletionModalOpen && officeCompletionRow"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+            @click.self="closeOfficeCompletion"
         >
-            <div class="w-full max-w-xl rounded-xl bg-white shadow-xl">
+            <div
+                class="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+            >
                 <div
-                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                    class="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4"
                 >
                     <div>
                         <h2 class="text-base font-semibold text-slate-900">
-                            Revision jefe Depto
+                            Completitud de oficina
+                        </h2>
+                        <p class="text-sm text-slate-600">
+                            {{ officeCompletionRow.maestro }} -
+                            {{ officeCompletionRow.materia }}
+                        </p>
+                    </div>
+                    <span
+                        class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ring-1"
+                        :class="
+                            officeCompletionPillClasses(
+                                officeCompletionRow.office_completion?.status,
+                            )
+                        "
+                    >
+                        {{
+                            officeCompletionLabel(
+                                officeCompletionRow.office_completion?.status,
+                            )
+                        }}
+                    </span>
+                </div>
+
+                <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+                    <div
+                        class="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700"
+                    >
+                        <div
+                            v-if="
+                                officeCompletionRow.office_completion
+                                    ?.reviewed_at
+                            "
+                        >
+                            Ultima actualizacion:
+                            {{
+                                officeCompletionRow.office_completion
+                                    .reviewed_at
+                            }}
+                            <span
+                                v-if="
+                                    officeCompletionRow.office_completion
+                                        ?.reviewer_name
+                                "
+                            >
+                                por
+                                {{
+                                    officeCompletionRow.office_completion
+                                        .reviewer_name
+                                }}
+                            </span>
+                        </div>
+                        <div v-else>
+                            Esta carga aun no tiene una decision registrada por
+                            oficina.
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-100 p-3">
+                        <h3
+                            class="mb-2 text-xs font-semibold text-slate-500 uppercase"
+                        >
+                            Registrar completitud
+                        </h3>
+                        <textarea
+                            v-model="officeCompletionForm.comments"
+                            rows="3"
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
+                            placeholder="Comentario opcional de oficina..."
+                        ></textarea>
+                        <div class="mt-3 flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                :disabled="officeCompletionForm.processing"
+                                @click="submitOfficeCompletion('COMPLETE')"
+                            >
+                                Completo
+                            </button>
+                            <button
+                                type="button"
+                                class="flex-1 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                                :disabled="officeCompletionForm.processing"
+                                @click="submitOfficeCompletion('INCOMPLETE')"
+                            >
+                                Incompleto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="flex shrink-0 justify-end border-t border-slate-100 px-5 py-4"
+                >
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        @click="closeOfficeCompletion"
+                    >
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="departmentReviewModalOpen && departmentReviewRow"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+            @click.self="closeDepartmentReview"
+        >
+            <div
+                class="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+            >
+                <div
+                    class="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4"
+                >
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">
+                            VB Jefe Depto
                         </h2>
                         <p class="text-sm text-slate-600">
                             {{ departmentReviewRow.maestro }} -
@@ -1413,7 +1620,7 @@ function formatBytes(bytes) {
                     </span>
                 </div>
 
-                <div class="space-y-4 px-5 py-4">
+                <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
                     <div
                         v-if="
                             departmentReviewRow.department_review?.trail?.length
@@ -1467,7 +1674,7 @@ function formatBytes(bytes) {
                         v-else
                         class="rounded-lg border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-800"
                     >
-                        Esta carga aun no tiene revision del jefe de
+                        Esta carga sigue pendiente de visto bueno del jefe de
                         departamento.
                     </div>
 
@@ -1484,7 +1691,7 @@ function formatBytes(bytes) {
                             v-model="departmentReviewForm.comments"
                             rows="3"
                             class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-300"
-                            placeholder="Comentario o motivo. Obligatorio si rechazas..."
+                            placeholder="Comentario o motivo. Obligatorio si marcas no aprobado..."
                         ></textarea>
                         <div class="mt-3 flex items-center gap-2">
                             <button
@@ -1497,11 +1704,19 @@ function formatBytes(bytes) {
                             </button>
                             <button
                                 type="button"
+                                class="flex-1 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50"
+                                :disabled="departmentReviewForm.processing"
+                                @click="submitDepartmentReview('REVIEW')"
+                            >
+                                Revisar
+                            </button>
+                            <button
+                                type="button"
                                 class="flex-1 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
                                 :disabled="departmentReviewForm.processing"
                                 @click="submitDepartmentReview('REJECT')"
                             >
-                                Rechazar
+                                No aprobado
                             </button>
                         </div>
                     </div>
@@ -1515,7 +1730,7 @@ function formatBytes(bytes) {
                 </div>
 
                 <div
-                    class="flex justify-end border-t border-slate-100 px-5 py-4"
+                    class="flex shrink-0 justify-end border-t border-slate-100 px-5 py-4"
                 >
                     <button
                         type="button"

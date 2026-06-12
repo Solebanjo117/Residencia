@@ -13,6 +13,10 @@ class TeachingLoad extends Model
 
     public const MODALITY_EN_LINEA = 'EN_LINEA';
 
+    public const OFFICE_COMPLETION_COMPLETE = 'COMPLETE';
+
+    public const OFFICE_COMPLETION_INCOMPLETE = 'INCOMPLETE';
+
     const UPDATED_AT = null;
 
     protected $fillable = [
@@ -22,11 +26,19 @@ class TeachingLoad extends Model
         'group_code',
         'hours_per_week',
         'modality',
+        'office_completion_status',
+        'office_completion_reviewed_by_user_id',
+        'office_completion_reviewed_at',
+        'office_completion_comments',
     ];
 
     // Expose 'group_name' as an alias for 'group_code' so all frontend/controllers
     // can use the friendlier name without a DB column rename.
     protected $appends = ['group_name'];
+
+    protected $casts = [
+        'office_completion_reviewed_at' => 'datetime',
+    ];
 
     public function getGroupNameAttribute(): ?string
     {
@@ -56,6 +68,11 @@ class TeachingLoad extends Model
     public function departmentReviews()
     {
         return $this->hasMany(TeachingLoadReview::class);
+    }
+
+    public function officeCompletionReviewer()
+    {
+        return $this->belongsTo(User::class, 'office_completion_reviewed_by_user_id');
     }
 
     public function advisorySessions()

@@ -56,7 +56,7 @@ class AdvisoryController extends Controller
         $requirements = $flowService->requirementsForDepartment($semester->id, $department->id);
         $evidenceItems = $requirements->map(fn (EvidenceRequirement $requirement) => $requirement->evidenceItem);
 
-        $loadsQuery = TeachingLoad::with(['teacher.departments', 'subject'])
+        $loadsQuery = TeachingLoad::with(['teacher.departments', 'subject', 'officeCompletionReviewer'])
             ->where('semester_id', $semester->id);
 
         if ($user->isDocente()) {
@@ -128,8 +128,19 @@ class AdvisoryController extends Controller
                         'reviewer_name' => $review->reviewer?->name,
                     ])->values()->toArray(),
                 ],
+                'office_completion' => [
+                    'status' => $load->office_completion_status ?: TeachingLoad::OFFICE_COMPLETION_INCOMPLETE,
+                    'comments' => $load->office_completion_comments,
+                    'reviewed_at' => $load->office_completion_reviewed_at?->toDateTimeString(),
+                    'reviewer_name' => $load->officeCompletionReviewer?->name,
+                    'can_review' => $user->isJefeOficina()
+                        && $semester->status === \App\Enums\SemesterStatus::OPEN
+                        && $this->canManageLoad($user, $load),
+                ],
                 'efficiency_label' => 'Nivel de cumplimiento',
-                'final_completion_status' => $latestLoadReview?->decision === 'APPROVE' ? 'Completo' : 'Incompleto',
+                'final_completion_status' => $load->office_completion_status === TeachingLoad::OFFICE_COMPLETION_COMPLETE
+                    ? 'Completo'
+                    : 'Incompleto',
             ];
 
             foreach ($requirements as $requirement) {
@@ -448,6 +459,37 @@ class AdvisoryController extends Controller
         );
     }
 
+    public function updateTeachingLoadCompletion(Request $request, TeachingLoad $teachingLoad)
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        abort_unless($user->isJefeOficina(), 403);
+
+        $teachingLoad->load('teacher.departments', 'semester', 'subject');
+        abort_unless($this->canManageLoad($user, $teachingLoad), 403);
+        abort_unless($teachingLoad->semester?->status === \App\Enums\SemesterStatus::OPEN, 403);
+
+        $validated = $request->validate([
+            'status' => 'required|in:'.TeachingLoad::OFFICE_COMPLETION_COMPLETE.','.TeachingLoad::OFFICE_COMPLETION_INCOMPLETE,
+            'comments' => 'nullable|string|max:700',
+        ]);
+
+        $teachingLoad->forceFill([
+            'office_completion_status' => $validated['status'],
+            'office_completion_reviewed_by_user_id' => $user->id,
+            'office_completion_reviewed_at' => now(),
+            'office_completion_comments' => trim((string) ($validated['comments'] ?? '')) ?: null,
+        ])->save();
+
+        return back()->with(
+            'success',
+            $validated['status'] === TeachingLoad::OFFICE_COMPLETION_COMPLETE
+                ? 'Carga marcada como completa por oficina.'
+                : 'Carga marcada como incompleta por oficina.'
+        );
+    }
+
     public function reviewTeachingLoad(Request $request, TeachingLoad $teachingLoad, NotificationService $notificationService)
     {
         /** @var \App\Models\User $user */
@@ -460,7 +502,7 @@ class AdvisoryController extends Controller
         abort_unless($teachingLoad->semester?->status === \App\Enums\SemesterStatus::OPEN, 403);
 
         $validated = $request->validate([
-            'decision' => 'required|in:APPROVE,REJECT',
+            'decision' => 'required|in:APPROVE,REVIEW,REJECT',
             'comments' => 'required_if:decision,REJECT|nullable|string|max:700',
         ]);
 
@@ -478,10 +520,11 @@ class AdvisoryController extends Controller
             $notificationService
         );
 
-        return back()->with('success', $validated['decision'] === 'APPROVE'
-            ? 'Carga aprobada por jefe de departamento.'
-            : 'Carga rechazada por jefe de departamento.'
-        );
+        return back()->with('success', match ($validated['decision']) {
+            'APPROVE' => 'Visto bueno aprobado por jefe de departamento.',
+            'REVIEW' => 'Carga marcada para revisar por jefe de departamento.',
+            default => 'Carga no aprobada por jefe de departamento.',
+        });
     }
 
     private function notifyReviewersForCellUpload(
@@ -580,6 +623,10 @@ class AdvisoryController extends Controller
         NotificationService $notificationService
     ): void {
         if (! $teachingLoad->teacher) {
+            return;
+        }
+
+        if ($review->decision === 'REVIEW') {
             return;
         }
 

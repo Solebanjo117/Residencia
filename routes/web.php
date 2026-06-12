@@ -4,8 +4,8 @@ use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocxEditorController;
 use App\Http\Controllers\FileController;
-use App\Http\Controllers\FormatPublicationController;
 use App\Http\Controllers\FolderController;
+use App\Http\Controllers\FormatPublicationController;
 use App\Http\Controllers\OnlyOfficeController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -91,6 +91,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('asesorias/cells/status', [\App\Http\Controllers\Admin\AdvisoryController::class, 'upsertCellStatus'])
         ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA.','.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.cells.status');
+    Route::post('asesorias/cargas/{teachingLoad}/completitud-oficina', [\App\Http\Controllers\Admin\AdvisoryController::class, 'updateTeachingLoadCompletion'])
+        ->middleware(['role:'.\App\Models\Role::JEFE_OFICINA])
+        ->name('asesorias.loads.office-completion');
     Route::post('asesorias/cargas/{teachingLoad}/revision-jefe', [\App\Http\Controllers\Admin\AdvisoryController::class, 'reviewTeachingLoad'])
         ->middleware(['role:'.\App\Models\Role::JEFE_DEPTO])
         ->name('asesorias.loads.department-review');
