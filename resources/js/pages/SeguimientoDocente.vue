@@ -439,7 +439,7 @@ function exportCSV() {
         'CARRERA',
         'CLAVE_TECNM',
         ...orderedColumns.value.map((column) => column.label.toUpperCase()),
-        'COMPLETITUD',
+        'STATUS_OFICINA_SGC',
         'VB_JEFE_DEPTO',
     ];
 
@@ -485,7 +485,7 @@ function exportXLSX() {
             );
         });
 
-        result.COMPLETITUD = officeCompletionLabel(
+        result.STATUS_OFICINA_SGC = officeCompletionLabel(
             row.office_completion?.status,
         );
         result.VB_JEFE_DEPTO = departmentReviewLabel(
@@ -765,7 +765,7 @@ function formatBytes(bytes) {
                                          class="min-w-[118px] px-3 py-3 text-center"
                                      >
                                         <span class="block leading-tight"
-                                            >Completitud</span
+                                            >Status Oficina SGC</span
                                         >
                                         <span
                                             class="mt-1 block text-[10px] text-slate-400 normal-case"
@@ -885,7 +885,7 @@ function formatBytes(bytes) {
                                             :title="
                                                 row.office_completion
                                                     ?.comments ||
-                                                'Completitud de oficina'
+                                                'Status Oficina SGC'
                                             "
                                             @click="openOfficeCompletion(row)"
                                         >
@@ -908,7 +908,7 @@ function formatBytes(bytes) {
                                             :title="
                                                 row.office_completion
                                                     ?.comments ||
-                                                'Completitud de oficina'
+                                                'Status Oficina SGC'
                                             "
                                         >
                                             {{
@@ -1480,7 +1480,7 @@ function formatBytes(bytes) {
                 >
                     <div>
                         <h2 class="text-base font-semibold text-slate-900">
-                            Completitud de oficina
+                            Status Oficina SGC
                         </h2>
                         <p class="text-sm text-slate-600">
                             {{ officeCompletionRow.maestro }} -
@@ -1541,7 +1541,7 @@ function formatBytes(bytes) {
                         <h3
                             class="mb-2 text-xs font-semibold text-slate-500 uppercase"
                         >
-                            Registrar completitud
+                            Registrar status oficina SGC
                         </h3>
                         <textarea
                             v-model="officeCompletionForm.comments"
