@@ -19,12 +19,15 @@ const props = defineProps<{
     expandedState: Record<string, boolean>;
     activeFolderId?: number | null;
     hasInternalDrag?: boolean;
+    selectionMode?: boolean;
+    selectedFolderId?: number | string | null;
 }>();
 
 const emit = defineEmits<{
     (event: 'toggle-folder', folderId: string | number): void;
     (event: 'drop-on-folder', folderId: number): void;
     (event: 'folder-action', action: string, folder: any): void;
+    (event: 'select-folder', folderId: number | null): void;
 }>();
 
 const page = usePage();
@@ -46,6 +49,17 @@ const isActive = computed(() => {
     }
 
     return page.url === `/files/folders/${props.node.id}`;
+});
+
+const isSelected = computed(() => {
+    if (!props.selectionMode || isVirtualNode.value) {
+        return false;
+    }
+
+    return (
+        props.selectedFolderId != null &&
+        String(props.selectedFolderId) === String(props.node.id)
+    );
 });
 
 const isDragOver = ref(false);
@@ -130,6 +144,23 @@ const toggle = () => {
     }
 };
 
+const selectNode = () => {
+    if (props.selectionMode) {
+        if (isVirtualNode.value) {
+            toggle();
+            return;
+        }
+
+        emit('select-folder', Number(props.node.id));
+    }
+};
+
+const handleDoubleClick = () => {
+    if (hasChildren.value) {
+        toggle();
+    }
+};
+
 const onDragOver = (event: DragEvent) => {
     if (isVirtualNode.value) return;
 
@@ -174,11 +205,16 @@ const onDrop = (event: DragEvent) => {
             class="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-100"
             :class="[
                 folderRowClass,
-                { 'bg-blue-50 ring-2 ring-blue-400': isDragOver },
+                {
+                    'bg-blue-50 ring-2 ring-blue-400': isSelected,
+                    'cursor-pointer': props.selectionMode,
+                },
+                { 'bg-blue-50 ring-2 ring-blue-400': isDragOver && !props.selectionMode },
             ]"
             @dragover="onDragOver($event)"
             @dragleave="onDragLeave"
             @drop="onDrop"
+            @dblclick.stop="handleDoubleClick"
         >
             <button
                 type="button"
@@ -194,28 +230,39 @@ const onDrop = (event: DragEvent) => {
             </button>
 
             <Link
-                v-if="!isVirtualNode"
+                v-if="!selectionMode && !isVirtualNode"
                 :href="node.readable_url || `/files/folders/${node.id}`"
                 class="flex flex-1 items-center gap-2 text-sm text-gray-700 hover:text-blue-600"
-                :class="{
-                    'font-semibold': isActive,
-                }"
+                :class="{ 'font-semibold': isActive }"
             >
                 <component
-                    :is="
-                        isOpen && !node.icon_key
-                            ? FolderOpen
-                            : folderIconComponent
-                    "
+                    :is="isOpen && !node.icon_key ? FolderOpen : folderIconComponent"
                     class="h-4 w-4"
                     :class="folderIconClass"
                 />
                 {{ node.name }}
             </Link>
 
-            <div
+            <button
+                v-else-if="selectionMode && !isVirtualNode"
+                type="button"
+                class="flex flex-1 items-center gap-2 text-left text-sm text-gray-700 hover:text-blue-600"
+                :class="{ 'font-semibold': isSelected }"
+                @click="selectNode"
+            >
+                <component
+                    :is="isOpen && !node.icon_key ? FolderOpen : folderIconComponent"
+                    class="h-4 w-4"
+                    :class="folderIconClass"
+                />
+                {{ node.name }}
+            </button>
+
+            <button
                 v-else
-                class="flex flex-1 items-center gap-2 text-sm font-semibold text-gray-700"
+                type="button"
+                class="flex flex-1 items-center gap-2 text-left text-sm font-semibold text-gray-700"
+                @click="selectNode"
             >
                 <component
                     :is="isOpen ? FolderOpen : Folder"
@@ -223,7 +270,7 @@ const onDrop = (event: DragEvent) => {
                     :class="folderIconClass"
                 />
                 {{ node.name }}
-            </div>
+            </button>
         </div>
 
         <div v-if="isOpen && hasChildren" class="ml-4 border-l border-gray-200">
@@ -235,11 +282,14 @@ const onDrop = (event: DragEvent) => {
                 :expanded-state="expandedState"
                 :active-folder-id="activeFolderId"
                 :has-internal-drag="hasInternalDrag"
+                :selection-mode="selectionMode"
+                :selected-folder-id="selectedFolderId"
                 @toggle-folder="emit('toggle-folder', $event)"
                 @drop-on-folder="emit('drop-on-folder', $event)"
                 @folder-action="
                     (action, folder) => emit('folder-action', action, folder)
                 "
+                @select-folder="emit('select-folder', $event)"
             />
         </div>
     </div>

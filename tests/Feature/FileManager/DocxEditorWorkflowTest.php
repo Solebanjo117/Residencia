@@ -873,6 +873,181 @@ XML,
     $zip->close();
 });
 
+it('allows a teacher to edit an advanced standalone docx inside their own folder', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/documento-propio-avanzado.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx(
+        <<<'XML'
+<w:p>
+    <w:hyperlink r:id="rIdLink1">
+        <w:r><w:t>Documento propio</w:t></w:r>
+    </w:hyperlink>
+</w:p>
+XML,
+        [
+            'document_relationships' => [[
+                'id' => 'rIdLink1',
+                'type' => 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+                'target' => 'https://example.test',
+            ]],
+        ]
+    ));
+
+    $file = EvidenceFile::create([
+        'submission_id' => null,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'documento-propio-avanzado.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-own-advanced'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('files.docx.show', $file->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/DocxEditor')
+            ->where('file.can_edit', true)
+            ->where('capabilities.can_edit', true)
+            ->where('capabilities.allow_unsafe_rewrite', true)
+            ->where('document.safe_to_save', false)
+            ->where('document.blocking_features.0', 'documento principal: hipervinculos nativos')
+        );
+});
+
+it('saves an advanced standalone docx owned by the teacher while acknowledging unsafe rewrite', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $storedPath = $ctx['folder']->relative_path.'/documento-propio-comentarios.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx(
+        <<<'XML'
+<w:p>
+    <w:r><w:t>Texto propio con comentario</w:t></w:r>
+    <w:commentReference w:id="1"/>
+</w:p>
+XML,
+        [
+            'extra_word_parts' => [
+                'word/comments.xml' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+            ],
+            'content_type_overrides' => [
+                '/word/comments.xml' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml',
+            ],
+        ]
+    ));
+
+    $file = EvidenceFile::create([
+        'submission_id' => null,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'documento-propio-comentarios.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-own-comments'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $response = $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.docx.store', $file->id), [
+            'html' => '<p>Texto propio actualizado</p>',
+            'save_mode' => 'replace_current',
+        ]);
+
+    $response->assertRedirect(route('files.docx.show', $file->id));
+
+    $file->refresh();
+    expect($file->editor_source)->toBe('DOCX_EDITOR')
+        ->and($file->editor_meta['unsafe_rewrite_acknowledged'] ?? null)->toBeTrue()
+        ->and($file->editor_meta['blocking_features'])->toContain('documento principal: referencias a comentarios');
+});
+
+it('does not allow another teacher to edit a standalone docx in someone else own folder', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+    $otherTeacherRoleId = Role::where('name', Role::DOCENTE)->value('id');
+    $otherTeacher = User::factory()->create(['role_id' => $otherTeacherRoleId]);
+
+    $storedPath = $ctx['folder']->relative_path.'/documento-ajeno.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Ajeno</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => null,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'documento-ajeno.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-other-teacher'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($otherTeacher)
+        ->post(route('files.docx.store', $file->id), [
+            'html' => '<p>No autorizado</p>',
+            'save_mode' => 'replace_current',
+        ])
+        ->assertForbidden();
+});
+
+it('keeps common folder standalone docx read only for teachers', function () {
+    Storage::fake('local');
+    $ctx = createDocxEditorContext();
+
+    $semesterFolder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => $ctx['semester']->name,
+        'relative_path' => 'sem_'.$ctx['semester']->id,
+        'owner_user_id' => null,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => null,
+    ]);
+
+    $commonFolder = FolderNode::create([
+        'storage_root_id' => $ctx['folder']->storage_root_id,
+        'name' => 'FORMATOS',
+        'relative_path' => $semesterFolder->relative_path.'/FORMATOS',
+        'owner_user_id' => null,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $semesterFolder->id,
+    ]);
+
+    $storedPath = $commonFolder->relative_path.'/formato-comun.docx';
+    Storage::disk('local')->put($storedPath, makeSimpleDocx('<w:p><w:r><w:t>Formato comun</w:t></w:r></w:p>'));
+
+    $file = EvidenceFile::create([
+        'submission_id' => null,
+        'folder_node_id' => $commonFolder->id,
+        'file_name' => 'formato-comun.docx',
+        'stored_relative_path' => $storedPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => 1024,
+        'file_hash' => hash('sha256', 'docx-common-folder'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('files.docx.show', $file->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/DocxEditor')
+            ->where('file.can_edit', false)
+            ->where('capabilities.can_edit', false)
+        );
+});
+
 it('loads and saves editable header and footer content when the docx already defines them', function () {
     Storage::fake('local');
     $ctx = createDocxEditorContext();

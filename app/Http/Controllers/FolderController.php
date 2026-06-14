@@ -157,6 +157,56 @@ class FolderController extends Controller
         ]);
     }
 
+    public function contents(Request $request, FolderNode $folder)
+    {
+        $this->authorize('view', $folder);
+
+        $user = $request->user();
+        $folder->load(['semester', 'parent']);
+
+        $visibleChildren = $folder->children
+            ->filter(fn (FolderNode $child) => $user->can('view', $child))
+            ->values();
+
+        $visibleFiles = $folder->files()
+            ->with(['uploadedBy', 'folderNode'])
+            ->currentVersion()
+            ->get()
+            ->filter(fn (EvidenceFile $file) => $user->can('view', $file) && $file->isDocx())
+            ->values();
+
+        return response()->json([
+            'folder' => [
+                'id' => $folder->id,
+                'name' => $folder->name,
+                'display_path' => $this->readableFolderPath($folder),
+                'readable_url' => $this->readableFolderUrl($folder),
+            ],
+            'contents' => [
+                'folders' => $visibleChildren->map(fn (FolderNode $child) => [
+                    'id' => $child->id,
+                    'name' => $child->name,
+                    'display_path' => $this->readableFolderPath($child),
+                    'readable_url' => $this->readableFolderUrl($child),
+                    'icon_key' => $child->icon_key,
+                    'color_key' => $child->color_key,
+                ]),
+                'files' => $visibleFiles->map(fn (EvidenceFile $file) => [
+                    'id' => $file->id,
+                    'name' => $file->file_name,
+                    'size' => $file->size_bytes,
+                    'uploaded_at' => $file->uploaded_at?->format('Y-m-d H:i'),
+                    'uploaded_by' => $file->uploadedBy?->name,
+                    'mime_type' => $file->mime_type,
+                    'folder_name' => $file->folderNode?->name,
+                    'folder_path' => $file->folderNode ? $this->relativeFolderPath($folder, $file->folderNode) : null,
+                    'docx_editor_url' => route('files.docx.show', $file->id, false),
+                    'download_url' => route('files.download', $file->id, false),
+                ]),
+            ],
+        ]);
+    }
+
     public function showByPath(Request $request, string $folderPath)
     {
         $folder = $this->resolveFolderByReadablePath($folderPath);

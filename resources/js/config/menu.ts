@@ -68,6 +68,11 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                     href: '/docente/evidencias',
                     icon: UploadCloud,
                 },
+                {
+                    title: 'Proyectos Individuales',
+                    href: '/docente/proyectos-individuales',
+                    icon: FileText,
+                },
             ];
 
         case RoleName.JEFE_OFICINA:
@@ -91,6 +96,11 @@ export const getNavItemsByRole = (roleName?: string): NavItem[] => {
                 {
                     title: 'Reportes Docentes',
                     href: '/oficina/reportes',
+                    icon: FileText,
+                },
+                {
+                    title: 'Proyectos Individuales',
+                    href: '/oficina/proyectos-individuales',
                     icon: FileText,
                 },
                 {

@@ -1171,3 +1171,104 @@ it('keeps docentes from opening readable paths outside their folders', function 
 
     $response->assertForbidden();
 });
+
+it('lets docentes open the semester folder while hiding other teacher folders', function () {
+    $ctx = createFolderContext();
+
+    $commonFolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => 'FORMATOS',
+        'relative_path' => $ctx['semesterFolder']->relative_path.'/FORMATOS',
+        'owner_user_id' => null,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['semesterFolder']->id,
+    ]);
+
+    $otherTeacherFolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => $ctx['otherTeacher']->name,
+        'relative_path' => $ctx['semesterFolder']->relative_path.'/'.Str::slug($ctx['otherTeacher']->name),
+        'owner_user_id' => $ctx['otherTeacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['semesterFolder']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $ctx['semesterFolder']->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('FileManager/Index')
+            ->where('currentFolder.id', $ctx['semesterFolder']->id)
+            ->where('currentFolder.can_upload', false)
+            ->has('contents.folders', 2)
+            ->where('contents.folders.0.id', $ctx['teacherFolder']->id)
+            ->where('contents.folders.1.id', $commonFolder->id)
+        );
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $commonFolder->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('FileManager/Index')
+            ->where('currentFolder.can_upload', false)
+        );
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->post(route('files.store', $commonFolder->id), [
+            'file' => UploadedFile::fake()->create('formato.pdf', 100, 'application/pdf'),
+        ])
+        ->assertForbidden();
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $ctx['teacherFolder']->id))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('FileManager/Index')
+            ->where('currentFolder.can_upload', true)
+        );
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.show', $otherTeacherFolder->id))
+        ->assertForbidden();
+});
+
+it('includes semester folders with common and owned branches in docente file manager tree', function () {
+    $ctx = createFolderContext();
+
+    $commonFolder = FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => 'FORMATOS',
+        'relative_path' => $ctx['semesterFolder']->relative_path.'/FORMATOS',
+        'owner_user_id' => null,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['semesterFolder']->id,
+    ]);
+
+    FolderNode::create([
+        'storage_root_id' => $ctx['teacherFolder']->storage_root_id,
+        'name' => $ctx['otherTeacher']->name,
+        'relative_path' => $ctx['semesterFolder']->relative_path.'/'.Str::slug($ctx['otherTeacher']->name),
+        'owner_user_id' => $ctx['otherTeacher']->id,
+        'semester_id' => $ctx['semester']->id,
+        'parent_id' => $ctx['semesterFolder']->id,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.index'))
+        ->assertRedirect(route('folders.show', $ctx['teacherFolder']->id));
+
+    $tree = app(\App\Services\StorageService::class)->getAccessibleRoots($ctx['teacher']);
+
+    expect($tree[0]['children'])->toHaveCount(1)
+        ->and($tree[0]['children'][0]->id)->toBe($ctx['semesterFolder']->id)
+        ->and($tree[0]['children'][0]->children->pluck('id')->all())->toBe([
+            $ctx['teacherFolder']->id,
+            $commonFolder->id,
+        ]);
+});
