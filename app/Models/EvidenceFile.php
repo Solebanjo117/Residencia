@@ -14,6 +14,7 @@ class EvidenceFile extends Model
 
     protected $fillable = [
         'submission_id',
+        'individual_project_id',
         'previous_version_file_id',
         'root_file_id',
         'folder_node_id',
@@ -43,6 +44,11 @@ class EvidenceFile extends Model
     public function submission()
     {
         return $this->belongsTo(EvidenceSubmission::class, 'submission_id');
+    }
+
+    public function individualProject()
+    {
+        return $this->belongsTo(IndividualProject::class);
     }
 
     public function folderNode()

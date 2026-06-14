@@ -144,6 +144,18 @@ class FileController extends Controller
             return back()->withErrors(['file' => 'Esta carpeta no esta asociada a un semestre.']);
         }
 
+        if ($folder->owner_user_id === null && $this->canBypassAvailability($user)) {
+            try {
+                $this->storageService->storeStandaloneFolderFile($request->file('file'), $folder, $user);
+
+                return back()->with('success', 'Archivo subido correctamente.');
+            } catch (AuthorizationException $exception) {
+                throw $exception;
+            } catch (\Exception $exception) {
+                return back()->withErrors(['file' => $exception->getMessage()]);
+            }
+        }
+
         $materiaFolder = $this->findMateriaFolder($folder);
 
         $load = null;

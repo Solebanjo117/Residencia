@@ -4,7 +4,9 @@ namespace App\Policies;
 
 use App\Enums\SubmissionStatus;
 use App\Models\EvidenceFile;
+use App\Models\IndividualProject;
 use App\Models\User;
+use App\Support\FolderOwnership;
 
 class EvidenceFilePolicy
 {
@@ -50,7 +52,13 @@ class EvidenceFilePolicy
 
         $submission = $file->submission;
         if (! $submission) {
-            return false;
+            $project = $file->individualProject;
+
+            if ($project) {
+                return $this->canManageIndividualProjectFile($user, $project);
+            }
+
+            return $this->canManageStandaloneOwnedFile($user, $file);
         }
 
         if ($user->isDocente()) {
@@ -76,5 +84,22 @@ class EvidenceFilePolicy
         }
 
         return false;
+    }
+
+    private function canManageIndividualProjectFile(User $user, IndividualProject $project): bool
+    {
+        if ($user->isJefeOficina()) {
+            return true;
+        }
+
+        return $user->isDocente()
+            && (int) $project->teacher_user_id === (int) $user->id
+            && in_array($project->status, [IndividualProject::STATUS_DRAFT, IndividualProject::STATUS_REJECTED], true);
+    }
+
+    private function canManageStandaloneOwnedFile(User $user, EvidenceFile $file): bool
+    {
+        return $user->isDocente()
+            && FolderOwnership::isOwnedByOrInsideOwnedFolder($user, $file->folderNode);
     }
 }

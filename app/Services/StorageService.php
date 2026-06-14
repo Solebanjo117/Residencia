@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\EvidenceFile;
 use App\Models\EvidenceSubmission;
 use App\Models\FolderNode;
+use App\Models\IndividualProject;
 use App\Models\Semester;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -79,6 +80,102 @@ class StorageService
             'mime_type' => $validatedUpload['mime_type'],
             'size_bytes' => $validatedUpload['size_bytes'],
             'extension' => $validatedUpload['extension'],
+        ]);
+
+        return $evidenceFile;
+    }
+
+    public function storeIndividualProjectFile(UploadedFile $file, FolderNode $folderNode, User $user, IndividualProject $project): EvidenceFile
+    {
+        $validatedUpload = $this->validateUpload($file);
+
+        $root = $folderNode->root;
+        if (! $root || ! $root->is_active) {
+            throw new \Exception('Storage root not active or defined.');
+        }
+
+        $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
+        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
+        $path = $file->storeAs($normalizedFolderPath, $storedName, 'local');
+        if (! $path) {
+            throw new \RuntimeException('No se pudo guardar el archivo en disco.');
+        }
+
+        $normalizedStoredPath = $this->normalizeRelativePath($path);
+        $this->assertPathInsideFolder($folderNode, $normalizedStoredPath);
+
+        $hashSourcePath = $file->getRealPath();
+        $fileHash = $hashSourcePath ? hash_file('sha256', $hashSourcePath) : null;
+
+        $evidenceFile = EvidenceFile::create([
+            'submission_id' => null,
+            'individual_project_id' => $project->id,
+            'folder_node_id' => $folderNode->id,
+            'file_name' => $validatedUpload['safe_file_name'],
+            'stored_relative_path' => $normalizedStoredPath,
+            'mime_type' => $validatedUpload['mime_type'],
+            'size_bytes' => $validatedUpload['size_bytes'],
+            'file_hash' => $fileHash,
+            'uploaded_at' => now(),
+            'uploaded_by_user_id' => $user->id,
+        ]);
+
+        $this->auditService->log($user, 'UPLOAD_FILE', 'EvidenceFile', $evidenceFile->id, [
+            'original_filename' => $validatedUpload['original_name'],
+            'stored_filename' => $validatedUpload['safe_file_name'],
+            'stored_relative_path' => $normalizedStoredPath,
+            'mime_type' => $validatedUpload['mime_type'],
+            'size_bytes' => $validatedUpload['size_bytes'],
+            'extension' => $validatedUpload['extension'],
+            'individual_project_id' => $project->id,
+        ]);
+
+        return $evidenceFile;
+    }
+
+    public function storeStandaloneFolderFile(UploadedFile $file, FolderNode $folderNode, User $user): EvidenceFile
+    {
+        $validatedUpload = $this->validateUpload($file);
+
+        $root = $folderNode->root;
+        if (! $root || ! $root->is_active) {
+            throw new \Exception('Storage root not active or defined.');
+        }
+
+        $normalizedFolderPath = $this->normalizeRelativePath($folderNode->relative_path);
+        $storedName = (string) Str::uuid().'.'.$validatedUpload['extension'];
+        $path = $file->storeAs($normalizedFolderPath, $storedName, 'local');
+        if (! $path) {
+            throw new \RuntimeException('No se pudo guardar el archivo en disco.');
+        }
+
+        $normalizedStoredPath = $this->normalizeRelativePath($path);
+        $this->assertPathInsideFolder($folderNode, $normalizedStoredPath);
+
+        $hashSourcePath = $file->getRealPath();
+        $fileHash = $hashSourcePath ? hash_file('sha256', $hashSourcePath) : null;
+
+        $evidenceFile = EvidenceFile::create([
+            'submission_id' => null,
+            'individual_project_id' => null,
+            'folder_node_id' => $folderNode->id,
+            'file_name' => $validatedUpload['safe_file_name'],
+            'stored_relative_path' => $normalizedStoredPath,
+            'mime_type' => $validatedUpload['mime_type'],
+            'size_bytes' => $validatedUpload['size_bytes'],
+            'file_hash' => $fileHash,
+            'uploaded_at' => now(),
+            'uploaded_by_user_id' => $user->id,
+        ]);
+
+        $this->auditService->log($user, 'UPLOAD_FILE', 'EvidenceFile', $evidenceFile->id, [
+            'original_filename' => $validatedUpload['original_name'],
+            'stored_filename' => $validatedUpload['safe_file_name'],
+            'stored_relative_path' => $normalizedStoredPath,
+            'mime_type' => $validatedUpload['mime_type'],
+            'size_bytes' => $validatedUpload['size_bytes'],
+            'extension' => $validatedUpload['extension'],
+            'standalone_folder_file' => true,
         ]);
 
         return $evidenceFile;
@@ -245,23 +342,12 @@ class StorageService
         string $mimeType,
         FolderNode $folderNode,
         User $user,
-        EvidenceSubmission $submission,
+        ?EvidenceSubmission $submission,
         ?EvidenceFile $baseFile = null,
         ?string $editorSource = null,
-        ?array $editorMeta = null
+        ?array $editorMeta = null,
+        ?int $individualProjectId = null
     ): EvidenceFile {
-        if ($baseFile) {
-            return $this->overwriteGeneratedEvidence(
-                $baseFile,
-                $binaryContents,
-                $fileName,
-                $mimeType,
-                $user,
-                $editorSource,
-                $editorMeta
-            );
-        }
-
         $validatedUpload = $this->validateGeneratedUpload($fileName, $mimeType, $binaryContents);
 
         $root = $folderNode->root;
@@ -283,15 +369,16 @@ class StorageService
 
         try {
             $evidenceFile = DB::transaction(function () use (
-                $submission,
                 $folderNode,
                 $user,
                 $validatedUpload,
                 $normalizedStoredPath,
                 $fileHash,
+                $submission,
                 $baseFile,
                 $editorSource,
-                $editorMeta
+                $editorMeta,
+                $individualProjectId
             ) {
                 if ($baseFile) {
                     $baseFile->forceFill(['is_current_version' => false])->save();
@@ -300,7 +387,8 @@ class StorageService
                 $rootFileId = $baseFile?->root_file_id ?: $baseFile?->id;
 
                 return EvidenceFile::create([
-                    'submission_id' => $submission->id,
+                    'submission_id' => $submission?->id,
+                    'individual_project_id' => $individualProjectId ?? $baseFile?->individual_project_id,
                     'previous_version_file_id' => $baseFile?->id,
                     'root_file_id' => $rootFileId,
                     'folder_node_id' => $folderNode->id,
@@ -333,6 +421,45 @@ class StorageService
         ]);
 
         return $evidenceFile;
+    }
+
+    public function copyTemplateEvidenceToProject(
+        EvidenceFile $sourceFile,
+        FolderNode $targetFolder,
+        User $user,
+        ?EvidenceFile $baseFile = null,
+        ?int $individualProjectId = null
+    ): EvidenceFile {
+        $this->assertEvidenceFilePath($sourceFile);
+
+        if (! $sourceFile->isDocx()) {
+            throw new \InvalidArgumentException('La carpeta seleccionada debe contener un archivo DOCX plantilla.');
+        }
+
+        if (! Storage::disk('local')->exists($sourceFile->stored_relative_path)) {
+            throw new \RuntimeException('No se encontro el archivo plantilla en almacenamiento.');
+        }
+
+        $binary = Storage::disk('local')->get($sourceFile->stored_relative_path);
+        if ($binary === false) {
+            throw new \RuntimeException('No se pudo leer el archivo plantilla.');
+        }
+
+        return $this->storeGeneratedEvidenceVersion(
+            $binary,
+            $sourceFile->file_name,
+            $sourceFile->mime_type,
+            $targetFolder,
+            $user,
+            null,
+            $baseFile,
+            'PROJECT_TEMPLATE',
+            [
+                'template_file_id' => $sourceFile->id,
+                'template_folder_id' => $sourceFile->folder_node_id,
+            ],
+            $individualProjectId
+        );
     }
 
     public function deleteEvidence(EvidenceFile $file, User $user)
@@ -373,7 +500,11 @@ class StorageService
         }
 
         if ($user->isDocente()) {
-            $nodes = FolderNode::with('semester')->where('owner_user_id', $user->id)->get();
+            $nodes = FolderNode::with(['semester', 'parent'])
+                ->orderBy('id')
+                ->get()
+                ->filter(fn (FolderNode $node) => $user->can('view', $node))
+                ->values();
 
             return $this->groupRootsBySemesterStatus($this->buildTree($nodes));
         }

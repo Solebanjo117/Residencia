@@ -95,6 +95,48 @@ function createFileManagerContext(bool $windowOpen = true, bool $createWindow = 
     return compact('teacher', 'semester', 'item', 'submission', 'folder');
 }
 
+function createCommonFileManagerFolderContext(): array
+{
+    $semester = Semester::create([
+        'name' => 'SEM-COMUN-'.Str::upper(Str::random(6)),
+        'start_date' => now()->subMonth()->toDateString(),
+        'end_date' => now()->addMonth()->toDateString(),
+        'status' => 'OPEN',
+    ]);
+
+    $root = StorageRoot::create([
+        'name' => 'root-common-fm-'.Str::lower(Str::random(8)),
+        'base_path' => 'storage_root',
+        'is_active' => true,
+    ]);
+
+    $semesterFolder = FolderNode::create([
+        'storage_root_id' => $root->id,
+        'name' => $semester->name,
+        'relative_path' => 'sem_'.$semester->id,
+        'owner_user_id' => null,
+        'semester_id' => $semester->id,
+        'parent_id' => null,
+    ]);
+
+    $commonFolder = FolderNode::create([
+        'storage_root_id' => $root->id,
+        'name' => 'FORMATOS',
+        'relative_path' => $semesterFolder->relative_path.'/FORMATOS',
+        'owner_user_id' => null,
+        'semester_id' => $semester->id,
+        'parent_id' => $semesterFolder->id,
+    ]);
+
+    $jefeOficinaRoleId = Role::where('name', Role::JEFE_OFICINA)->value('id');
+    $jefeOficina = User::factory()->create(['role_id' => $jefeOficinaRoleId]);
+
+    $jefeDeptoRoleId = Role::where('name', Role::JEFE_DEPTO)->value('id');
+    $jefeDepto = User::factory()->create(['role_id' => $jefeDeptoRoleId]);
+
+    return compact('semester', 'root', 'semesterFolder', 'commonFolder', 'jefeOficina', 'jefeDepto');
+}
+
 it('does not auto submit evidence when uploading from file manager', function () {
     Storage::fake('local');
 
@@ -155,6 +197,50 @@ it('opens the active teacher folder by default in file manager', function () {
         ->actingAs($ctx['teacher'])
         ->get(route('folders.index'))
         ->assertRedirect(route('folders.show', $ctx['folder']->id));
+});
+
+it('returns only visible docx files from a folder contents endpoint', function () {
+    Storage::fake('local');
+
+    $ctx = createFileManagerContext(windowOpen: true);
+    $docxPath = $ctx['folder']->relative_path.'/plantilla.docx';
+    $pdfPath = $ctx['folder']->relative_path.'/nota.pdf';
+
+    Storage::disk('local')->put($docxPath, 'docx-template');
+    Storage::disk('local')->put($pdfPath, 'pdf-template');
+
+    EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'plantilla.docx',
+        'stored_relative_path' => $docxPath,
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'size_bytes' => strlen('docx-template'),
+        'file_hash' => hash('sha256', 'docx-template'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+        'is_current_version' => true,
+    ]);
+
+    EvidenceFile::create([
+        'submission_id' => $ctx['submission']->id,
+        'folder_node_id' => $ctx['folder']->id,
+        'file_name' => 'nota.pdf',
+        'stored_relative_path' => $pdfPath,
+        'mime_type' => 'application/pdf',
+        'size_bytes' => strlen('pdf-template'),
+        'file_hash' => hash('sha256', 'pdf-template'),
+        'uploaded_at' => now(),
+        'uploaded_by_user_id' => $ctx['teacher']->id,
+        'is_current_version' => true,
+    ]);
+
+    $this
+        ->actingAs($ctx['teacher'])
+        ->get(route('folders.contents', $ctx['folder']->id))
+        ->assertOk()
+        ->assertJsonCount(1, 'contents.files')
+        ->assertJsonPath('contents.files.0.name', 'plantilla.docx');
 });
 
 it('allows file manager upload when regular window already closed and treats it as late workflow', function () {
@@ -271,6 +357,65 @@ it('allows jefe depto to upload files on teacher submission via file manager', f
     $this->assertDatabaseHas('evidence_files', [
         'submission_id' => $ctx['submission']->id,
         'uploaded_by_user_id' => $jefeDepto->id,
+    ]);
+});
+
+it('allows jefe oficina to upload standalone files into a common semester folder', function () {
+    Storage::fake('local');
+
+    $ctx = createCommonFileManagerFolderContext();
+
+    $this
+        ->from(route('folders.show', $ctx['commonFolder']->id))
+        ->actingAs($ctx['jefeOficina'])
+        ->post(route('files.store', $ctx['commonFolder']->id), [
+            'file' => UploadedFile::fake()->create(
+                'formato-comun.docx',
+                24,
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ),
+        ])
+        ->assertRedirect(route('folders.show', $ctx['commonFolder']->id))
+        ->assertSessionHas('success');
+
+    $file = EvidenceFile::query()->firstOrFail();
+
+    expect($file->submission_id)->toBeNull()
+        ->and($file->individual_project_id)->toBeNull()
+        ->and($file->folder_node_id)->toBe($ctx['commonFolder']->id)
+        ->and($file->uploaded_by_user_id)->toBe($ctx['jefeOficina']->id);
+
+    $this
+        ->actingAs($ctx['jefeOficina'])
+        ->get(route('folders.show', $ctx['commonFolder']->id))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('FileManager/Index')
+            ->where('contents.files.0.id', $file->id)
+            ->where('contents.files.0.name', 'formato-comun.docx')
+        );
+});
+
+it('allows jefe depto to upload standalone files into a common semester folder', function () {
+    Storage::fake('local');
+
+    $ctx = createCommonFileManagerFolderContext();
+
+    $this
+        ->from(route('folders.show', $ctx['commonFolder']->id))
+        ->actingAs($ctx['jefeDepto'])
+        ->post(route('files.store', $ctx['commonFolder']->id), [
+            'file' => UploadedFile::fake()->create('formato-comun.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('folders.show', $ctx['commonFolder']->id))
+        ->assertSessionHas('success');
+
+    $this->assertDatabaseHas('evidence_files', [
+        'submission_id' => null,
+        'individual_project_id' => null,
+        'folder_node_id' => $ctx['commonFolder']->id,
+        'file_name' => 'formato-comun.pdf',
+        'uploaded_by_user_id' => $ctx['jefeDepto']->id,
     ]);
 });
 

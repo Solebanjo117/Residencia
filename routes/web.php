@@ -41,6 +41,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('asesorias', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'store'])->name('asesorias.store');
         Route::match(['put', 'post'], 'asesorias/{session}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'update'])->name('asesorias.update');
         Route::delete('asesorias/{id}', [\App\Http\Controllers\Teacher\AdvisorySessionController::class, 'destroy'])->name('asesorias.destroy');
+
+        Route::get('proyectos-individuales', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'index'])->name('proyectos-individuales.index');
+        Route::post('proyectos-individuales', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'store'])->name('proyectos-individuales.store');
+        Route::get('proyectos-individuales/{project}', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'show'])->name('proyectos-individuales.show');
+        Route::patch('proyectos-individuales/{project}/folder', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'updateFolder'])->name('proyectos-individuales.folder');
+        Route::post('proyectos-individuales/{project}/docx', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'uploadDocx'])->name('proyectos-individuales.docx');
+        Route::post('proyectos-individuales/{project}/docx/editor', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'storeDocxEditor'])->name('proyectos-individuales.docx-editor');
+        Route::post('proyectos-individuales/{project}/template', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'applyTemplate'])->name('proyectos-individuales.template');
+        Route::post('proyectos-individuales/{project}/submit', [\App\Http\Controllers\Teacher\IndividualProjectController::class, 'submit'])->name('proyectos-individuales.submit');
     });
 
     // Rutas para Jefe de Oficina
@@ -50,6 +59,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('revisiones/{submission}/status', [\App\Http\Controllers\Admin\ReviewController::class, 'updateStatus'])->name('revisiones.status');
 
         Route::get('reportes', [\App\Http\Controllers\Admin\ReportController::class, 'index'])->name('reportes');
+
+        Route::get('proyectos-individuales', [\App\Http\Controllers\Admin\IndividualProjectController::class, 'index'])->name('proyectos-individuales.index');
+        Route::get('proyectos-individuales/{project}', [\App\Http\Controllers\Admin\IndividualProjectController::class, 'show'])->name('proyectos-individuales.show');
+        Route::post('proyectos-individuales/{project}/approve', [\App\Http\Controllers\Admin\IndividualProjectController::class, 'approve'])->name('proyectos-individuales.approve');
+        Route::post('proyectos-individuales/{project}/reject', [\App\Http\Controllers\Admin\IndividualProjectController::class, 'reject'])->name('proyectos-individuales.reject');
     });
 
     // Rutas para Jefe de Departamento (redirige a Admin que ya tiene middleware de rol compartido)
@@ -121,6 +135,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // File Manager Routes
     Route::get('/files/manager', [FolderController::class, 'index'])->name('folders.index');
     Route::get('/files/folders/{folder}', [FolderController::class, 'show'])->whereNumber('folder')->name('folders.show');
+    Route::get('/files/folders/{folder}/contents', [FolderController::class, 'contents'])->whereNumber('folder')->name('folders.contents');
     Route::get('/files/folders/{folderPath}', [FolderController::class, 'showByPath'])->where('folderPath', '.*')->name('folders.show-path');
     Route::post('/files/folders/{folder}/folders', [FolderController::class, 'storeSubfolder'])->name('folders.store');
     Route::patch('/files/folders/{folder}', [FolderController::class, 'update'])->name('folders.update');

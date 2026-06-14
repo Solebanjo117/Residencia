@@ -91,11 +91,42 @@ class DocxEditorService
         ?string $headerHtml = null,
         ?string $footerHtml = null
     ): EvidenceFile {
+        return $this->saveDocumentWithRewritePolicy($file, $html, $user, $headerHtml, $footerHtml, false);
+    }
+
+    public function saveProjectCopyAllowingUnsafeRewrite(
+        EvidenceFile $file,
+        string $html,
+        User $user,
+        ?string $headerHtml = null,
+        ?string $footerHtml = null
+    ): EvidenceFile {
+        return $this->saveDocumentWithRewritePolicy($file, $html, $user, $headerHtml, $footerHtml, true);
+    }
+
+    public function saveDocumentAllowingUnsafeRewrite(
+        EvidenceFile $file,
+        string $html,
+        User $user,
+        ?string $headerHtml = null,
+        ?string $footerHtml = null
+    ): EvidenceFile {
+        return $this->saveDocumentWithRewritePolicy($file, $html, $user, $headerHtml, $footerHtml, true);
+    }
+
+    private function saveDocumentWithRewritePolicy(
+        EvidenceFile $file,
+        string $html,
+        User $user,
+        ?string $headerHtml,
+        ?string $footerHtml,
+        bool $allowUnsafeRewrite
+    ): EvidenceFile {
         $this->ensureEditableDocx($file);
         $absolutePath = $this->ensureFileExists($file);
         $package = $this->readPackage($absolutePath);
         $rewriteSafety = $this->analyzePackageRewriteSafety($package);
-        if (! $rewriteSafety['safe_to_save']) {
+        if (! $rewriteSafety['safe_to_save'] && ! $allowUnsafeRewrite) {
             throw new RuntimeException(
                 'Este DOCX contiene estructura avanzada de Word que el editor web no puede preservar al 100%. Para evitar corrupcion o cambios de formato, descarga y editalo en Word/Google Docs, o reemplaza el archivo desde el gestor.'
             );
@@ -138,6 +169,8 @@ class DocxEditorService
                 'source_file_id' => $file->id,
                 'save_mode' => 'replace_current',
                 'warnings' => $parsed['warnings'],
+                'unsafe_rewrite_acknowledged' => $allowUnsafeRewrite && ! $rewriteSafety['safe_to_save'],
+                'blocking_features' => $rewriteSafety['blocking_features'],
                 'normalized_block_count' => count($parsed['blocks']),
             ]
         );

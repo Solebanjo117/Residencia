@@ -14,6 +14,7 @@ use App\Services\DocxEditorService;
 use App\Services\EvidenceFlowService;
 use App\Services\NotificationService;
 use App\Services\OnlyOfficeService;
+use App\Support\FolderOwnership;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use RuntimeException;
@@ -35,12 +36,13 @@ class DocxEditorController extends Controller
                 $canEdit = false;
             }
         }
+        $allowUnsafeRewrite = $this->canAllowUnsafeRewrite($request->user(), $file, $canEdit);
         $payload = null;
         $loadError = null;
 
         try {
             $payload = $docxEditorService->loadDocument($file);
-            if (! ($payload['safe_to_save'] ?? true)) {
+            if (! ($payload['safe_to_save'] ?? true) && ! $allowUnsafeRewrite) {
                 $canEdit = false;
             }
         } catch (RuntimeException $exception) {
@@ -80,6 +82,7 @@ class DocxEditorController extends Controller
             ],
             'capabilities' => [
                 'can_edit' => $canEdit,
+                'allow_unsafe_rewrite' => $allowUnsafeRewrite && $canEdit,
             ],
         ]);
     }
@@ -108,13 +111,21 @@ class DocxEditorController extends Controller
         ]);
 
         try {
-            $savedFile = $docxEditorService->saveDocument(
-                $file,
-                $validated['html'],
-                $request->user(),
-                $validated['header_html'] ?? null,
-                $validated['footer_html'] ?? null
-            );
+            $savedFile = $this->canAllowUnsafeRewrite($request->user(), $file, true)
+                ? $docxEditorService->saveDocumentAllowingUnsafeRewrite(
+                    $file,
+                    $validated['html'],
+                    $request->user(),
+                    $validated['header_html'] ?? null,
+                    $validated['footer_html'] ?? null
+                )
+                : $docxEditorService->saveDocument(
+                    $file,
+                    $validated['html'],
+                    $request->user(),
+                    $validated['header_html'] ?? null,
+                    $validated['footer_html'] ?? null
+                );
 
             $savedFile->submission?->update([
                 'last_updated_at' => now(),
@@ -134,6 +145,19 @@ class DocxEditorController extends Controller
     private function canBypassAvailability($user): bool
     {
         return $user->isJefeOficina() || $user->isJefeDepto();
+    }
+
+    private function canAllowUnsafeRewrite(User $user, EvidenceFile $file, bool $canEdit): bool
+    {
+        if (! $canEdit || ! $user->isDocente()) {
+            return false;
+        }
+
+        if ($file->submission_id !== null) {
+            return false;
+        }
+
+        return FolderOwnership::isOwnedByOrInsideOwnedFolder($user, $file->folderNode);
     }
 
     private function readableFolderUrl(FolderNode $folder): string
